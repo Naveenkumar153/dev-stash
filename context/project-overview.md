@@ -379,8 +379,24 @@ model Tag {
 - Dark mode by default; light mode optional.
 - Clean typography, generous whitespace.
 - Subtle borders and shadows.
-- **References:** Notion, Linear, Raycast.
+- **References:** 
+  Notion (https://notion.so), 
+  - Clean organization
+  Linear (https://linear.app),
+  - Modern dev aesthetic 
+  Raycast (https://raycast.com)
+  - Quick access pattern
 - Syntax highlighting for code blocks.
+
+### Screenshots
+
+- Refer to the screenshots below as a base for dashboard UI. It does not have to the exact. Use it for the reference below:
+@context/screenshots/dashboard-ui-drawer.png 
+@context/screenshots/dashboard-ui-main.png 
+@context/screenshots/homepage-full-visible.png 
+@context/screenshots/homepage-full.png 
+@context/screenshots/homepage-mobile.png 
+
 
 ### Layout
 
