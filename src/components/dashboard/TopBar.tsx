@@ -1,15 +1,18 @@
 import { FolderPlus, Plus, Search } from "lucide-react";
 
+import { SidebarToggle } from "@/components/dashboard/SidebarToggle";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 /**
- * Dashboard top bar. Display only for now - the search field and the two
- * actions are not wired up to any behaviour yet.
+ * Dashboard top bar. Apart from the sidebar toggle this is display only - the
+ * search field and the two actions are not wired up to any behaviour yet.
  */
 export function TopBar() {
   return (
     <header className="flex h-16 shrink-0 items-center gap-3 border-b border-border px-4 sm:px-6">
+      <SidebarToggle />
+
       <div className="relative min-w-0 flex-1 max-w-lg">
         <Search
           aria-hidden
