@@ -1,3 +1,91 @@
+import Link from "next/link";
+import { Clock, Pin } from "lucide-react";
+
+import { CollectionCard } from "@/components/dashboard/CollectionCard";
+import { ItemCard } from "@/components/dashboard/ItemCard";
+import { StatsCards } from "@/components/dashboard/StatsCards";
+import {
+  getPinnedItems,
+  getRecentCollections,
+  getRecentItems,
+} from "@/lib/dashboard";
+import type { Item } from "@/lib/mock-data";
+
+interface ItemSectionProps {
+  title: string;
+  icon: React.ReactNode;
+  items: Item[];
+  emptyMessage: string;
+}
+
+function ItemSection({ title, icon, items, emptyMessage }: ItemSectionProps) {
+  return (
+    <section className="flex flex-col gap-4">
+      <h2 className="flex items-center gap-2 font-heading text-xl font-semibold">
+        {icon}
+        {title}
+      </h2>
+
+      {items.length === 0 ? (
+        <p className="text-sm text-muted-foreground">{emptyMessage}</p>
+      ) : (
+        <div className="flex flex-col gap-3">
+          {items.map((item) => (
+            <ItemCard key={item.id} item={item} />
+          ))}
+        </div>
+      )}
+    </section>
+  );
+}
+
 export default function DashboardPage() {
-  return <h2 className="text-lg font-semibold">Main</h2>;
+  const collections = getRecentCollections();
+  const pinnedItems = getPinnedItems();
+  const recentItems = getRecentItems();
+
+  return (
+    <div className="mx-auto flex w-full max-w-7xl flex-col gap-8">
+      <header>
+        <h1 className="font-heading text-3xl font-semibold">Dashboard</h1>
+        <p className="mt-1 text-muted-foreground">
+          Your developer knowledge hub
+        </p>
+      </header>
+
+      <StatsCards />
+
+      <section className="flex flex-col gap-4">
+        <div className="flex items-center justify-between gap-4">
+          <h2 className="font-heading text-xl font-semibold">Collections</h2>
+          <Link
+            href="/collections"
+            className="text-sm text-muted-foreground transition-colors hover:text-foreground"
+          >
+            View all
+          </Link>
+        </div>
+
+        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          {collections.map((collection) => (
+            <CollectionCard key={collection.id} collection={collection} />
+          ))}
+        </div>
+      </section>
+
+      <ItemSection
+        title="Pinned"
+        icon={<Pin aria-hidden className="size-5 text-muted-foreground" />}
+        items={pinnedItems}
+        emptyMessage="Nothing pinned yet."
+      />
+
+      <ItemSection
+        title="Recent"
+        icon={<Clock aria-hidden className="size-5 text-muted-foreground" />}
+        items={recentItems}
+        emptyMessage="No items yet."
+      />
+    </div>
+  );
 }
