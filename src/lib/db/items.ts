@@ -1,6 +1,7 @@
 import { connection } from "next/server";
 
 import { getCurrentUserId } from "@/lib/db/user";
+import { compareItemTypeOrder } from "@/lib/item-types";
 import { prisma } from "@/lib/prisma";
 
 const RECENT_ITEM_LIMIT = 10;
@@ -88,4 +89,49 @@ export async function getRecentItems(
   });
 
   return items.map(toSummary);
+}
+
+export interface ItemTypeCount {
+  id: string;
+  /** Item type name, e.g. "snippet" - drives the icon, colors and route. */
+  name: string;
+  /** How many of the user's items carry this type. */
+  count: number;
+}
+
+/**
+ * Every type the user can file an item under - the system types plus their own
+ * custom ones - with their item counts, for the sidebar. Two queries rather
+ * than one count per type, joined in memory.
+ */
+export async function getItemTypeCounts(): Promise<ItemTypeCount[]> {
+  // See getRecentCollections: keeps the sidebar out of the prerender.
+  await connection();
+
+  const userId = await getCurrentUserId();
+
+  const [types, counts] = await Promise.all([
+    prisma.itemType.findMany({
+      // Custom types are Pro-only and not built yet, but scoping the query now
+      // means the sidebar picks them up for free once they land.
+      where: userId ? { OR: [{ isSystem: true }, { userId }] } : { isSystem: true },
+      select: { id: true, name: true },
+    }),
+    userId
+      ? prisma.item.groupBy({
+          by: ["itemTypeId"],
+          where: { userId },
+          _count: { _all: true },
+        })
+      : [],
+  ]);
+
+  const countByTypeId = new Map(
+    counts.map((row) => [row.itemTypeId, row._count._all]),
+  );
+
+  // An unseeded database still lists the types, all at zero.
+  return types
+    .map((type) => ({ ...type, count: countByTypeId.get(type.id) ?? 0 }))
+    .sort((a, b) => compareItemTypeOrder(a.name, b.name));
 }

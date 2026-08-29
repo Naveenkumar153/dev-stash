@@ -6,16 +6,25 @@ import { Layers } from "lucide-react";
 import { SidebarNav } from "@/components/dashboard/SidebarNav";
 import { SidebarUser } from "@/components/dashboard/SidebarUser";
 import { Separator } from "@/components/ui/separator";
+import type { SidebarCollections } from "@/lib/db/collections";
+import type { ItemTypeCount } from "@/lib/db/items";
 import { cn } from "@/lib/utils";
 
 interface SidebarBodyProps {
+  itemTypes: ItemTypeCount[];
+  collections: SidebarCollections;
   collapsed: boolean;
   /** Called after a link is followed - closes the drawer on mobile. */
   onNavigate?: () => void;
 }
 
 /** Shared sidebar content for both the desktop column and the mobile drawer. */
-export function SidebarBody({ collapsed, onNavigate }: SidebarBodyProps) {
+export function SidebarBody({
+  itemTypes,
+  collections,
+  collapsed,
+  onNavigate,
+}: SidebarBodyProps) {
   return (
     <div className="flex h-full flex-col bg-sidebar text-sidebar-foreground">
       <Link
@@ -34,7 +43,12 @@ export function SidebarBody({ collapsed, onNavigate }: SidebarBodyProps) {
         )}
       </Link>
 
-      <SidebarNav collapsed={collapsed} onNavigate={onNavigate} />
+      <SidebarNav
+        itemTypes={itemTypes}
+        collections={collections}
+        collapsed={collapsed}
+        onNavigate={onNavigate}
+      />
 
       <Separator />
       <SidebarUser collapsed={collapsed} />
