@@ -4,11 +4,8 @@ import { Clock, Pin } from "lucide-react";
 import { CollectionCard } from "@/components/dashboard/CollectionCard";
 import { ItemCard } from "@/components/dashboard/ItemCard";
 import { StatsCards } from "@/components/dashboard/StatsCards";
-import {
-  getPinnedItems,
-  getRecentCollections,
-  getRecentItems,
-} from "@/lib/dashboard";
+import { getPinnedItems, getRecentItems } from "@/lib/dashboard";
+import { getRecentCollections } from "@/lib/db/collections";
 import type { Item } from "@/lib/mock-data";
 
 interface ItemSectionProps {
@@ -39,8 +36,8 @@ function ItemSection({ title, icon, items, emptyMessage }: ItemSectionProps) {
   );
 }
 
-export default function DashboardPage() {
-  const collections = getRecentCollections();
+export default async function DashboardPage() {
+  const collections = await getRecentCollections();
   const pinnedItems = getPinnedItems();
   const recentItems = getRecentItems();
 
@@ -66,11 +63,15 @@ export default function DashboardPage() {
           </Link>
         </div>
 
-        <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-          {collections.map((collection) => (
-            <CollectionCard key={collection.id} collection={collection} />
-          ))}
-        </div>
+        {collections.length === 0 ? (
+          <p className="text-sm text-muted-foreground">No collections yet.</p>
+        ) : (
+          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+            {collections.map((collection) => (
+              <CollectionCard key={collection.id} collection={collection} />
+            ))}
+          </div>
+        )}
       </section>
 
       <ItemSection

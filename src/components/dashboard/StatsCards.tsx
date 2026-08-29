@@ -1,7 +1,7 @@
 import { Folder, FolderHeart, Layers, Star, type LucideIcon } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
-import { getDashboardStats } from "@/lib/dashboard";
+import { getDashboardStats } from "@/lib/db/stats";
 
 interface Stat {
   label: string;
@@ -22,8 +22,8 @@ function StatCard({ label, value, icon: Icon }: Stat) {
 }
 
 /** Totals for the user's stash, shown at the top of the dashboard. */
-export function StatsCards() {
-  const stats = getDashboardStats();
+export async function StatsCards() {
+  const stats = await getDashboardStats();
 
   const cards: Stat[] = [
     { label: "Items", value: stats.items, icon: Layers },

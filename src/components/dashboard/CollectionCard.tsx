@@ -2,8 +2,8 @@ import Link from "next/link";
 import { Star } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
-import type { CollectionSummary } from "@/lib/dashboard";
-import { getItemTypeName, getItemTypeStyle } from "@/lib/item-types";
+import type { CollectionSummary } from "@/lib/db/collections";
+import { getItemTypeLabel, getItemTypeStyleByName } from "@/lib/item-types";
 import { cn } from "@/lib/utils";
 
 /**
@@ -13,9 +13,9 @@ import { cn } from "@/lib/utils";
 export function CollectionCard({
   collection,
 }: Readonly<{ collection: CollectionSummary }>) {
-  const { dominantTypeId, typeIds } = collection;
-  const accent = dominantTypeId
-    ? getItemTypeStyle(dominantTypeId).borderClass
+  const { dominantTypeName, typeNames } = collection;
+  const accent = dominantTypeName
+    ? getItemTypeStyleByName(dominantTypeName).borderClass
     : "border-l-border";
 
   return (
@@ -51,13 +51,13 @@ export function CollectionCard({
       )}
 
       <div className="mt-auto flex items-center gap-2">
-        {typeIds.map((typeId) => {
-          const { icon: Icon, colorClass } = getItemTypeStyle(typeId);
+        {typeNames.map((typeName) => {
+          const { icon: Icon, colorClass } = getItemTypeStyleByName(typeName);
 
           return (
             <Icon
-              key={typeId}
-              aria-label={getItemTypeName(typeId)}
+              key={typeName}
+              aria-label={getItemTypeLabel(typeName)}
               className={cn("size-4", colorClass)}
             />
           );
