@@ -3,19 +3,18 @@ import { Pin, Star } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
-import { formatShortDate } from "@/lib/dashboard";
-import { getItemTypeName, getItemTypeStyle } from "@/lib/item-types";
-import type { Item } from "@/lib/mock-data";
+import type { ItemSummary } from "@/lib/db/items";
+import { formatShortDate } from "@/lib/format";
+import { getItemTypeLabel, getItemTypeStyleByName } from "@/lib/item-types";
 import { cn } from "@/lib/utils";
 
 /**
  * Item row card, color-coded on its left edge by item type. Used for both the
  * pinned and the recent lists.
  */
-export function ItemCard({ item }: Readonly<{ item: Item }>) {
-  const { icon: Icon, colorClass, borderClass, bgClass } = getItemTypeStyle(
-    item.itemTypeId,
-  );
+export function ItemCard({ item }: Readonly<{ item: ItemSummary }>) {
+  const { icon: Icon, colorClass, borderClass, bgClass } =
+    getItemTypeStyleByName(item.typeName);
 
   return (
     <Card
@@ -32,7 +31,7 @@ export function ItemCard({ item }: Readonly<{ item: Item }>) {
           )}
         >
           <Icon
-            aria-label={getItemTypeName(item.itemTypeId)}
+            aria-label={getItemTypeLabel(item.typeName)}
             className={cn("size-5", colorClass)}
           />
         </span>
@@ -76,7 +75,7 @@ export function ItemCard({ item }: Readonly<{ item: Item }>) {
         </div>
 
         <time
-          dateTime={item.createdAt}
+          dateTime={item.createdAt.toISOString()}
           className="hidden shrink-0 text-xs text-muted-foreground sm:block"
         >
           {formatShortDate(item.createdAt)}

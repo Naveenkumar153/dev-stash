@@ -4,18 +4,22 @@ import { Clock, Pin } from "lucide-react";
 import { CollectionCard } from "@/components/dashboard/CollectionCard";
 import { ItemCard } from "@/components/dashboard/ItemCard";
 import { StatsCards } from "@/components/dashboard/StatsCards";
-import { getPinnedItems, getRecentItems } from "@/lib/dashboard";
 import { getRecentCollections } from "@/lib/db/collections";
-import type { Item } from "@/lib/mock-data";
+import { getPinnedItems, getRecentItems, type ItemSummary } from "@/lib/db/items";
 
 interface ItemSectionProps {
   title: string;
   icon: React.ReactNode;
-  items: Item[];
-  emptyMessage: string;
+  items: ItemSummary[];
+  /** Shown when the list is empty. Omit to drop the section instead. */
+  emptyMessage?: string;
 }
 
 function ItemSection({ title, icon, items, emptyMessage }: ItemSectionProps) {
+  if (items.length === 0 && !emptyMessage) {
+    return null;
+  }
+
   return (
     <section className="flex flex-col gap-4">
       <h2 className="flex items-center gap-2 font-heading text-xl font-semibold">
@@ -37,9 +41,11 @@ function ItemSection({ title, icon, items, emptyMessage }: ItemSectionProps) {
 }
 
 export default async function DashboardPage() {
-  const collections = await getRecentCollections();
-  const pinnedItems = getPinnedItems();
-  const recentItems = getRecentItems();
+  const [collections, pinnedItems, recentItems] = await Promise.all([
+    getRecentCollections(),
+    getPinnedItems(),
+    getRecentItems(),
+  ]);
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-8">
@@ -74,11 +80,11 @@ export default async function DashboardPage() {
         )}
       </section>
 
+      {/* Nothing to pin, nothing to show - the section disappears entirely. */}
       <ItemSection
         title="Pinned"
         icon={<Pin aria-hidden className="size-5 text-muted-foreground" />}
         items={pinnedItems}
-        emptyMessage="Nothing pinned yet."
       />
 
       <ItemSection
