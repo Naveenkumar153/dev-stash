@@ -23,5 +23,11 @@ Read the following files to get the full context of the project:
 - `npm run build` — production build
 - `npm run start` — start production server (requires build first)
 - `npm run lint` — run ESLint (flat config, `eslint.config.mjs`)
+- `npm run db:migrate` — create + apply a migration against the dev database (`prisma migrate dev`)
+- `npm run db:deploy` — apply pending migrations in production (`prisma migrate deploy`)
+- `npm run db:status` — check migrations are in sync (`prisma migrate status`)
+- `npm run db:generate` — regenerate Prisma Client into `src/generated/prisma` (also runs on `postinstall`)
+- `npm run db:studio` — open Prisma Studio
+- `npm run db:test` — verify the DB connection, applied migrations and all tables (`scripts/test-db.ts`)
 
 <!-- No test runner is configured in this project. -->
