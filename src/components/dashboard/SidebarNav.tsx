@@ -3,7 +3,7 @@
 import { useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ChevronDown, Folder, Star } from "lucide-react";
+import { ArrowRight, ChevronDown, Folder, Star } from "lucide-react";
 
 import { Separator } from "@/components/ui/separator";
 import {
@@ -12,11 +12,14 @@ import {
   TooltipProvider,
   TooltipTrigger,
 } from "@/components/ui/tooltip";
-import { getItemTypeNav } from "@/lib/item-types";
-import { collections } from "@/lib/mock-data";
+import type { SidebarCollections } from "@/lib/db/collections";
+import type { ItemTypeCount } from "@/lib/db/items";
+import {
+  getItemTypeHref,
+  getItemTypePlural,
+  getItemTypeStyleByName,
+} from "@/lib/item-types";
 import { cn } from "@/lib/utils";
-
-const RECENT_COLLECTION_LIMIT = 5;
 
 interface NavRowProps {
   href: string;
@@ -120,24 +123,39 @@ function GroupLabel({ children }: Readonly<{ children: React.ReactNode }>) {
   );
 }
 
+/**
+ * Stands in for a collection's folder icon under Recent, colored by the type
+ * the collection holds most of. Empty collections get a neutral dot.
+ */
+function CollectionDot({ typeName }: Readonly<{ typeName: string | null }>) {
+  return (
+    <span
+      aria-hidden
+      className={cn(
+        "size-2.5 rounded-full",
+        typeName
+          ? getItemTypeStyleByName(typeName).dotClass
+          : "bg-muted-foreground/50",
+      )}
+    />
+  );
+}
+
 interface SidebarNavProps {
+  itemTypes: ItemTypeCount[];
+  collections: SidebarCollections;
   collapsed: boolean;
   onNavigate?: () => void;
 }
 
-export function SidebarNav({ collapsed, onNavigate }: SidebarNavProps) {
-  const typeNav = getItemTypeNav();
-
-  const favoriteCollections = collections.filter(
-    (collection) => collection.isFavorite,
-  );
-  const favoriteIds = new Set(
-    favoriteCollections.map((collection) => collection.id),
-  );
-  const recentCollections = collections
-    .filter((collection) => !favoriteIds.has(collection.id))
-    .sort((a, b) => b.createdAt.localeCompare(a.createdAt))
-    .slice(0, RECENT_COLLECTION_LIMIT);
+export function SidebarNav({
+  itemTypes,
+  collections,
+  collapsed,
+  onNavigate,
+}: SidebarNavProps) {
+  const { favorites, recent } = collections;
+  const hasCollections = favorites.length > 0 || recent.length > 0;
 
   return (
     <TooltipProvider>
@@ -146,52 +164,78 @@ export function SidebarNav({ collapsed, onNavigate }: SidebarNavProps) {
         className={cn("flex-1 overflow-y-auto py-2", collapsed ? "px-3" : "px-2")}
       >
         <NavGroup title="Types" collapsed={collapsed}>
-          {typeNav.map((type) => (
-            <NavRow
-              key={type.id}
-              href={type.href}
-              label={type.label}
-              meta={type.count}
-              collapsed={collapsed}
-              onNavigate={onNavigate}
-              icon={<type.icon className={cn("size-4", type.colorClass)} />}
-            />
-          ))}
+          {itemTypes.map((type) => {
+            const { icon: Icon, colorClass } = getItemTypeStyleByName(type.name);
+
+            return (
+              <NavRow
+                key={type.id}
+                href={getItemTypeHref(type.name)}
+                label={getItemTypePlural(type.name)}
+                meta={type.count}
+                collapsed={collapsed}
+                onNavigate={onNavigate}
+                icon={<Icon className={cn("size-4", colorClass)} />}
+              />
+            );
+          })}
         </NavGroup>
 
         <Separator className="my-3" />
 
         <NavGroup title="Collections" collapsed={collapsed}>
-          {!collapsed && <GroupLabel>Favorites</GroupLabel>}
-          {favoriteCollections.map((collection) => (
-            <NavRow
-              key={collection.id}
-              href={`/collections/${collection.id}`}
-              label={collection.name}
-              collapsed={collapsed}
-              onNavigate={onNavigate}
-              icon={<Folder className="size-4" />}
-              meta={
-                <Star
-                  aria-hidden
-                  className="size-3.5 fill-amber-400 text-amber-400"
+          {favorites.length > 0 && (
+            <>
+              {!collapsed && <GroupLabel>Favorites</GroupLabel>}
+              {favorites.map((collection) => (
+                <NavRow
+                  key={collection.id}
+                  href={`/collections/${collection.id}`}
+                  label={collection.name}
+                  collapsed={collapsed}
+                  onNavigate={onNavigate}
+                  icon={<Folder className="size-4" />}
+                  meta={
+                    <Star
+                      aria-hidden
+                      className="size-3.5 fill-amber-400 text-amber-400"
+                    />
+                  }
                 />
-              }
-            />
-          ))}
+              ))}
+            </>
+          )}
 
-          {!collapsed && <GroupLabel>Recent</GroupLabel>}
-          {recentCollections.map((collection) => (
-            <NavRow
-              key={collection.id}
-              href={`/collections/${collection.id}`}
-              label={collection.name}
-              meta={collection.itemCount}
-              collapsed={collapsed}
-              onNavigate={onNavigate}
-              icon={<Folder className="size-4" />}
-            />
-          ))}
+          {recent.length > 0 && (
+            <>
+              {!collapsed && <GroupLabel>Recent</GroupLabel>}
+              {recent.map((collection) => (
+                <NavRow
+                  key={collection.id}
+                  href={`/collections/${collection.id}`}
+                  label={collection.name}
+                  meta={collection.itemCount}
+                  collapsed={collapsed}
+                  onNavigate={onNavigate}
+                  icon={<CollectionDot typeName={collection.dominantTypeName} />}
+                />
+              ))}
+            </>
+          )}
+
+          {!hasCollections && !collapsed && (
+            <p className="px-3 py-1.5 text-sm text-muted-foreground">
+              No collections yet.
+            </p>
+          )}
+
+          <NavRow
+            href="/collections"
+            label="View all collections"
+            collapsed={collapsed}
+            onNavigate={onNavigate}
+            icon={<ArrowRight className="size-4 text-muted-foreground" />}
+          />
         </NavGroup>
       </nav>
     </TooltipProvider>

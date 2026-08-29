@@ -1,10 +1,11 @@
 import { connection } from "next/server";
 
 import { getCurrentUserId } from "@/lib/db/user";
-import { ITEM_TYPE_ORDER } from "@/lib/item-types";
+import { compareItemTypeOrder } from "@/lib/item-types";
 import { prisma } from "@/lib/prisma";
 
 const RECENT_COLLECTION_LIMIT = 6;
+const SIDEBAR_COLLECTION_LIMIT = 5;
 
 export interface CollectionSummary {
   id: string;
@@ -27,10 +28,16 @@ interface CollectionRow {
   items: { item: { itemType: { name: string } } }[];
 }
 
-/** Item type display order, so a collection's icons always line up. */
-function byTypeOrder(a: string, b: string) {
-  return ITEM_TYPE_ORDER.indexOf(a) - ITEM_TYPE_ORDER.indexOf(b);
-}
+/** A collection plus the item types behind it, in one round trip. */
+const COLLECTION_SUMMARY_SELECT = {
+  id: true,
+  name: true,
+  description: true,
+  isFavorite: true,
+  items: {
+    select: { item: { select: { itemType: { select: { name: true } } } } },
+  },
+} as const;
 
 /**
  * Which types a collection holds, in item type order, with the most common one
@@ -44,7 +51,7 @@ function summarize({ items, ...collection }: CollectionRow): CollectionSummary {
     counts.set(name, (counts.get(name) ?? 0) + 1);
   }
 
-  const typeNames = [...counts.keys()].sort(byTypeOrder);
+  const typeNames = [...counts.keys()].sort(compareItemTypeOrder);
   const dominantTypeName =
     [...typeNames].sort((a, b) => (counts.get(b) ?? 0) - (counts.get(a) ?? 0))[0] ??
     null;
@@ -79,16 +86,52 @@ export async function getRecentCollections(
     where: { userId },
     orderBy: { createdAt: "desc" },
     take: limit,
-    select: {
-      id: true,
-      name: true,
-      description: true,
-      isFavorite: true,
-      items: {
-        select: { item: { select: { itemType: { select: { name: true } } } } },
-      },
-    },
+    select: COLLECTION_SUMMARY_SELECT,
   });
 
   return collections.map(summarize);
+}
+
+export interface SidebarCollections {
+  favorites: CollectionSummary[];
+  /** The newest collections the user has not favorited. */
+  recent: CollectionSummary[];
+}
+
+const EMPTY_SIDEBAR_COLLECTIONS: SidebarCollections = {
+  favorites: [],
+  recent: [],
+};
+
+/**
+ * The two collection lists in the sidebar. Favorites are pulled out first so a
+ * favorited collection never also shows up under Recent.
+ */
+export async function getSidebarCollections(
+  limit = SIDEBAR_COLLECTION_LIMIT,
+): Promise<SidebarCollections> {
+  await connection();
+
+  const userId = await getCurrentUserId();
+
+  if (!userId) {
+    return EMPTY_SIDEBAR_COLLECTIONS;
+  }
+
+  const [favorites, recent] = await Promise.all([
+    prisma.collection.findMany({
+      where: { userId, isFavorite: true },
+      orderBy: { createdAt: "desc" },
+      take: limit,
+      select: COLLECTION_SUMMARY_SELECT,
+    }),
+    prisma.collection.findMany({
+      where: { userId, isFavorite: false },
+      orderBy: { createdAt: "desc" },
+      take: limit,
+      select: COLLECTION_SUMMARY_SELECT,
+    }),
+  ]);
+
+  return { favorites: favorites.map(summarize), recent: recent.map(summarize) };
 }
