@@ -1,0 +1,203 @@
+// DevStash — Prisma schema
+// Prisma 7: the `prisma-client` generator requires an explicit `output`, and the
+// datasource URL lives in `prisma.config.ts` (not in this file).
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+  runtime  = "nodejs"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// --- Content kind for an item's payload ---
+enum ContentType {
+  text
+  url
+  file
+}
+
+model User {
+  id            String    @id @default(cuid())
+  email         String    @unique
+  emailVerified DateTime?
+  name          String?
+  image         String?
+
+  // Credentials auth (email / password). Null for OAuth-only accounts.
+  passwordHash String?
+
+  // Billing / entitlement
+  isPro                Boolean @default(false)
+  stripeCustomerId     String? @unique
+  stripeSubscriptionId String? @unique
+
+  // Relations
+  items       Item[]
+  collections Collection[]
+  itemTypes   ItemType[] // custom (user-owned) types only
+
+  accounts Account[] // NextAuth
+  sessions Session[] // NextAuth
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@map("users")
+}
+
+model ItemType {
+  id       String  @id @default(cuid())
+  name     String
+  icon     String
+  color    String
+  isSystem Boolean @default(false)
+
+  // null for system types; set for user-created custom types
+  userId String?
+  user   User?   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  items                 Item[]
+  defaultForCollections Collection[] @relation("CollectionDefaultType")
+
+  @@unique([userId, name])
+  @@index([userId])
+  @@map("item_types")
+}
+
+model Item {
+  id          String      @id @default(cuid())
+  title       String
+  contentType ContentType @default(text)
+
+  // Text payload (null when file-based)
+  content String?
+
+  // File payload (null when text-based)
+  fileUrl  String? // Cloudflare R2 URL
+  fileName String?
+  fileSize Int? // bytes
+
+  // Link payload
+  url String?
+
+  description String?
+  isFavorite  Boolean @default(false)
+  isPinned    Boolean @default(false)
+  language    String? // optional syntax-highlight hint for code
+
+  // Relations
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  itemTypeId String
+  itemType   ItemType @relation(fields: [itemTypeId], references: [id])
+
+  tags        Tag[]
+  collections ItemCollection[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([itemTypeId])
+  @@map("items")
+}
+
+model Collection {
+  id          String  @id @default(cuid())
+  name        String
+  description String?
+  isFavorite  Boolean @default(false)
+
+  // Default type for a brand-new, empty collection
+  defaultTypeId String?
+  defaultType   ItemType? @relation("CollectionDefaultType", fields: [defaultTypeId], references: [id])
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  items ItemCollection[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@index([defaultTypeId])
+  @@map("collections")
+}
+
+// Join table: Item <-> Collection (many-to-many, with metadata)
+model ItemCollection {
+  itemId String
+  item   Item   @relation(fields: [itemId], references: [id], onDelete: Cascade)
+
+  collectionId String
+  collection   Collection @relation(fields: [collectionId], references: [id], onDelete: Cascade)
+
+  addedAt DateTime @default(now())
+
+  @@id([itemId, collectionId])
+  @@index([collectionId])
+  @@map("item_collections")
+}
+
+model Tag {
+  id    String @id @default(cuid())
+  name  String @unique
+  items Item[]
+
+  @@map("tags")
+}
+
+// --- NextAuth v5 ---
+
+model Account {
+  id                String  @id @default(cuid())
+  userId            String
+  type              String
+  provider          String
+  providerAccountId String
+  refresh_token     String?
+  access_token      String?
+  expires_at        Int?
+  token_type        String?
+  scope             String?
+  id_token          String?
+  session_state     String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@unique([provider, providerAccountId])
+  @@index([userId])
+  @@map("accounts")
+}
+
+model Session {
+  id           String   @id @default(cuid())
+  sessionToken String   @unique
+  userId       String
+  expires      DateTime
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId])
+  @@map("sessions")
+}
+
+model VerificationToken {
+  identifier String
+  token      String
+  expires    DateTime
+
+  @@unique([identifier, token])
+  @@map("verification_tokens")
+}
