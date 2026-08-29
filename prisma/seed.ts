@@ -4,8 +4,8 @@
  * Run with: npm run db:seed
  *
  * Creates a demo user, the 7 system item types, and 5 collections holding 18
- * items. Safe to re-run: system types are matched by name, and the demo user's
- * collections and items are cleared before being recreated.
+ * tagged items. Safe to re-run: system types are matched by name, and the demo
+ * user's collections and items are cleared before being recreated.
  *
  * Scoped entirely to the demo user — it never touches other users' rows. Point
  * this at the development branch only, never production.
@@ -42,6 +42,7 @@ interface SeedItem {
   title: string;
   type: SystemTypeName;
   description: string;
+  tags: string[];
   content?: string;
   url?: string;
   language?: string;
@@ -82,6 +83,7 @@ const COLLECTIONS: SeedCollection[] = [
     items: [
       {
         title: "useDebounce hook",
+        tags: ["react", "hooks", "typescript"],
         type: "snippet",
         language: "typescript",
         description: "Delays a rapidly changing value — search inputs, filters.",
@@ -101,6 +103,7 @@ export function useDebounce<T>(value: T, delay = 300): T {
       },
       {
         title: "useLocalStorage hook",
+        tags: ["react", "hooks", "storage"],
         type: "snippet",
         language: "typescript",
         description: "State that survives a reload, with SSR-safe initialisation.",
@@ -135,6 +138,7 @@ export function useLocalStorage<T>(key: string, initial: T) {
       },
       {
         title: "Typed context provider",
+        tags: ["react", "typescript", "context"],
         type: "snippet",
         language: "typescript",
         description:
@@ -164,6 +168,7 @@ export function createSafeContext<T>(name: string) {
     items: [
       {
         title: "Code review prompt",
+        tags: ["ai", "code-review"],
         type: "prompt",
         description: "Reviews a diff for correctness, security and readability.",
         isPinned: true,
@@ -186,6 +191,7 @@ Diff:
       },
       {
         title: "Documentation generator",
+        tags: ["ai", "docs"],
         type: "prompt",
         description: "Turns a module into reference docs with runnable examples.",
         content: `Write reference documentation for the code below.
@@ -206,6 +212,7 @@ Code:
       },
       {
         title: "Refactoring assistant",
+        tags: ["ai", "refactoring"],
         type: "prompt",
         description: "Proposes behaviour-preserving refactors, ranked by payoff.",
         content: `Refactor the code below without changing its observable behaviour.
@@ -236,6 +243,7 @@ Code:
     items: [
       {
         title: "Multi-stage Dockerfile for Next.js",
+        tags: ["docker", "nextjs", "ci"],
         type: "snippet",
         language: "dockerfile",
         description: "Standalone output build — small final image, non-root user.",
@@ -263,6 +271,7 @@ CMD ["node", "server.js"]`,
       },
       {
         title: "Deploy with migrations",
+        tags: ["deploy", "prisma"],
         type: "command",
         language: "bash",
         description:
@@ -271,12 +280,14 @@ CMD ["node", "server.js"]`,
       },
       {
         title: "Docker multi-stage build docs",
+        tags: ["docker", "docs"],
         type: "link",
         description: "Official guide to multi-stage builds and smaller images.",
         url: "https://docs.docker.com/build/building/multi-stage/",
       },
       {
         title: "GitHub Actions documentation",
+        tags: ["ci", "github", "docs"],
         type: "link",
         description: "Workflow syntax, triggers and reusable actions.",
         url: "https://docs.github.com/en/actions",
@@ -289,6 +300,7 @@ CMD ["node", "server.js"]`,
     items: [
       {
         title: "Undo the last commit, keep changes",
+        tags: ["git"],
         type: "command",
         language: "bash",
         description: "Moves HEAD back one commit, leaving the work staged.",
@@ -296,6 +308,7 @@ CMD ["node", "server.js"]`,
       },
       {
         title: "Remove stopped containers and dangling images",
+        tags: ["docker", "cleanup"],
         type: "command",
         language: "bash",
         description: "Reclaims disk after a lot of local image churn.",
@@ -304,6 +317,7 @@ CMD ["node", "server.js"]`,
       },
       {
         title: "Find and kill whatever holds a port",
+        tags: ["shell", "process"],
         type: "command",
         language: "bash",
         description: "For when the dev server says the port is already in use.",
@@ -311,6 +325,7 @@ CMD ["node", "server.js"]`,
       },
       {
         title: "Find outdated and vulnerable packages",
+        tags: ["npm", "security"],
         type: "command",
         language: "bash",
         description: "Quick dependency health check before a release.",
@@ -324,24 +339,28 @@ CMD ["node", "server.js"]`,
     items: [
       {
         title: "Tailwind CSS documentation",
+        tags: ["css", "tailwind", "docs"],
         type: "link",
         description: "Utility class reference and the v4 CSS-first config.",
         url: "https://tailwindcss.com/docs",
       },
       {
         title: "shadcn/ui",
+        tags: ["ui", "components"],
         type: "link",
         description: "Copy-in React components built on Radix and Tailwind.",
         url: "https://ui.shadcn.com",
       },
       {
         title: "Material Design 3",
+        tags: ["design", "guidelines"],
         type: "link",
         description: "Design system reference for colour, type and motion.",
         url: "https://m3.material.io",
       },
       {
         title: "Lucide icons",
+        tags: ["icons", "ui"],
         type: "link",
         description: "The icon set shadcn/ui uses; searchable catalogue.",
         url: "https://lucide.dev/icons",
@@ -446,6 +465,12 @@ async function seedCollection(
         userId,
         itemTypeId,
         collections: { create: { collectionId: created.id } },
+        tags: {
+          connectOrCreate: item.tags.map((name) => ({
+            where: { name },
+            create: { name },
+          })),
+        },
       },
     });
   }
