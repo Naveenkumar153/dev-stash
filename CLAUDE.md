@@ -28,6 +28,7 @@ Read the following files to get the full context of the project:
 - `npm run db:status` — check migrations are in sync (`prisma migrate status`)
 - `npm run db:generate` — regenerate Prisma Client into `src/generated/prisma` (also runs on `postinstall`)
 - `npm run db:studio` — open Prisma Studio
-- `npm run db:test` — verify the DB connection, applied migrations and all tables (`scripts/test-db.ts`)
+- `npm run db:test` — verify the DB connection, applied migrations and all tables, and print the seeded demo data (`scripts/test-db.ts`)
+- `npm run db:seed` — seed dev data: demo user, system item types, collections and items (`prisma/seed.ts`)
 
 <!-- No test runner is configured in this project. -->

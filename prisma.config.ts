@@ -14,6 +14,9 @@ export default defineConfig({
   schema: "prisma/schema.prisma",
   migrations: {
     path: "prisma/migrations",
+    // Prisma 7 reads the seed command from here; the `prisma.seed` key in
+    // package.json is the v5/v6 convention and is no longer picked up.
+    seed: "tsx prisma/seed.ts",
   },
   datasource: {
     url: migrationUrl,
