@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ArrowRight, ChevronDown, Folder, Star } from "lucide-react";
 
+import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import {
   Tooltip,
@@ -18,6 +19,7 @@ import {
   getItemTypeHref,
   getItemTypePlural,
   getItemTypeStyleByName,
+  isProItemType,
 } from "@/lib/item-types";
 import { cn } from "@/lib/utils";
 
@@ -25,6 +27,8 @@ interface NavRowProps {
   href: string;
   label: string;
   icon: React.ReactNode;
+  /** Shown right after the label, before the trailing meta. */
+  badge?: React.ReactNode;
   /** Trailing content - an item count or a favorite star. */
   meta?: React.ReactNode;
   collapsed: boolean;
@@ -35,6 +39,7 @@ function NavRow({
   href,
   label,
   icon,
+  badge,
   meta,
   collapsed,
   onNavigate,
@@ -59,6 +64,7 @@ function NavRow({
       {!collapsed && (
         <>
           <span className="truncate">{label}</span>
+          {badge}
           {meta !== undefined && (
             <span className="ml-auto flex shrink-0 items-center text-xs text-muted-foreground">
               {meta}
@@ -123,6 +129,18 @@ function GroupLabel({ children }: Readonly<{ children: React.ReactNode }>) {
   );
 }
 
+/** Marks an item type that a Pro subscription unlocks. */
+function ProBadge() {
+  return (
+    <Badge
+      variant="outline"
+      className="h-4 px-1.5 text-[10px] tracking-wide text-muted-foreground"
+    >
+      PRO
+    </Badge>
+  );
+}
+
 /**
  * Stands in for a collection's folder icon under Recent, colored by the type
  * the collection holds most of. Empty collections get a neutral dot.
@@ -172,6 +190,7 @@ export function SidebarNav({
                 key={type.id}
                 href={getItemTypeHref(type.name)}
                 label={getItemTypePlural(type.name)}
+                badge={isProItemType(type.name) ? <ProBadge /> : undefined}
                 meta={type.count}
                 collapsed={collapsed}
                 onNavigate={onNavigate}
