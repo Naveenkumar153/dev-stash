@@ -65,16 +65,40 @@ async function checkMigrations(db: Db): Promise<void> {
 
 /** Touches every model so a missing table surfaces as a failure. */
 async function checkTables(db: Db): Promise<void> {
+  // Independent counts, so they go out together - one round trip each, awaited
+  // one at a time, is most of this script's runtime.
+  const [
+    users,
+    itemTypes,
+    items,
+    collections,
+    itemCollections,
+    tags,
+    accounts,
+    sessions,
+    verificationTokens,
+  ] = await Promise.all([
+    db.user.count(),
+    db.itemType.count(),
+    db.item.count(),
+    db.collection.count(),
+    db.itemCollection.count(),
+    db.tag.count(),
+    db.account.count(),
+    db.session.count(),
+    db.verificationToken.count(),
+  ]);
+
   const counts = {
-    users: await db.user.count(),
-    itemTypes: await db.itemType.count(),
-    items: await db.item.count(),
-    collections: await db.collection.count(),
-    itemCollections: await db.itemCollection.count(),
-    tags: await db.tag.count(),
-    accounts: await db.account.count(),
-    sessions: await db.session.count(),
-    verificationTokens: await db.verificationToken.count(),
+    users,
+    itemTypes,
+    items,
+    collections,
+    itemCollections,
+    tags,
+    accounts,
+    sessions,
+    verificationTokens,
   };
 
   console.log(`✓ All ${Object.keys(counts).length} tables reachable:`);

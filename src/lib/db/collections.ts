@@ -1,5 +1,6 @@
 import { connection } from "next/server";
 
+import { getAvailableTypes, type ItemTypeRow } from "@/lib/db/item-types";
 import { getCurrentUserId } from "@/lib/db/user";
 import { compareItemTypeOrder } from "@/lib/item-types";
 import { prisma } from "@/lib/prisma";
@@ -19,37 +20,85 @@ export interface CollectionSummary {
   typeNames: string[];
 }
 
-/** The join rows a collection query loads, one per item in the collection. */
+/** A collection card's own columns. The item count is counted by the database. */
 interface CollectionRow {
   id: string;
   name: string;
   description: string | null;
   isFavorite: boolean;
-  items: { item: { itemType: { name: string } } }[];
+  _count: { items: number };
 }
 
-/** A collection plus the item types behind it, in one round trip. */
+/**
+ * A card's columns plus its size. Counting in the database keeps the query flat:
+ * loading the join rows in order to measure them costs one row per item in the
+ * collection, unbounded, to produce a single number.
+ */
 const COLLECTION_SUMMARY_SELECT = {
   id: true,
   name: true,
   description: true,
   isFavorite: true,
-  items: {
-    select: { item: { select: { itemType: { select: { name: true } } } } },
-  },
+  _count: { select: { items: true } },
 } as const;
+
+/** How many items of each type a collection holds, keyed by collection id. */
+type TypeCounts = Map<string, Map<string, number>>;
+
+/**
+ * The type breakdown behind the cards, aggregated by the database rather than
+ * by loading every membership row.
+ *
+ * One grouped query per item type: `groupBy` only groups on a model's own
+ * scalar fields, and item_collections carries no type column, so the split has
+ * to come from the filter instead. That trades row volume for query count,
+ * which is the right way round here - types are a small fixed set (7 system
+ * ones), while items per collection grows without limit. The queries are
+ * independent, so they cost about one round trip in total.
+ *
+ * Worth revisiting if custom types ever arrive in bulk: this scales with the
+ * number of types a user has, not with the number of items.
+ */
+async function getTypeCounts(
+  collectionIds: string[],
+  types: ItemTypeRow[],
+): Promise<TypeCounts> {
+  const counts: TypeCounts = new Map(collectionIds.map((id) => [id, new Map()]));
+
+  if (collectionIds.length === 0) {
+    return counts;
+  }
+
+  const groups = await Promise.all(
+    types.map((type) =>
+      prisma.itemCollection.groupBy({
+        by: ["collectionId"],
+        where: { collectionId: { in: collectionIds }, item: { itemTypeId: type.id } },
+        _count: { _all: true },
+      }),
+    ),
+  );
+
+  groups.forEach((rows, index) => {
+    const typeName = types[index].name;
+
+    for (const row of rows) {
+      counts.get(row.collectionId)?.set(typeName, row._count._all);
+    }
+  });
+
+  return counts;
+}
 
 /**
  * Which types a collection holds, in item type order, with the most common one
  * first. Sorting is stable, so ties fall back to that same order.
  */
-function summarize({ items, ...collection }: CollectionRow): CollectionSummary {
-  const counts = new Map<string, number>();
-
-  for (const { item } of items) {
-    const name = item.itemType.name;
-    counts.set(name, (counts.get(name) ?? 0) + 1);
-  }
+function summarize(
+  { _count, ...collection }: CollectionRow,
+  typeCounts: TypeCounts,
+): CollectionSummary {
+  const counts = typeCounts.get(collection.id) ?? new Map<string, number>();
 
   const typeNames = [...counts.keys()].sort(compareItemTypeOrder);
   const dominantTypeName =
@@ -58,7 +107,7 @@ function summarize({ items, ...collection }: CollectionRow): CollectionSummary {
 
   return {
     ...collection,
-    itemCount: items.length,
+    itemCount: _count.items,
     dominantTypeName,
     typeNames,
   };
@@ -82,14 +131,24 @@ export async function getRecentCollections(
     return [];
   }
 
-  const collections = await prisma.collection.findMany({
-    where: { userId },
-    orderBy: { createdAt: "desc" },
-    take: limit,
-    select: COLLECTION_SUMMARY_SELECT,
-  });
+  // The type list does not depend on which collections come back, so it goes
+  // out with them rather than adding a stage.
+  const [collections, types] = await Promise.all([
+    prisma.collection.findMany({
+      where: { userId },
+      orderBy: { createdAt: "desc" },
+      take: limit,
+      select: COLLECTION_SUMMARY_SELECT,
+    }),
+    getAvailableTypes(userId),
+  ]);
 
-  return collections.map(summarize);
+  const typeCounts = await getTypeCounts(
+    collections.map((collection) => collection.id),
+    types,
+  );
+
+  return collections.map((collection) => summarize(collection, typeCounts));
 }
 
 export interface SidebarCollections {
@@ -118,7 +177,7 @@ export async function getSidebarCollections(
     return EMPTY_SIDEBAR_COLLECTIONS;
   }
 
-  const [favorites, recent] = await Promise.all([
+  const [favorites, recent, types] = await Promise.all([
     prisma.collection.findMany({
       where: { userId, isFavorite: true },
       orderBy: { createdAt: "desc" },
@@ -131,7 +190,17 @@ export async function getSidebarCollections(
       take: limit,
       select: COLLECTION_SUMMARY_SELECT,
     }),
+    getAvailableTypes(userId),
   ]);
 
-  return { favorites: favorites.map(summarize), recent: recent.map(summarize) };
+  // Both lists in one pass, so the sidebar counts the types once.
+  const typeCounts = await getTypeCounts(
+    [...favorites, ...recent].map((collection) => collection.id),
+    types,
+  );
+
+  return {
+    favorites: favorites.map((collection) => summarize(collection, typeCounts)),
+    recent: recent.map((collection) => summarize(collection, typeCounts)),
+  };
 }

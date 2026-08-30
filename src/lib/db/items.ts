@@ -1,10 +1,12 @@
 import { connection } from "next/server";
 
+import { getAvailableTypes } from "@/lib/db/item-types";
 import { getCurrentUserId } from "@/lib/db/user";
 import { compareItemTypeOrder } from "@/lib/item-types";
 import { prisma } from "@/lib/prisma";
 
 const RECENT_ITEM_LIMIT = 10;
+const PINNED_ITEM_LIMIT = 10;
 
 export interface ItemSummary {
   id: string;
@@ -48,8 +50,14 @@ function toSummary({ itemType, tags, ...item }: ItemRow): ItemSummary {
   return { ...item, typeName: itemType.name, tags: tags.map((tag) => tag.name) };
 }
 
-/** Items the user pinned to the top, newest first. */
-export async function getPinnedItems(): Promise<ItemSummary[]> {
+/**
+ * Items the user pinned to the top, newest first. Bounded like every other list
+ * query - pinning is unlimited, so without a cap the section grows with the
+ * number of items the user has pinned.
+ */
+export async function getPinnedItems(
+  limit = PINNED_ITEM_LIMIT,
+): Promise<ItemSummary[]> {
   // Keeps the dashboard out of the build-time prerender, so the lists render
   // from the database at request time. See getRecentCollections.
   await connection();
@@ -63,6 +71,7 @@ export async function getPinnedItems(): Promise<ItemSummary[]> {
   const items = await prisma.item.findMany({
     where: { userId, isPinned: true },
     orderBy: [...NEWEST_FIRST],
+    take: limit,
     select: ITEM_CARD_SELECT,
   });
 
@@ -111,12 +120,7 @@ export async function getItemTypeCounts(): Promise<ItemTypeCount[]> {
   const userId = await getCurrentUserId();
 
   const [types, counts] = await Promise.all([
-    prisma.itemType.findMany({
-      // Custom types are Pro-only and not built yet, but scoping the query now
-      // means the sidebar picks them up for free once they land.
-      where: userId ? { OR: [{ isSystem: true }, { userId }] } : { isSystem: true },
-      select: { id: true, name: true },
-    }),
+    getAvailableTypes(userId),
     userId
       ? prisma.item.groupBy({
           by: ["itemTypeId"],

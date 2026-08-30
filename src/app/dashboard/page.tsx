@@ -6,6 +6,7 @@ import { ItemCard } from "@/components/dashboard/ItemCard";
 import { StatsCards } from "@/components/dashboard/StatsCards";
 import { getRecentCollections } from "@/lib/db/collections";
 import { getPinnedItems, getRecentItems, type ItemSummary } from "@/lib/db/items";
+import { getDashboardStats } from "@/lib/db/stats";
 
 interface ItemSectionProps {
   title: string;
@@ -41,7 +42,8 @@ function ItemSection({ title, icon, items, emptyMessage }: ItemSectionProps) {
 }
 
 export default async function DashboardPage() {
-  const [collections, pinnedItems, recentItems] = await Promise.all([
+  const [stats, collections, pinnedItems, recentItems] = await Promise.all([
+    getDashboardStats(),
     getRecentCollections(),
     getPinnedItems(),
     getRecentItems(),
@@ -56,7 +58,7 @@ export default async function DashboardPage() {
         </p>
       </header>
 
-      <StatsCards />
+      <StatsCards stats={stats} />
 
       <section className="flex flex-col gap-4">
         <div className="flex items-center justify-between gap-4">

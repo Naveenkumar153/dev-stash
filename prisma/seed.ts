@@ -478,7 +478,44 @@ async function seedCollection(
   return collection.items.length;
 }
 
+/**
+ * The seed plants a known password and clears the demo user's rows, so it must
+ * never run against production. `ALLOW_SEED=true` is the deliberate override for
+ * seeding a production-like environment on purpose.
+ *
+ * Not gated on an opt-in alone: `prisma.config.ts` registers this file under
+ * `migrations.seed`, so Prisma runs it as part of `prisma migrate dev`, and a
+ * variable nobody sets would break `npm run db:migrate`.
+ */
+function assertSafeTarget(): void {
+  if (process.env.NODE_ENV === "production" && process.env.ALLOW_SEED !== "true") {
+    throw new Error(
+      "Refusing to seed: NODE_ENV is production. Set ALLOW_SEED=true to override.",
+    );
+  }
+
+  // Surfaces a mistargeted run in the output even when NODE_ENV says nothing.
+  console.log(`Seeding ${databaseHost()}`);
+}
+
+/** Host only - the connection string carries credentials that must not be logged. */
+function databaseHost(): string {
+  const url = process.env.DATABASE_URL;
+
+  if (!url) {
+    return "unknown host";
+  }
+
+  try {
+    return new URL(url).host;
+  } catch {
+    return "unparseable DATABASE_URL";
+  }
+}
+
 async function main(): Promise<void> {
+  assertSafeTarget();
+
   const userId = await seedUser();
   const typeIds = await seedSystemTypes();
 

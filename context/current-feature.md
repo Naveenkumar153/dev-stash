@@ -1,18 +1,197 @@
 # Current Feature
 
-<!-- Feature Name -->
+Audit Quick Wins
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress — implemented and verified on `feature/audit-quick-wins`, pending commit
 
 ## Goals
 
-<!-- Goals & requirements -->
+Six low-risk fixes from the codebase audit. No new dependency and no design
+change — the rendered dashboard should be identical before and after. Five items
+are contained to a function body or a single call site; the sixth is an
+index-only migration, additive and reversible.
+
+### 1. Collection summaries stop loading every join row (the N+1)
+
+`src/lib/db/collections.ts:32` — `COLLECTION_SUMMARY_SELECT` pulls a
+collection's entire `items` relation, one `ItemCollection` row joined through
+`items` to `item_types` per member item and unbounded, purely so `summarize()`
+(line 46) can compute `items.length` and tally type names. The select is shared
+by `getRecentCollections()` (6 collections) and `getSidebarCollections()` (up to
+10 across favorites and recent), and the dashboard page and layout both run on
+the same request — so a user with 16 collections averaging 2,000 items each
+moves ~32,000 rows to produce 16 integers and a handful of type names. This is
+the shape the `src/lib/db/` convention (one `findMany` plus a `groupBy`, joined
+in memory) exists to avoid.
+
+Replace it with aggregation the database performs, using only the Prisma Client
+query API — no raw SQL:
+
+- `_count: { select: { items: true } }` on the collection select, for
+  `itemCount`.
+- `getAvailableTypes()` — the system types plus the user's own — fetched in the
+  same `Promise.all` as the collections, so it costs no extra stage. It lives in
+  the new `src/lib/db/item-types.ts` and is wrapped in React `cache()` like
+  `getCurrentUserId()`: the dashboard asks for this list three times per request
+  (sidebar type counts, sidebar collections, main-area collections), and the
+  cache collapses them into one query. `getItemTypeCounts()` was moved onto it
+  too, replacing the copy of the query it held.
+- `getTypeCounts()` — one `itemCollection.groupBy({ by: ["collectionId"] })` per
+  item type, filtered by `item: { itemTypeId }`, all issued together in a
+  `Promise.all` and folded into a `Map<collectionId, Map<typeName, count>>`
+  that `summarize()` reads.
+
+`groupBy` only groups on a model's own scalar fields, and `ItemCollection` has
+just `itemId` / `collectionId` / `addedAt`, so the type split cannot come from
+the grouping key — it comes from the filter instead, one query per type. That
+trades row volume for query count, which is the right way round here: types are
+a small fixed set (7 system types, custom types Pro-only and unbuilt), while
+items per collection grows without limit. Rows returned become
+`collections × types` regardless of collection size, and the queries are
+independent so they cost roughly one round trip.
+
+The alternatives were `$queryRaw` (one query, but hand-written SQL that is not
+checked against the schema) and Prisma TypedSQL (one query, type-safe, but still
+a `.sql` file and it adds `--sql` to the generate step). Both were rejected in
+favour of staying inside the Prisma Client API. The accepted cost: query count
+scales with the number of item types, so this wants revisiting if custom types
+ever arrive in bulk.
+
+`summarize()` keeps its existing rules — item type order, stable sort, most
+common type first, `null` when empty — and `CollectionSummary` is unchanged, so
+`CollectionCard` and `SidebarNav` need no edit.
+
+### 2. `getPinnedItems()` gets a row bound
+
+`src/lib/db/items.ts:50` — every other list query takes a bound
+(`getRecentItems` at 10, collections at 6 and 5), but the pinned query has no
+`take`, and it is the one query whose result size the user directly controls. A
+user who pins 500 items selects 500 rows plus their tags and serializes 500
+`ItemCard`s into the RSC payload above the Recent section. Add a
+`PINNED_ITEM_LIMIT = 10` and a `limit` parameter, matching `getRecentItems()`.
+
+### 3. Stats stop costing a second round trip
+
+`src/app/dashboard/page.tsx:59` — React awaits the async `DashboardPage` in full
+before it can see the returned JSX, so `<StatsCards />` (which awaits
+`getDashboardStats()` at `StatsCards.tsx:26`) does not start until the page's
+`Promise.all` has settled. The four counts are parallel with each other but
+serial with everything else, adding a full Neon round trip to TTFB for data that
+depends on nothing.
+
+Hoist `getDashboardStats()` into the page's existing `Promise.all` and pass the
+result down as a `stats` prop, making `StatsCards` a synchronous presentational
+component. Suspense would stream the shell earlier but would not remove the
+serial start.
+
+### 4. `checkTables()` runs its nine counts in parallel
+
+`scripts/test-db.ts:68` — nine `count()` calls awaited one at a time inside an
+object literal, each a full Neon serverless request. They are independent;
+`Promise.all` over the nine, destructured back into the same `counts` object,
+keeps the output identical.
+
+### 5. The seed script refuses to run against production
+
+`prisma/seed.ts:481` — `main()` runs unconditionally. It upserts
+`demo@devstash.io` with a bcrypt hash of `12345678` and `emailVerified` set,
+then `deleteMany`s that user's items and collections. Nothing inspects
+`NODE_ENV` or the connection string; the line-11 docstring is the only guard,
+and a `.env.production` sits in the working tree. One mistargeted
+`npm run db:seed` plants a verified account with a known password — inert today
+with no login route, a live credential the moment NextAuth's credentials
+provider lands.
+
+Throw at the top of `main()` when `NODE_ENV === "production"`, with an explicit
+`ALLOW_SEED=true` escape hatch, and log the target database host before writing
+so a mistargeted run is visible in the output. The host comes from `new URL()`
+rather than a regex, so a password containing `@` cannot make the log point at
+the wrong place, and only the host is printed — never the credentials.
+
+An unconditional `ALLOW_SEED` requirement was considered and rejected: the seed
+command is registered in `prisma.config.ts` under `migrations.seed`, so Prisma
+runs it as part of `prisma migrate dev`, and gating it on a variable nobody sets
+would break `npm run db:migrate`.
+
+### 6. Composite indexes for the list queries, as a migration
+
+`prisma/schema.prisma:104` and `:127` — `Item` and `Collection` each carry a
+single-column `@@index([userId])`, but every list query filters on `userId` and
+orders on `createdAt`, and `getPinnedItems()` adds an `isPinned` predicate no
+index mentions. Postgres finds the user's rows through `items_userId_idx` and
+then sorts all of them to satisfy the `ORDER BY` before applying `LIMIT` — a
+50,000-row sort to return ten cards. Fine at 18 seeded rows, sharp degradation
+with real data.
+
+```prisma
+// Item — replaces @@index([userId])
+@@index([userId, createdAt(sort: Desc), id(sort: Desc)])
+@@index([userId, isPinned, createdAt(sort: Desc), id(sort: Desc)])
+
+// Collection — replaces @@index([userId])
+@@index([userId, createdAt(sort: Desc)])
+@@index([userId, isFavorite, createdAt(sort: Desc)])
+```
+
+Each composite leads with `userId`, so it also serves the plain
+`where: { userId }` lookups in `stats.ts` and `getItemTypeCounts()` and the
+standalone `@@index([userId])` can go. `@@index([itemTypeId])` on `Item` and
+`@@index([defaultTypeId])` on `Collection` stay — they back the foreign keys.
+
+Ship it through `npm run db:migrate` (`prisma migrate dev`) so the SQL lands in
+`prisma/migrations/` and both database branches move through the same file:
+dev applies it on creation, prod through `npm run db:deploy`
+(`prisma migrate deploy`) at release. Never `prisma db push`, and never touch
+the database structure by hand — the two branches have to stay in sync, and the
+migration file is the only thing that guarantees it. `npm run db:status` must
+report in-sync before the commit.
 
 ## Notes
 
-<!-- Any extra notes -->
+**Risk.** Items 2–5 are additive or mechanical. Item 6 changes the schema, but
+only indexes — no column added, dropped or retyped, so no data is rewritten and
+the migration is reversible by another migration. Item 1 stays inside the typed
+query API, so it carries no runtime type risk; its cost is the extra round trips
+described above.
+
+**Verification (done).** `summarize()` is pure, so both paths were run against
+the seeded database and compared: old join-row summaries vs. new aggregation,
+for all three query shapes (recent 6, sidebar favorites, sidebar non-favorites).
+Output was byte-identical, including the mixed-type collection that exercises
+the ordering and tie-break (`types=[snippet, command, link]`, `dominant=link`).
+The rendered `/dashboard` then showed the same values — stats 18 / 5 / 0 / 2 and
+cards at 4, 4, 4, 3, 3. `npm run lint`, `npm run build`, `npm run db:status`
+(in sync) and `npm run db:test` (2 migrations, 9 tables, healthy) all pass. The
+seed guard was checked both ways: `NODE_ENV=production` refuses, a normal dev
+run seeds and logs its target host.
+
+**Verification (item 6).** `npm run db:migrate` to create and apply the
+migration, `npm run db:status` to confirm dev is in sync, and the checked-in
+`migration.sql` reviewed by eye before the commit — it should contain only
+`DROP INDEX` / `CREATE INDEX` statements. Prod picks the same file up through
+`npm run db:deploy` on the next release.
+
+**Deliberately out of scope.**
+
+- *Per-user tag scoping.* `Tag.name` is globally unique, so every user's `react`
+  tag is one shared row. Needs a migration and settles an open question in the
+  spec appendix.
+- *Deleting `src/lib/mock-data.ts`.* 227 lines, only `currentUser` still
+  imported (by `SidebarUser`), which is why the sidebar footer shows "John Doe".
+  Deleting a file needs sign-off, and the real fix is the layout passing the
+  user down — which is the NextAuth feature.
+- *The `/items/:x` segment conflict.* `getItemTypeHref()` builds
+  `/items/snippets` while `ItemCard` links to `/items/[id]`; whichever page is
+  written first claims the segment. Neither route exists yet, and picking the
+  namespace is a design decision, not a quick win.
+- *`SidebarNav.tsx` and `prisma/seed.ts` decomposition.* Both are oversized
+  (262 and 504 lines), but neither has a defect behind it.
+- *Parallelizing the seed's per-item creates.* Tempting alongside item 4, but
+  the items in a collection share tags and attach them with
+  `connectOrCreate` against a globally unique `Tag.name`, so concurrent creates
+  would race on the unique constraint. The loop stays sequential.
 
 ## History
 
