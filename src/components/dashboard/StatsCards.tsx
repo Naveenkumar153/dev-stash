@@ -1,12 +1,16 @@
 import { Folder, FolderHeart, Layers, Star, type LucideIcon } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
-import { getDashboardStats } from "@/lib/db/stats";
+import type { DashboardStats } from "@/lib/db/stats";
 
 interface Stat {
   label: string;
   value: number;
   icon: LucideIcon;
+}
+
+interface StatsCardsProps {
+  stats: DashboardStats;
 }
 
 function StatCard({ label, value, icon: Icon }: Stat) {
@@ -21,10 +25,12 @@ function StatCard({ label, value, icon: Icon }: Stat) {
   );
 }
 
-/** Totals for the user's stash, shown at the top of the dashboard. */
-export async function StatsCards() {
-  const stats = await getDashboardStats();
-
+/**
+ * Totals for the user's stash, shown at the top of the dashboard. The counts are
+ * loaded by the page: awaiting them here would not start until the page's own
+ * queries had already resolved, making them a second round trip.
+ */
+export function StatsCards({ stats }: StatsCardsProps) {
   const cards: Stat[] = [
     { label: "Items", value: stats.items, icon: Layers },
     { label: "Collections", value: stats.collections, icon: Folder },

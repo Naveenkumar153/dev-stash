@@ -101,7 +101,11 @@ model Item {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([userId])
+  // Both list queries filter on userId and order newest first, so the sort has
+  // to be part of the index or Postgres sorts every one of the user's rows to
+  // return ten. Leading userId also serves the plain where: { userId } counts.
+  @@index([userId, createdAt(sort: Desc), id(sort: Desc)])
+  @@index([userId, isPinned, createdAt(sort: Desc), id(sort: Desc)])
   @@index([itemTypeId])
   @@map("items")
 }
@@ -124,7 +128,9 @@ model Collection {
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
-  @@index([userId])
+  // Recent collections, and the sidebar's favorites / non-favorites split.
+  @@index([userId, createdAt(sort: Desc)])
+  @@index([userId, isFavorite, createdAt(sort: Desc)])
   @@index([defaultTypeId])
   @@map("collections")
 }
