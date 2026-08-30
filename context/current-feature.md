@@ -2,21 +2,35 @@
 
 <!-- Feature Name -->
 
-Dashboard Stats & Sidebar — Real Data from Neon via Prisma
+Add Pro Badge to Sidebar
 
 ## Status
 
 <!-- Not Started|In Progress|Completed -->
 
-Completed
+In Progress
 
 ## Goals
 
 <!-- Goals & requirements -->
 
+- The `file` and `image` item types show a PRO badge in the sidebar item type list
+- The badge uses the shadcn/ui `Badge` component
+- The badge label reads `PRO`, all uppercase
+- The badge is clean and subtle — it must not compete with the type label or the item count
+- No other item type shows a badge
+
 ## Notes
 
 <!-- Any extra notes -->
+
+- Spec: `context/features/add-pro-badge-sidebar.md`
+- Reference: http://ui.shadcn.com/docs/components/base/badge
+- `Badge` is already installed at `src/components/ui/badge.tsx` — no `shadcn add` needed
+- The item type list lives in `src/components/dashboard/SidebarNav.tsx`, which renders rows from the `getItemTypeCounts()` data passed down through `Sidebar` → `SidebarBody`
+- `file` and `image` are the Pro-tier types per the project spec's tier table; the badge should be driven off type identity, not a hardcoded pair of labels in the markup
+- The sidebar collapses to an icon rail and becomes a drawer on mobile — decide how the badge behaves in the collapsed rail (likely hidden, since only the icon shows there)
+- Presentation only: no schema, query, or entitlement changes. The badge marks the tier, it does not gate anything
 
 ## History
 

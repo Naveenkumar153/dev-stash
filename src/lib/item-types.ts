@@ -84,6 +84,12 @@ const TYPE_STYLES: Record<string, ItemTypeStyle> = {
 /** System type names, in the order they are shown across the UI. */
 const ITEM_TYPE_ORDER = Object.keys(TYPE_STYLES);
 
+/**
+ * Types a Pro subscription unlocks. The file-backed types are Pro-only; every
+ * text and url type is free.
+ */
+const PRO_TYPE_NAMES = new Set(["file", "image"]);
+
 const FALLBACK_STYLE: ItemTypeStyle = {
   icon: File,
   colorClass: "text-muted-foreground",
@@ -107,6 +113,14 @@ export function getItemTypeStyleByName(name: string): ItemTypeStyle {
   const style: ItemTypeStyle | undefined = TYPE_STYLES[name.toLowerCase()];
 
   return style ?? FALLBACK_STYLE;
+}
+
+/**
+ * Whether a type needs a Pro subscription, e.g. "file". Marks the type in the
+ * UI - it does not gate anything on its own.
+ */
+export function isProItemType(name: string) {
+  return PRO_TYPE_NAMES.has(name.toLowerCase());
 }
 
 /** "snippet" -> "Snippet". Type names are stored lowercase in the database. */
