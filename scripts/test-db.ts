@@ -13,6 +13,11 @@
 // Next.js (which would otherwise load it), so dotenv has to come first.
 import "dotenv/config";
 
+import { execFile } from "node:child_process";
+import { promisify } from "node:util";
+
+const run = promisify(execFile);
+
 /**
  * Imported lazily: the client singleton connects as soon as the module is
  * evaluated, so this has to happen after the environment has been checked.
@@ -23,11 +28,6 @@ async function loadPrisma() {
 }
 
 type Db = Awaited<ReturnType<typeof loadPrisma>>;
-
-interface AppliedMigration {
-  migration_name: string;
-  finished_at: Date | null;
-}
 
 const DEMO_EMAIL = "demo@devstash.io";
 
@@ -44,22 +44,25 @@ async function checkConnection(db: Db): Promise<void> {
   console.log("✓ Connected to Neon over the pooled connection");
 }
 
-/** Confirms migrations ran, rather than the schema being pushed by hand. */
-async function checkMigrations(db: Db): Promise<void> {
-  const migrations = await db.$queryRaw<AppliedMigration[]>`
-    SELECT migration_name, finished_at
-    FROM _prisma_migrations
-    ORDER BY finished_at ASC
-  `;
-
-  if (migrations.length === 0) {
-    throw new Error("No migrations applied — run `npm run db:migrate`");
-  }
-
-  console.log(`✓ ${migrations.length} migration(s) applied:`);
-  for (const migration of migrations) {
-    const state = migration.finished_at ? "applied" : "PENDING / FAILED";
-    console.log(`    ${migration.migration_name} (${state})`);
+/**
+ * Confirms every migration in prisma/migrations is applied and none failed,
+ * rather than the schema being pushed by hand. Delegates to
+ * `prisma migrate status`, which compares the folder against the database and
+ * exits non-zero on a failed, unapplied or unknown migration.
+ */
+async function checkMigrations(): Promise<void> {
+  try {
+    const { stdout } = await run("npx", ["prisma", "migrate", "status"], {
+      env: { ...process.env, PRISMA_HIDE_UPDATE_MESSAGE: "1" },
+    });
+    const found = stdout.match(/\d+ migrations? found in prisma\/migrations/);
+    console.log(`✓ Migrations in sync (${found?.[0] ?? "status clean"})`);
+  } catch (error: unknown) {
+    const output =
+      error instanceof Error && "stdout" in error ? String(error.stdout).trim() : "";
+    throw new Error(
+      `Migrations are not in sync — see \`npm run db:status\`\n${output}`,
+    );
   }
 }
 
@@ -219,7 +222,7 @@ async function main(): Promise<void> {
 
   try {
     await checkConnection(db);
-    await checkMigrations(db);
+    await checkMigrations();
     await checkTables(db);
     await showDemoData(db);
     console.log("\nDatabase is healthy.");

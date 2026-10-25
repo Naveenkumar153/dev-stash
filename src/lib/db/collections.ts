@@ -8,6 +8,9 @@ import { prisma } from "@/lib/prisma";
 const RECENT_COLLECTION_LIMIT = 6;
 const SIDEBAR_COLLECTION_LIMIT = 5;
 
+/** Newest first. createdAt ties break on id so the order is stable. */
+const NEWEST_FIRST = [{ createdAt: "desc" }, { id: "desc" }] as const;
+
 export interface CollectionSummary {
   id: string;
   name: string;
@@ -83,7 +86,14 @@ async function getTypeCounts(
     const typeName = types[index].name;
 
     for (const row of rows) {
-      counts.get(row.collectionId)?.set(typeName, row._count._all);
+      const collectionCounts = counts.get(row.collectionId);
+
+      // Added rather than set: a custom type can share a system type's name,
+      // and setting would drop whichever was counted first.
+      collectionCounts?.set(
+        typeName,
+        (collectionCounts.get(typeName) ?? 0) + row._count._all,
+      );
     }
   });
 
@@ -136,7 +146,7 @@ export async function getRecentCollections(
   const [collections, types] = await Promise.all([
     prisma.collection.findMany({
       where: { userId },
-      orderBy: { createdAt: "desc" },
+      orderBy: [...NEWEST_FIRST],
       take: limit,
       select: COLLECTION_SUMMARY_SELECT,
     }),
@@ -180,13 +190,13 @@ export async function getSidebarCollections(
   const [favorites, recent, types] = await Promise.all([
     prisma.collection.findMany({
       where: { userId, isFavorite: true },
-      orderBy: { createdAt: "desc" },
+      orderBy: [...NEWEST_FIRST],
       take: limit,
       select: COLLECTION_SUMMARY_SELECT,
     }),
     prisma.collection.findMany({
       where: { userId, isFavorite: false },
-      orderBy: { createdAt: "desc" },
+      orderBy: [...NEWEST_FIRST],
       take: limit,
       select: COLLECTION_SUMMARY_SELECT,
     }),

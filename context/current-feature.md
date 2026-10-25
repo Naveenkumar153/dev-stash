@@ -1,18 +1,28 @@
 # Current Feature
 
-<!-- Feature Name -->
+Audit Quick Wins 2
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- **Stable collection ordering** — `getRecentCollections()` and `getSidebarCollections()` in `src/lib/db/collections.ts` order by `[{ createdAt: "desc" }, { id: "desc" }]`, matching the item queries, so collections sharing a `createdAt` at the `take` cut-off no longer swap between refreshes; both collection composite indexes in `prisma/schema.prisma` gain `id(sort: Desc)` through migration `20261025143437_collection_order_tiebreak`, so dev and prod stay in sync and the ordering remains an index scan
+- **Type counts accumulate instead of overwrite** — `getTypeCounts()` in `src/lib/db/collections.ts` adds to the existing count for a type name (`(map.get(name) ?? 0) + count`) rather than calling `.set()` over it, so two types sharing a name no longer drop one's count from the collection breakdown and dominant color
+- **`db:test` fails on a failed migration** — `checkMigrations()` in `scripts/test-db.ts` delegates to `prisma migrate status` instead of a raw `_prisma_migrations` query, so the script exits non-zero instead of printing "Database is healthy." when a migration has failed or exists in `prisma/migrations` but is unapplied
+- **Trim `src/lib/mock-data.ts`** — delete the unused `itemTypes`, `collections`, `items` exports and the `ContentType` / `ItemType` / `Collection` / `Item` types, keeping only `currentUser` and its `User` type for `SidebarUser`, so the mock `Item` / `Collection` can no longer be auto-imported in place of the Prisma models
 
 ## Notes
 
-<!-- Any extra notes -->
+- From the code-scanner audit of 2026-10-25. Picked for being small and behavior-preserving on the current seeded data: no design change, no raw SQL — Prisma Client and CLI conventions only
+- Index changes go through a Prisma migration (applied to `development` with `npm run db:migrate`); prod gets the same file via `npm run db:deploy`
+- Verify the dashboard renders identically before and after (stats 18 / 5 / 0 / 2, collection cards 4, 4, 4, 3, 3, sidebar type counts summing to 18), and that `npm run db:test`, `npm run lint` and `npm run build` pass
+- Out of scope (left for later, each needs a migration, a refactor or touches auth-adjacent behavior):
+  - The seed's production guard (`assertSafeTarget()` in `prisma/seed.ts`) only checks `NODE_ENV`; its comment and the Audit Quick Wins history entry wrongly say Prisma runs the seed during `prisma migrate dev` (Prisma 7 runs it only from `prisma db seed`)
+  - Partial unique index on `item_types(name) WHERE "userId" IS NULL` to prevent duplicate system types — the schema language cannot express it without hand-written SQL in the migration, which conflicts with the no-raw-SQL rule
+  - One request-cached loader so the page and sidebar stop running `getTypeCounts()` twice per render
+  - Wrapping the seed's clear-and-recreate in a transaction
 
 ## History
 
