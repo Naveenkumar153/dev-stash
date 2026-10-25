@@ -14,6 +14,7 @@ Read the following files to get the full context of the project:
  - @context/coding-standards.md
  - @context/ai-interaction.md
  - @context/current-feature.md
+ - @context/neon-mcp.md
 
 @AGENTS.md
 
