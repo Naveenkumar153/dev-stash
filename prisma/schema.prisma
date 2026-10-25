@@ -129,8 +129,9 @@ model Collection {
   updatedAt DateTime @updatedAt
 
   // Recent collections, and the sidebar's favorites / non-favorites split.
-  @@index([userId, createdAt(sort: Desc)])
-  @@index([userId, isFavorite, createdAt(sort: Desc)])
+  // Carries the id tie-break so the stable ordering stays an index scan.
+  @@index([userId, createdAt(sort: Desc), id(sort: Desc)])
+  @@index([userId, isFavorite, createdAt(sort: Desc), id(sort: Desc)])
   @@index([defaultTypeId])
   @@map("collections")
 }
