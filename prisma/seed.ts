@@ -14,14 +14,12 @@
 // Prisma 7 does not load .env automatically, and this runs outside Next.js.
 import "dotenv/config";
 
-import bcrypt from "bcryptjs";
-
 import { ContentType } from "@/generated/prisma/enums";
+import { hashPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
 
 const DEMO_EMAIL = "demo@devstash.io";
 const DEMO_PASSWORD = "12345678";
-const BCRYPT_ROUNDS = 12;
 
 type SystemTypeName =
   | "snippet"
@@ -371,7 +369,7 @@ CMD ["node", "server.js"]`,
 
 /** Creates or updates the demo user, matched on the unique email. */
 async function seedUser(): Promise<string> {
-  const passwordHash = await bcrypt.hash(DEMO_PASSWORD, BCRYPT_ROUNDS);
+  const passwordHash = await hashPassword(DEMO_PASSWORD);
 
   const user = await prisma.user.upsert({
     where: { email: DEMO_EMAIL },

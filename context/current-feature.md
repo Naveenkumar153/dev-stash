@@ -1,18 +1,34 @@
-# Current Feature
-
-<!-- Feature Name -->
+# Current Feature: Auth Phase 2 — Email/Password Credentials Provider
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- Add the Credentials provider for email/password sign-in, using the existing `bcryptjs` dependency for hashing
+- Password storage: reuse the existing `User.passwordHash String?` column (added in Database Foundation, already filled for the seeded demo user), so no migration is needed
+- Split pattern:
+  - `src/auth.config.ts` — add a Credentials provider whose `authorize` is a `() => null` placeholder, so the edge-safe proxy config never imports bcrypt or Prisma
+  - `src/auth.ts` — override that Credentials entry with the real `authorize`: look up the user by email, `bcrypt.compare` against `passwordHash`, return the user or `null`
+- `POST /api/auth/register` (`src/app/api/auth/register/route.ts`):
+  - accepts `name`, `email`, `password`, `confirmPassword`
+  - validates input (Zod, per coding standards) including passwords matching
+  - rejects an email that already exists
+  - hashes with bcryptjs, creates the user, returns a success/error JSON response with appropriate status codes
+- GitHub OAuth keeps working alongside Credentials
+- Testing: register via the spec's curl command → `/api/auth/signin` shows both providers → email/password sign-in lands on `/dashboard` → GitHub sign-in still works; `npm run build` passes
 
 ## Notes
 
-<!-- Any extra notes -->
+- Verify the current Credentials provider API with Context7 before writing code. Reference: https://authjs.dev/getting-started/authentication/credentials
+- Credentials only works with the JWT session strategy, which Phase 1 already set in `auth.ts`
+- `zod` is not installed yet. The coding standards require Zod for input validation, so install it as part of this feature
+- Use the seed's 12 bcrypt rounds (`BCRYPT_ROUNDS` in `prisma/seed.ts`) so registered and seeded hashes match in cost
+- Never return `passwordHash` from `authorize` or the register route
+- An OAuth-only user has a null `passwordHash`, so `authorize` must return `null` for that user instead of throwing
+- Phase 1 is stacked: its uncommitted code was carried onto `feature/auth-phase-2`, which was branched from `feature/auth-phase-1` (that branch has no commits of its own). Both phases land together unless Phase 1 is committed separately first. Phase 1 still needs its History entry, and the GitHub OAuth round trip back to `/dashboard` still needs a manual sign-in
+- Out of scope: a custom sign-in or registration page, email verification, password reset, switching `getCurrentUserId()` and `SidebarUser` to the session user
 
 ## History
 
