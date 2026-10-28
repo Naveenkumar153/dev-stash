@@ -33,3 +33,14 @@ export const registerSchema = z
     message: "Passwords do not match",
     path: ["confirmPassword"],
   });
+
+export type FieldErrors = Partial<Record<string, string>>;
+
+/** The first message for each field, keyed by the field's name. */
+export function getFieldErrors(error: z.ZodError): FieldErrors {
+  const fieldErrors: FieldErrors = {};
+  for (const issue of error.issues) {
+    fieldErrors[String(issue.path[0])] ??= issue.message;
+  }
+  return fieldErrors;
+}

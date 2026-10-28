@@ -1,18 +1,30 @@
-# Current Feature
-
-<!-- Feature Name -->
+# Current Feature: Auth Phase 3 (Auth UI - Sign In, Register & Sign Out)
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- Custom `/sign-in` page replacing NextAuth's default sign-in page: email and password fields, a "Sign in with GitHub" button, a link to `/register`, form validation and error display (including NextAuth's `?error=CredentialsSignin` redirect)
+- Custom `/register` page: name, email, password and confirm password fields, client-side validation (email format, passwords match), submits to `POST /api/auth/register`, shows server errors (400 / 409 / 500), and redirects to `/sign-in` on success
+- Bottom of the sidebar shows the signed-in user instead of mock data: avatar, name (and email)
+- Reusable avatar component: GitHub `image` when present, otherwise initials from the name (e.g. "Brad Traversy" → "BT")
+- Clicking the avatar opens a dropdown/up with a "Sign out" action that logs out and redirects; the dropdown also links to `/profile`
+- NextAuth and the proxy point at `/sign-in` instead of `/api/auth/signin`
 
 ## Notes
 
-<!-- Any extra notes -->
+- Spec: `context/features/auth-phase-3-spec.md`
+- Builds on Auth Phase 1 and 2: `src/auth.config.ts` (edge-safe, GitHub + Credentials placeholder), `src/auth.ts` (Prisma adapter, JWT sessions, real `authorize`), `src/proxy.ts` (redirects signed-out `/dashboard` requests to `/api/auth/signin` with `callbackUrl`), `src/lib/auth-schemas.ts` (`signInSchema` / `registerSchema`, reusable for client-side validation)
+- Custom pages are wired via `pages: { signIn: "/sign-in" }` in `auth.config.ts` so the proxy and the full instance agree; the proxy's redirect target and `callbackUrl` handling move with it
+- `src/components/dashboard/SidebarUser.tsx` currently reads `currentUser` from `src/lib/mock-data.ts` and has its own `getInitials()`; it is a client component, so the session user must be passed down as props from the server layout (or read via `useSession`). Once nothing imports it, `src/lib/mock-data.ts` can go — ask before deleting
+- Spec ambiguity: "Clicking on the icon should go to /profile" vs. "Dropdown on avatar click". Plan: avatar click opens the dropdown, which contains a Profile link to `/profile` and Sign out. `/profile` does not exist yet and is not in this spec — the link will 404 until a later feature
+- Spec testing step 4 says "avatar shows in top bar"; the requirements put it at the bottom of the sidebar — follow the requirements
+- No dropdown component installed yet (`src/components/ui` has avatar, badge, button, card, input, separator, sheet, tooltip) — add shadcn `dropdown-menu`, and `label` for the forms
+- Sign out goes through NextAuth `signOut` (server action or `next-auth/react`), redirecting to `/sign-in`
+- `getCurrentUserId()` still resolves the demo user by email; moving dashboard queries to the session user is not in this spec
+- Read `node_modules/next/dist/docs/` before writing pages/forms (Next.js 16)
 
 ## History
 

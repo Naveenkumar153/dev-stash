@@ -9,10 +9,12 @@ import { Separator } from "@/components/ui/separator";
 import type { SidebarCollections } from "@/lib/db/collections";
 import type { ItemTypeCount } from "@/lib/db/items";
 import { cn } from "@/lib/utils";
+import type { SessionUser } from "@/types/auth";
 
 interface SidebarBodyProps {
   itemTypes: ItemTypeCount[];
   collections: SidebarCollections;
+  user: SessionUser;
   collapsed: boolean;
   /** Called after a link is followed - closes the drawer on mobile. */
   onNavigate?: () => void;
@@ -22,6 +24,7 @@ interface SidebarBodyProps {
 export function SidebarBody({
   itemTypes,
   collections,
+  user,
   collapsed,
   onNavigate,
 }: SidebarBodyProps) {
@@ -51,7 +54,7 @@ export function SidebarBody({
       />
 
       <Separator />
-      <SidebarUser collapsed={collapsed} />
+      <SidebarUser user={user} collapsed={collapsed} />
     </div>
   );
 }
