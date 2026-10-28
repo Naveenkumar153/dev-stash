@@ -10,10 +10,12 @@ import {
 } from "@/components/ui/sheet";
 import type { SidebarCollections } from "@/lib/db/collections";
 import type { ItemTypeCount } from "@/lib/db/items";
+import type { SessionUser } from "@/types/auth";
 
 interface SidebarProps {
   itemTypes: ItemTypeCount[];
   collections: SidebarCollections;
+  user: SessionUser;
 }
 
 /**
@@ -21,7 +23,7 @@ interface SidebarProps {
  * content - only the shell differs. The rows are fetched in the layout, so only
  * plain data crosses into the client; icons and colors resolve from type names.
  */
-export function Sidebar({ itemTypes, collections }: SidebarProps) {
+export function Sidebar({ itemTypes, collections, user }: SidebarProps) {
   const { isCollapsed, isMobileOpen, setMobileOpen } = useSidebar();
 
   return (
@@ -33,6 +35,7 @@ export function Sidebar({ itemTypes, collections }: SidebarProps) {
         <SidebarBody
           itemTypes={itemTypes}
           collections={collections}
+          user={user}
           collapsed={isCollapsed}
         />
       </aside>
@@ -50,6 +53,7 @@ export function Sidebar({ itemTypes, collections }: SidebarProps) {
           <SidebarBody
             itemTypes={itemTypes}
             collections={collections}
+            user={user}
             collapsed={false}
             onNavigate={() => setMobileOpen(false)}
           />
