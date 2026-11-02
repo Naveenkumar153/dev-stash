@@ -19,8 +19,14 @@ export function safeCallbackUrl(value: unknown): string {
   return value;
 }
 
+/** `CredentialsSignin.code` for a correct password on an unverified email. */
+export const EMAIL_NOT_VERIFIED = "email_not_verified";
+
 const SIGN_IN_ERRORS: Record<string, string> = {
   CredentialsSignin: "Invalid email or password",
+  [EMAIL_NOT_VERIFIED]: "Verify your email before signing in. Check your inbox for the link.",
+  EmailVerificationInvalid: "That verification link is invalid or has already been used.",
+  EmailVerificationExpired: "That verification link has expired. Sign in to get a new one.",
   OAuthAccountNotLinked:
     "An account with this email already exists. Sign in with the method you used before.",
   AccessDenied: "Access denied",

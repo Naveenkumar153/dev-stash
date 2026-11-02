@@ -1,11 +1,17 @@
 import { PrismaAdapter } from "@auth/prisma-adapter";
-import NextAuth from "next-auth";
+import NextAuth, { CredentialsSignin } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 
 import authConfig from "@/auth.config";
+import { EMAIL_NOT_VERIFIED } from "@/lib/auth-redirect";
 import { signInSchema } from "@/lib/auth-schemas";
 import { verifyPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
+
+/** The password was right but the email hasn't been confirmed yet. */
+export class EmailNotVerified extends CredentialsSignin {
+  code = EMAIL_NOT_VERIFIED;
+}
 
 const credentials = Credentials({
   credentials: {
@@ -20,7 +26,14 @@ const credentials = Credentials({
 
     const user = await prisma.user.findUnique({
       where: { email: parsed.data.email },
-      select: { id: true, email: true, name: true, image: true, passwordHash: true },
+      select: {
+        id: true,
+        email: true,
+        name: true,
+        image: true,
+        passwordHash: true,
+        emailVerified: true,
+      },
     });
 
     // OAuth-only accounts have no password to check against.
@@ -31,6 +44,12 @@ const credentials = Credentials({
     const valid = await verifyPassword(parsed.data.password, user.passwordHash);
     if (!valid) {
       return null;
+    }
+
+    // Checked after the password so the message can't reveal which emails
+    // are registered.
+    if (!user.emailVerified) {
+      throw new EmailNotVerified();
     }
 
     return { id: user.id, email: user.email, name: user.name, image: user.image };

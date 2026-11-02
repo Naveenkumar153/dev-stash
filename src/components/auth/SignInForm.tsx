@@ -5,15 +5,18 @@ import { startTransition, useActionState } from "react";
 import { signInWithCredentials, type SignInState } from "@/actions/auth";
 import { FormField } from "@/components/auth/FormField";
 import { FormMessage } from "@/components/auth/FormMessage";
+import { ResendVerificationButton } from "@/components/auth/ResendVerificationButton";
 import { Button } from "@/components/ui/button";
 
 interface SignInFormProps {
   callbackUrl: string;
   /** Message for an `?error=` NextAuth put on the URL before this page loaded. */
   initialError: string | null;
+  /** Success copy shown until the first failed attempt, e.g. after verifying an email. */
+  notice: string | null;
 }
 
-export function SignInForm({ callbackUrl, initialError }: SignInFormProps) {
+export function SignInForm({ callbackUrl, initialError, notice }: SignInFormProps) {
   const [state, formAction, pending] = useActionState<SignInState, FormData>(
     signInWithCredentials,
     { success: false, error: initialError, fieldErrors: {} },
@@ -30,6 +33,7 @@ export function SignInForm({ callbackUrl, initialError }: SignInFormProps) {
   return (
     <form onSubmit={handleSubmit} noValidate className="grid gap-4">
       {state.error && <FormMessage>{state.error}</FormMessage>}
+      {!state.error && notice && <FormMessage tone="success">{notice}</FormMessage>}
 
       <input type="hidden" name="callbackUrl" value={callbackUrl} />
       <FormField
@@ -52,6 +56,7 @@ export function SignInForm({ callbackUrl, initialError }: SignInFormProps) {
       <Button type="submit" disabled={pending} className="w-full">
         {pending ? "Signing in..." : "Sign in"}
       </Button>
+      {state.unverifiedEmail && <ResendVerificationButton email={state.unverifiedEmail} />}
     </form>
   );
 }
