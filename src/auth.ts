@@ -7,6 +7,7 @@ import { EMAIL_NOT_VERIFIED } from "@/lib/auth-redirect";
 import { signInSchema } from "@/lib/auth-schemas";
 import { verifyPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
+import { isEmailVerificationEnabled } from "@/lib/verification";
 
 /** The password was right but the email hasn't been confirmed yet. */
 export class EmailNotVerified extends CredentialsSignin {
@@ -48,7 +49,7 @@ const credentials = Credentials({
 
     // Checked after the password so the message can't reveal which emails
     // are registered.
-    if (!user.emailVerified) {
+    if (isEmailVerificationEnabled() && !user.emailVerified) {
       throw new EmailNotVerified();
     }
 

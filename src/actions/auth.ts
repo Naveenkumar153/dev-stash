@@ -16,7 +16,7 @@ import {
   type FieldErrors,
 } from "@/lib/auth-schemas";
 import { prisma } from "@/lib/prisma";
-import { issueVerificationEmail } from "@/lib/verification";
+import { isEmailVerificationEnabled, issueVerificationEmail } from "@/lib/verification";
 
 export interface SignInState {
   success: boolean;
@@ -79,6 +79,9 @@ export async function resendVerificationEmail(
   const parsed = emailSchema.safeParse(rawEmail);
   if (!parsed.success) {
     return { success: false, data: null, error: parsed.error.issues[0].message };
+  }
+  if (!isEmailVerificationEnabled()) {
+    return { success: true, data: null, error: null };
   }
 
   try {

@@ -2,7 +2,7 @@ import { Prisma } from "@/generated/prisma/client";
 import { registerSchema } from "@/lib/auth-schemas";
 import { hashPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
-import { issueVerificationEmail } from "@/lib/verification";
+import { isEmailVerificationEnabled, issueVerificationEmail } from "@/lib/verification";
 
 const EMAIL_TAKEN = "An account with this email already exists";
 
@@ -36,15 +36,22 @@ export async function POST(request: Request) {
       select: { id: true, name: true, email: true },
     });
 
+    const verificationRequired = isEmailVerificationEnabled();
+
     // The account exists either way; if the email fails, the user can ask
     // for another from the check-your-email screen or the sign-in page.
-    try {
-      await issueVerificationEmail(user.email, user.name);
-    } catch (error) {
-      console.error("Verification email failed", error);
+    if (verificationRequired) {
+      try {
+        await issueVerificationEmail(user.email, user.name);
+      } catch (error) {
+        console.error("Verification email failed", error);
+      }
     }
 
-    return Response.json({ success: true, data: user, error: null }, { status: 201 });
+    return Response.json(
+      { success: true, data: { ...user, verificationRequired }, error: null },
+      { status: 201 },
+    );
   } catch (error) {
     // Two requests for the same email can both pass the lookup above; the
     // unique constraint on `email` rejects the second.

@@ -1,18 +1,34 @@
-# Current Feature
-
-<!-- Feature Name -->
+# Current Feature: Email Verification Toggle
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- One server-side env flag, `EMAIL_VERIFICATION_ENABLED`, turns the email verification system on or off without code changes
+- Read in one place (e.g. `isEmailVerificationEnabled()` in `src/lib/verification.ts`), so no other file parses the variable itself
+- Only the literal `false` disables it; unset or any other value keeps it on, so a missing or mistyped variable in production fails safe
+- When disabled:
+  - `POST /api/auth/register` creates the user without issuing a token or calling Resend, so any email can register
+  - Credentials `authorize` skips the `emailVerified` check, so new accounts can sign in right away
+  - The register form goes back to the pre-verification flow: "Account created" toast, then redirect to `/sign-in`
+  - `resendVerificationEmail()` sends nothing
+- When enabled, behavior is exactly what Email Verification on Register shipped
+- The client learns which flow to show from the register response (e.g. `data.verificationRequired`), not from a `NEXT_PUBLIC_` variable, so the flag stays server-only and can't drift between server and browser
+- `.env.example` documents the flag; set it to `false` in local `.env` for now
+- `npm run build` passes
 
 ## Notes
 
-<!-- Any extra notes -->
+- Why an env var: it matches how the rest of the config works (`AUTH_URL`, `EMAIL_FROM`), needs no schema or UI, and differs per environment. A database setting or admin toggle would add a migration and a settings screen for a switch that is only needed until a Resend domain is verified. A change takes effect on server restart (dev) or redeploy (prod)
+- Decide: when verification is disabled, does register leave `emailVerified` null or set it?
+  - Leave null (recommended): honest data, since nobody proved they own the address. Downside: turning verification back on locks those accounts out until they use the resend button, which still works because they stay unverified
+  - Set `new Date()`: accounts survive re-enabling, but they are marked verified when they never were
+- Existing unverified users can sign in while the flag is off, because the check is skipped rather than the data changed
+- The verify route (`/api/auth/verify-email`) keeps working either way, so links already sent stay valid
+- GitHub OAuth is unaffected in both modes
+- Out of scope: verifying a Resend domain, rate limiting register
 
 ## History
 

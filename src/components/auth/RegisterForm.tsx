@@ -2,6 +2,8 @@
 
 import { useState } from "react";
 import Link from "next/link";
+import { useRouter } from "next/navigation";
+import { toast } from "sonner";
 
 import { FormField } from "@/components/auth/FormField";
 import { FormMessage } from "@/components/auth/FormMessage";
@@ -18,6 +20,7 @@ const SERVER_UNREACHABLE = "Could not reach the server. Please try again.";
  * without a round trip, then posts to `/api/auth/register`.
  */
 export function RegisterForm() {
+  const router = useRouter();
   const [registeredEmail, setRegisteredEmail] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [error, setError] = useState<string | null>(null);
@@ -47,6 +50,16 @@ export function RegisterForm() {
       if (!response.ok) {
         setError(body.error ?? SERVER_UNREACHABLE);
         setPending(false);
+        return;
+      }
+
+      if (body.data?.verificationRequired === false) {
+        // The Toaster lives in the root layout, so the toast outlives this page.
+        toast.success("Account created", {
+          description: "You can now sign in with your email and password.",
+        });
+        // Left pending so the button stays disabled until the page changes.
+        router.push(SIGN_IN_PATH);
         return;
       }
 
