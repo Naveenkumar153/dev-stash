@@ -8,6 +8,15 @@ export const VERIFY_EMAIL_PATH = "/api/auth/verify-email";
 const TOKEN_TTL_MS = 24 * 60 * 60 * 1000;
 const RESEND_COOLDOWN_MS = 60 * 1000;
 
+/**
+ * Off only when `EMAIL_VERIFICATION_ENABLED` is exactly `false`, so an unset
+ * or mistyped variable keeps verification on. While off, accounts register
+ * unverified and sign in anyway; turning it back on requires them to verify.
+ */
+export function isEmailVerificationEnabled(): boolean {
+  return process.env.EMAIL_VERIFICATION_ENABLED !== "false";
+}
+
 // Only the hash is stored, so a leaked `verification_tokens` row can't be
 // turned into a working link.
 function hashToken(token: string): string {

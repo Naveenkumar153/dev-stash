@@ -8,6 +8,12 @@ export interface SessionUser {
 /** Body returned by `POST /api/auth/register`. */
 export interface RegisterResponse {
   success: boolean;
-  data: { id: string; name: string; email: string } | null;
+  data: {
+    id: string;
+    name: string;
+    email: string;
+    /** False while email verification is switched off; the user can sign in now. */
+    verificationRequired: boolean;
+  } | null;
   error: string | null;
 }
