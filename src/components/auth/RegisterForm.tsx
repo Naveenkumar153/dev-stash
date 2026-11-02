@@ -1,11 +1,11 @@
 "use client";
 
 import { useState } from "react";
-import { useRouter } from "next/navigation";
-import { toast } from "sonner";
+import Link from "next/link";
 
 import { FormField } from "@/components/auth/FormField";
 import { FormMessage } from "@/components/auth/FormMessage";
+import { ResendVerificationButton } from "@/components/auth/ResendVerificationButton";
 import { Button } from "@/components/ui/button";
 import { SIGN_IN_PATH } from "@/lib/auth-redirect";
 import { getFieldErrors, registerSchema, type FieldErrors } from "@/lib/auth-schemas";
@@ -18,7 +18,7 @@ const SERVER_UNREACHABLE = "Could not reach the server. Please try again.";
  * without a round trip, then posts to `/api/auth/register`.
  */
 export function RegisterForm() {
-  const router = useRouter();
+  const [registeredEmail, setRegisteredEmail] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [error, setError] = useState<string | null>(null);
   const [pending, setPending] = useState(false);
@@ -50,16 +50,28 @@ export function RegisterForm() {
         return;
       }
 
-      // The Toaster lives in the root layout, so the toast outlives this page.
-      toast.success("Account created", {
-        description: "You can now sign in with your email and password.",
-      });
-      // Left pending so the button stays disabled until the page changes.
-      router.push(SIGN_IN_PATH);
+      setRegisteredEmail(body.data?.email ?? parsed.data.email);
     } catch {
       setError(SERVER_UNREACHABLE);
       setPending(false);
     }
+  }
+
+  if (registeredEmail) {
+    return (
+      <div className="grid gap-4 text-sm">
+        <FormMessage tone="success">Account created. Check your email.</FormMessage>
+        <p className="text-muted-foreground">
+          We sent a verification link to{" "}
+          <span className="font-medium text-foreground">{registeredEmail}</span>. Click it to
+          activate your account, then sign in. The link expires in 24 hours.
+        </p>
+        <ResendVerificationButton email={registeredEmail} />
+        <Button render={<Link href={SIGN_IN_PATH} />} nativeButton={false} className="w-full">
+          Go to sign in
+        </Button>
+      </div>
+    );
   }
 
   return (

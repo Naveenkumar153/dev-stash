@@ -2,14 +2,14 @@ import { z } from "zod";
 
 // Normalized the same way on sign-up and sign-in so `Test@Example.com ` finds
 // the row stored as `test@example.com`.
-const email = z
+export const emailSchema = z
   .string({ error: "Email is required" })
   .trim()
   .toLowerCase()
   .pipe(z.email("Enter a valid email address"));
 
 export const signInSchema = z.object({
-  email,
+  email: emailSchema,
   password: z.string({ error: "Password is required" }).min(1, "Password is required"),
 });
 
@@ -20,7 +20,7 @@ export const registerSchema = z
       .trim()
       .min(1, "Name is required")
       .max(100, "Name is too long"),
-    email,
+    email: emailSchema,
     // bcrypt ignores everything past 72 bytes, so a longer password would
     // silently match any string sharing its first 72.
     password: z

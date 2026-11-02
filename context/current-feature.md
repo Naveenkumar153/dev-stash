@@ -1,18 +1,31 @@
-# Current Feature
-
-<!-- Feature Name -->
+# Current Feature: Email Verification on Register
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- Registering with email/password sends a verification email through Resend, with a link the user clicks to verify their address
+- The API key is read from `RESEND_EMAIL_API_KEY` in `.env` and never exposed to the client
+- On register, store a single-use, expiring token in the existing `VerificationToken` table (`identifier` = email, random token, `expires` ~24h)
+- A verify route (e.g. `/api/auth/verify-email?token=...&email=...`) checks the token, sets `User.emailVerified`, deletes the token, and redirects to `/sign-in` with a success message; invalid or expired tokens redirect with an error message
+- Credentials sign-in is blocked for users whose `emailVerified` is null, with a clear "verify your email" message on `/sign-in`
+- After registering, the user sees a "check your email" message (toast or screen) instead of the current "You can now sign in" copy
+- A way to resend the verification email (e.g. from the sign-in error or the check-your-email screen), which replaces any previous token for that email
+- GitHub OAuth users are unaffected: the check lives in the credentials `authorize`, and the adapter leaves `emailVerified` null for OAuth accounts, so it must not be checked anywhere else
+- `npm run build` passes
 
 ## Notes
 
-<!-- Any extra notes -->
+- No migration expected: `User.emailVerified DateTime?` and `VerificationToken` (`identifier`, `token`, `expires`, `@@unique([identifier, token])`) already exist from Database Foundation
+- Add the `resend` npm package; keep the email-sending code server-only in `src/lib/` (e.g. `src/lib/email.ts`)
+- Store a hash of the token rather than the raw token, so a database leak can't be used to verify accounts
+- The verification link needs an absolute base URL (e.g. `AUTH_URL` / `NEXT_PUBLIC_APP_URL`, falling back to `http://localhost:3000` in dev). This env var still needs to be chosen
+- Resend sender: without a verified domain, Resend only allows `onboarding@resend.dev` as the sender, and only delivers to the Resend account owner's own email. Testing with other addresses requires verifying a domain in Resend
+- Existing credentials users (`demo@devstash.io`, `test@test.com`, `phase3@test.com`, `toast@test.com`) have a null `emailVerified` and would be locked out. Decide whether the seed marks the demo user as verified and whether the existing dev test users are backfilled (a data update through the seed or a script, not a schema change)
+- Follow existing patterns: `{ success, data, error }` responses, Zod validation, error copy in `src/lib/auth-redirect.ts`, sonner toasts
+- Open from Auth Phase 2 that this partly addresses: a registration could claim a GitHub user's email before they sign in. With verification, an unverified credentials account can't be used, but it still blocks GitHub sign-in with `OAuthAccountNotLinked`. Out of scope unless requested
 
 ## History
 

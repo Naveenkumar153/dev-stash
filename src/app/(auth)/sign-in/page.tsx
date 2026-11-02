@@ -22,7 +22,7 @@ interface SignInPageProps {
 }
 
 export default async function SignInPage({ searchParams }: SignInPageProps) {
-  const { callbackUrl, error } = await searchParams;
+  const { callbackUrl, error, verified } = await searchParams;
   const redirectTo = safeCallbackUrl(callbackUrl);
 
   return (
@@ -44,6 +44,7 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
         <SignInForm
           callbackUrl={redirectTo}
           initialError={typeof error === "string" ? getSignInErrorMessage(error) : null}
+          notice={verified === "1" ? "Email verified. You can now sign in." : null}
         />
       </CardContent>
 
