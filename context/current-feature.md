@@ -1,18 +1,30 @@
-# Current Feature
-
-<!-- Feature Name -->
+# Current Feature: Forgot Password
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- "Forgot password?" link on `/sign-in` (beside the password field) leading to a new `/forgot-password` page in the `(auth)` route group
+- `/forgot-password` form takes an email (validated with the shared `emailSchema`) and submits through a server action
+- The action emails a reset link only to existing credentials accounts (non-null `passwordHash`), but always returns the same success message, so it can't be used to probe which emails exist
+- Reset tokens reuse the existing `VerificationToken` model: 32-byte `base64url` token, stored only as its SHA-256 hash, 1-hour expiry, any earlier reset token for the email replaced in one `$transaction`, with a one-minute resend cooldown like verification
+- New `sendPasswordResetEmail()` in `src/lib/email.ts` (text + HTML, name escaped), following `sendVerificationEmail()`
+- `/reset-password?email=…&token=…` page with new password + confirm fields, validated by a new `resetPasswordSchema` sharing the password rules (8+ chars, ≤72 UTF-8 bytes, match check) with `registerSchema`
+- Submitting checks the token, hashes the new password with `hashPassword()`, updates `User.passwordHash` and deletes the reset tokens in one transaction; the token works once
+- On success redirect to `/sign-in` with a success notice (e.g. `?reset=1`); invalid / expired tokens show clear errors with a link back to `/forgot-password`
+- `npm run build` passes
 
 ## Notes
 
-<!-- Any extra notes -->
+- **Token namespacing:** `issueVerificationEmail()` and `consumeVerificationToken()` delete every token whose `identifier` is the email, so reset tokens must use a distinct identifier (e.g. `password-reset:${email}`) or requesting a reset would wipe a pending verification link and vice versa. No migration needed.
+- Hashing/token helpers in `src/lib/verification.ts` (`hashToken`, the cooldown check) should be shared rather than duplicated — either extract to a small token module or put reset logic beside them.
+- GitHub-only users (null `passwordHash`) get no email; the response stays the same.
+- Reset should not depend on `EMAIL_VERIFICATION_ENABLED`, but Resend still only delivers to the account owner's address until a domain is verified.
+- Open decision: whether a successful reset should also set `emailVerified` (clicking the emailed link proves inbox ownership). Default: yes, since it's the same proof verification relies on.
+- Existing JWT sessions aren't invalidated by a reset (JWT strategy, no session table lookup) — note as out of scope.
+- No rate limiting beyond the per-email cooldown, matching the existing auth routes.
 
 ## History
 

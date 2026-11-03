@@ -6,15 +6,24 @@ interface FormFieldProps extends React.ComponentProps<typeof Input> {
   id: string;
   label: string;
   error?: string;
+  /** Shown at the end of the label row, e.g. a "Forgot password?" link. */
+  labelAside?: React.ReactNode;
 }
 
 /** A labelled input with its validation message wired up for screen readers. */
-export function FormField({ id, label, error, ...props }: FormFieldProps) {
+export function FormField({ id, label, error, labelAside, ...props }: FormFieldProps) {
   const errorId = `${id}-error`;
 
   return (
     <div className="grid gap-2">
-      <Label htmlFor={id}>{label}</Label>
+      {labelAside ? (
+        <div className="flex items-center justify-between gap-2">
+          <Label htmlFor={id}>{label}</Label>
+          {labelAside}
+        </div>
+      ) : (
+        <Label htmlFor={id}>{label}</Label>
+      )}
       <Input
         id={id}
         name={id}

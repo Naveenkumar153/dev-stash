@@ -1,20 +1,24 @@
 "use server";
 
+import { redirect } from "next/navigation";
 import { AuthError, CredentialsSignin } from "next-auth";
 
 import { signIn, signOut } from "@/auth";
 import {
   EMAIL_NOT_VERIFIED,
   getSignInErrorMessage,
+  PASSWORD_RESET_ERRORS,
   safeCallbackUrl,
   SIGN_IN_PATH,
 } from "@/lib/auth-redirect";
 import {
   emailSchema,
   getFieldErrors,
+  resetPasswordSchema,
   signInSchema,
   type FieldErrors,
 } from "@/lib/auth-schemas";
+import { issuePasswordResetEmail, resetPasswordWithToken } from "@/lib/password-reset";
 import { prisma } from "@/lib/prisma";
 import { isEmailVerificationEnabled, issueVerificationEmail } from "@/lib/verification";
 
@@ -104,6 +108,77 @@ export async function resendVerificationEmail(
     console.error("Resending verification email failed", error);
     return { success: false, data: null, error: "Could not send the email. Please try again." };
   }
+}
+
+export interface ForgotPasswordState {
+  success: boolean;
+  error: string | null;
+  fieldErrors: FieldErrors;
+  /** The address the link was sent to, shown on the confirmation panel. */
+  email?: string;
+}
+
+/**
+ * Emails a reset link to credentials accounts. Every valid email gets the same
+ * success reply - unknown, OAuth-only, inside the resend cooldown or failed to
+ * send - so neither the reply nor a second request can probe accounts.
+ */
+export async function requestPasswordReset(
+  _prevState: ForgotPasswordState,
+  formData: FormData,
+): Promise<ForgotPasswordState> {
+  const parsed = emailSchema.safeParse(formData.get("email"));
+  if (!parsed.success) {
+    return { success: false, error: null, fieldErrors: { email: parsed.error.issues[0].message } };
+  }
+
+  try {
+    const user = await prisma.user.findUnique({
+      where: { email: parsed.data },
+      select: { name: true, passwordHash: true },
+    });
+    if (user?.passwordHash) {
+      await issuePasswordResetEmail(parsed.data, user.name);
+    }
+  } catch (error) {
+    console.error("Sending password reset email failed", error);
+  }
+
+  return { success: true, error: null, fieldErrors: {}, email: parsed.data };
+}
+
+export interface ResetPasswordState {
+  error: string | null;
+  fieldErrors: FieldErrors;
+  /** Set when the link itself is unusable, to offer a fresh one. */
+  linkFailed?: boolean;
+}
+
+export async function resetPassword(
+  _prevState: ResetPasswordState,
+  formData: FormData,
+): Promise<ResetPasswordState> {
+  const parsed = resetPasswordSchema.safeParse(Object.fromEntries(formData));
+  if (!parsed.success) {
+    const fieldErrors = getFieldErrors(parsed.error);
+    if (fieldErrors.email || fieldErrors.token) {
+      return { error: PASSWORD_RESET_ERRORS.invalid, fieldErrors: {}, linkFailed: true };
+    }
+    return { error: null, fieldErrors };
+  }
+
+  const { email, token, password } = parsed.data;
+  try {
+    const result = await resetPasswordWithToken(email, token, password);
+    if (result !== "reset") {
+      return { error: PASSWORD_RESET_ERRORS[result], fieldErrors: {}, linkFailed: true };
+    }
+  } catch (error) {
+    console.error("Resetting password failed", error);
+    return { error: "Could not reset your password. Please try again.", fieldErrors: {} };
+  }
+
+  redirect(`${SIGN_IN_PATH}?reset=1`);
 }
 
 export async function signInWithGitHub(callbackUrl: string) {
