@@ -48,6 +48,16 @@ export const resetPasswordSchema = z
   })
   .refine(passwordsMatch.check, passwordsMatch.params);
 
+export const changePasswordSchema = z
+  .object({
+    currentPassword: z
+      .string({ error: "Current password is required" })
+      .min(1, "Current password is required"),
+    password: passwordSchema,
+    confirmPassword: z.string({ error: "Confirm your password" }),
+  })
+  .refine(passwordsMatch.check, passwordsMatch.params);
+
 export type FieldErrors = Partial<Record<string, string>>;
 
 /** The first message for each field, keyed by the field's name. */

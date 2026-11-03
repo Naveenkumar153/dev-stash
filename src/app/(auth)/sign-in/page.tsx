@@ -17,7 +17,10 @@ export const metadata: Metadata = {
   title: "Sign in | DevStash",
 };
 
-function getNotice(verified: unknown, reset: unknown): string | null {
+function getNotice(verified: unknown, reset: unknown, deleted: unknown): string | null {
+  if (deleted === "1") {
+    return "Your account has been deleted.";
+  }
   if (reset === "1") {
     return "Password updated. Sign in with your new password.";
   }
@@ -29,7 +32,7 @@ interface SignInPageProps {
 }
 
 export default async function SignInPage({ searchParams }: SignInPageProps) {
-  const { callbackUrl, error, verified, reset } = await searchParams;
+  const { callbackUrl, error, verified, reset, deleted } = await searchParams;
   const redirectTo = safeCallbackUrl(callbackUrl);
 
   return (
@@ -51,7 +54,7 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
         <SignInForm
           callbackUrl={redirectTo}
           initialError={typeof error === "string" ? getSignInErrorMessage(error) : null}
-          notice={getNotice(verified, reset)}
+          notice={getNotice(verified, reset, deleted)}
         />
       </CardContent>
 

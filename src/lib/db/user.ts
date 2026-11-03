@@ -9,7 +9,7 @@ import type { SessionUser } from "@/types/auth";
  * lands — every query scopes to whatever this returns, so swapping it for the
  * real session is a one-function change.
  */
-const DEMO_USER_EMAIL = "demo@devstash.io";
+export const DEMO_USER_EMAIL = "demo@devstash.io";
 
 /**
  * Owner id for the dashboard's queries. Null when the database is unseeded.
