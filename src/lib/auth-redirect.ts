@@ -1,4 +1,6 @@
 export const SIGN_IN_PATH = "/sign-in";
+export const FORGOT_PASSWORD_PATH = "/forgot-password";
+export const RESET_PASSWORD_PATH = "/reset-password";
 
 const DEFAULT_REDIRECT = "/dashboard";
 
@@ -40,3 +42,8 @@ const SIGN_IN_ERRORS: Record<string, string> = {
 export function getSignInErrorMessage(code: string): string {
   return SIGN_IN_ERRORS[code] ?? "Sign in failed. Please try again.";
 }
+
+export const PASSWORD_RESET_ERRORS = {
+  invalid: "That reset link is invalid or has already been used.",
+  expired: "That reset link has expired.",
+} as const;

@@ -8,6 +8,19 @@ export const emailSchema = z
   .toLowerCase()
   .pipe(z.email("Enter a valid email address"));
 
+// bcrypt ignores everything past 72 bytes, so a longer password would
+// silently match any string sharing its first 72.
+const passwordSchema = z
+  .string({ error: "Password is required" })
+  .min(8, "Password must be at least 8 characters")
+  .refine((value) => new TextEncoder().encode(value).length <= 72, "Password is too long");
+
+const passwordsMatch = {
+  check: (data: { password: string; confirmPassword: string }) =>
+    data.password === data.confirmPassword,
+  params: { message: "Passwords do not match", path: ["confirmPassword"] },
+};
+
 export const signInSchema = z.object({
   email: emailSchema,
   password: z.string({ error: "Password is required" }).min(1, "Password is required"),
@@ -21,18 +34,19 @@ export const registerSchema = z
       .min(1, "Name is required")
       .max(100, "Name is too long"),
     email: emailSchema,
-    // bcrypt ignores everything past 72 bytes, so a longer password would
-    // silently match any string sharing its first 72.
-    password: z
-      .string({ error: "Password is required" })
-      .min(8, "Password must be at least 8 characters")
-      .refine((value) => new TextEncoder().encode(value).length <= 72, "Password is too long"),
+    password: passwordSchema,
     confirmPassword: z.string({ error: "Confirm your password" }),
   })
-  .refine((data) => data.password === data.confirmPassword, {
-    message: "Passwords do not match",
-    path: ["confirmPassword"],
-  });
+  .refine(passwordsMatch.check, passwordsMatch.params);
+
+export const resetPasswordSchema = z
+  .object({
+    email: emailSchema,
+    token: z.string({ error: "Reset link is invalid" }).min(1, "Reset link is invalid"),
+    password: passwordSchema,
+    confirmPassword: z.string({ error: "Confirm your password" }),
+  })
+  .refine(passwordsMatch.check, passwordsMatch.params);
 
 export type FieldErrors = Partial<Record<string, string>>;
 

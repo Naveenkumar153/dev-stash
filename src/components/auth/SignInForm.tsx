@@ -1,12 +1,14 @@
 "use client";
 
 import { startTransition, useActionState } from "react";
+import Link from "next/link";
 
 import { signInWithCredentials, type SignInState } from "@/actions/auth";
 import { FormField } from "@/components/auth/FormField";
 import { FormMessage } from "@/components/auth/FormMessage";
 import { ResendVerificationButton } from "@/components/auth/ResendVerificationButton";
 import { Button } from "@/components/ui/button";
+import { FORGOT_PASSWORD_PATH } from "@/lib/auth-redirect";
 
 interface SignInFormProps {
   callbackUrl: string;
@@ -51,6 +53,14 @@ export function SignInForm({ callbackUrl, initialError, notice }: SignInFormProp
         autoComplete="current-password"
         required
         error={state.fieldErrors.password}
+        labelAside={
+          <Link
+            href={FORGOT_PASSWORD_PATH}
+            className="text-sm text-muted-foreground underline-offset-4 hover:text-foreground hover:underline"
+          >
+            Forgot password?
+          </Link>
+        }
       />
 
       <Button type="submit" disabled={pending} className="w-full">
