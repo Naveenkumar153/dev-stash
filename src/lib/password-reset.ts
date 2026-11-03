@@ -15,7 +15,7 @@ const RESEND_COOLDOWN_MS = 60 * 1000;
 
 // Verification tokens use the bare email as their identifier and delete every
 // token under it, so resets live under their own prefix.
-function resetIdentifier(email: string): string {
+export function resetIdentifier(email: string): string {
   return `password-reset:${email}`;
 }
 

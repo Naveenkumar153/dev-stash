@@ -1,18 +1,29 @@
-# Current Feature
-
-<!-- Feature Name -->
+# Current Feature: Profile Page
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- `/profile` route showing the signed-in user's email, name, avatar (GitHub image, otherwise initials from name/email via the existing `UserAvatar`) and account creation date
+- Usage stats: total items, total collections, and a per-type count for all 7 system types (snippets, prompts, notes, commands, links, files, images), zeros included
+- Change password, shown only to users with a password (email/password sign-ups, not GitHub-only accounts): current password, new password and confirm, validated with zod
+- Delete account behind a confirmation dialog; on confirm, the user and all their data are removed and they are signed out to `/sign-in`
+- Route protected: signed-out requests redirect to `/sign-in` with a `callbackUrl`, plus a page-level session check like `src/app/dashboard/layout.tsx`
+- Follows existing patterns: server component fetching with Prisma, server actions returning `{ success, data, error }`, toasts for results
 
 ## Notes
 
-<!-- Any extra notes -->
+- Spec: `context/features/profile-spec.md`
+- The sidebar's user menu already links to `/profile`, which 404s today
+- "Email user" means `User.passwordHash` is non-null; that is the same check credentials `authorize` and `requestPasswordReset()` use. A GitHub user who later set a password would also see change password
+- Dashboard queries still scope to the demo user through `getCurrentUserId()`. Profile stats should count the signed-in user's own rows (by `session.user.id`), so they may differ from the dashboard until that is switched over
+- Protection: `src/proxy.ts` matches only `/dashboard/:path*`, so `/profile` needs adding to the matcher (or moving under the dashboard layout); `getSessionUser()` gives the page-level check
+- Change password: verify the current password with `verifyPassword()`, hash with `hashPassword()`, reuse `passwordSchema` and the match refinement from `src/lib/auth-schemas.ts`
+- Delete account: `Item.itemType` doesn't cascade, so custom types can't be deleted before their items; `scripts/reset-users.ts` already deletes items, collections, custom types, accounts, sessions, tokens (including `password-reset:` ones) and orphaned tags in one `$transaction` and is the pattern to follow. Never allow deleting the demo user's seed through this by accident; it's the user's own account only
+- Confirmation dialog: no shadcn `dialog` / `alert-dialog` installed yet; one needs adding
+- No schema change expected (`User.createdAt` exists)
 
 ## History
 

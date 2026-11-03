@@ -110,15 +110,20 @@ export interface ItemTypeCount {
 
 /**
  * Every type the user can file an item under - the system types plus their own
- * custom ones - with their item counts, for the sidebar. Two queries rather
- * than one count per type, joined in memory.
+ * custom ones - with their item counts, for the sidebar.
  */
 export async function getItemTypeCounts(): Promise<ItemTypeCount[]> {
   // See getRecentCollections: keeps the sidebar out of the prerender.
   await connection();
 
-  const userId = await getCurrentUserId();
+  return countItemsByType(await getCurrentUserId());
+}
 
+/**
+ * Item counts per available type for `userId`. Two queries rather than one
+ * count per type, joined in memory.
+ */
+export async function countItemsByType(userId: string | null): Promise<ItemTypeCount[]> {
   const [types, counts] = await Promise.all([
     getAvailableTypes(userId),
     userId
