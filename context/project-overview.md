@@ -170,7 +170,7 @@ generator client {
 
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
+  // Prisma 7: the URL lives in prisma.config.ts, not here
 }
 
 // --- Content kind for an item's payload ---
@@ -184,8 +184,12 @@ enum ContentType {
 model User {
   id                   String     @id @default(cuid())
   email                String     @unique
+  emailVerified        DateTime?
   name                 String?
   image                String?
+
+  // Credentials auth (email / password). Null for OAuth-only accounts.
+  passwordHash         String?
 
   // Billing / entitlement
   isPro                Boolean    @default(false)

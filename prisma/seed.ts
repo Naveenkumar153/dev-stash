@@ -481,9 +481,8 @@ async function seedCollection(
  * never run against production. `ALLOW_SEED=true` is the deliberate override for
  * seeding a production-like environment on purpose.
  *
- * Not gated on an opt-in alone: `prisma.config.ts` registers this file under
- * `migrations.seed`, so Prisma runs it as part of `prisma migrate dev`, and a
- * variable nobody sets would break `npm run db:migrate`.
+ * Prisma 7 runs the `migrations.seed` command in `prisma.config.ts` only from
+ * `prisma db seed` (`npm run db:seed`), never from `prisma migrate dev`.
  */
 function assertSafeTarget(): void {
   if (process.env.NODE_ENV === "production" && process.env.ALLOW_SEED !== "true") {

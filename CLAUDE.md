@@ -31,5 +31,6 @@ Read the following files to get the full context of the project:
 - `npm run db:studio` — open Prisma Studio
 - `npm run db:test` — verify the DB connection, applied migrations and all tables, and print the seeded demo data (`scripts/test-db.ts`)
 - `npm run db:seed` — seed dev data: demo user, system item types, collections and items (`prisma/seed.ts`)
+- `npm run db:reset-users` — dry run listing every non-demo user and what they own; add `-- --confirm` to delete them (`scripts/reset-users.ts`, refuses production)
 
 <!-- No test runner is configured in this project. -->
