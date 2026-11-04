@@ -1,18 +1,35 @@
-# Current Feature
-
-<!-- Feature Name -->
+# Current Feature: Rate Limiting for Auth
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- Add `@upstash/ratelimit` + `@upstash/redis` and a reusable `src/lib/rate-limit.ts` (Upstash client, sliding window, returns `{ success, remaining, reset }`)
+- Read the client IP from `x-forwarded-for` (first entry) or the request, and combine it with the email where the spec says IP + email
+- Fail open: allow the request when Upstash is unreachable or its env vars are unset
+- Limit these entry points (spec endpoint → where the code actually lives):
+  - Login, 5 / 15 min, IP + email → credentials `authorize` in `src/auth.ts`, which both `signInWithCredentials` and `POST /api/auth/callback/credentials` reach
+  - Register, 3 / 1 hour, IP → `POST /api/auth/register`
+  - Forgot password, 3 / 1 hour, IP → `requestPasswordReset()` server action
+  - Reset password, 5 / 15 min, IP → `resetPassword()` server action
+  - Resend verification, 3 / 15 min, IP + email → `resendVerificationEmail()` server action
+- `/api/auth/register` returns 429 with `{ error: "Too many attempts. Please try again in X minutes." }` and a `Retry-After` header
+- Server actions and sign-in return the same "Too many attempts…" message through their existing `error` result
+- Show the rate-limit message to the user as a toast, per the spec
+- Document `UPSTASH_REDIS_REST_URL` / `UPSTASH_REDIS_REST_TOKEN` in `.env.example`
 
 ## Notes
 
-<!-- Any extra notes -->
+- Spec: `context/features/rate-limiting-spec.md`. This feature fixes the High finding in `docs/audit-results/AUTH_SECURITY_REVIEW.md` (no limit on credentials sign-in) and part of a Medium one (registration and email sends limited only per address)
+- The spec's `/api/auth/forgot-password`, `/reset-password` and `/resend-verification` routes don't exist. Those flows are server actions in `src/actions/auth.ts`, so they can't send a 429 or `Retry-After`. Read the IP with `headers()` from `next/headers` and return the message as `error`. Only the register route is real HTTP. Following the spec literally would mean building three new API routes, which is not planned
+- Login: the limit goes inside `authorize`, which gets the request headers, rather than in a custom sign-in handler. It throws a `CredentialsSignin` subclass with its own `code` (like `EmailNotVerified`), and `signInWithCredentials` maps it to the message the same way it maps `EMAIL_NOT_VERIFIED`. A direct `POST /api/auth/callback/credentials` gets NextAuth's `?error=CredentialsSignin&code=…` redirect, not a 429
+- Forgot password keeps the same reply for every email, so it still can't be used to find accounts. Its limit is keyed by IP only, so the rate-limit reply doesn't reveal accounts either
+- Toast vs inline (decided at `start`): rate-limit errors are a toast instead of the inline message, per the spec; every other error stays inline through `FormMessage`. The three `useActionState` forms read a `rateLimitError` field through `useRateLimitToast()`, `RegisterForm` toasts on a 429, and `ResendVerificationButton` already toasted its `error`
+- `x-forwarded-for` is trustworthy only behind a proxy that overwrites it (Vercel does). On other hosts a client can set it and get a fresh IP key. The email part of the login key still limits attempts per account
+- Env: `.env` and `.env.production` already set both Upstash vars; `.env.example` has neither
+- Not in the spec, so out of scope unless added: limiting `changePassword`'s current-password check (also in the audit's High finding), the register 409 that reveals existing emails, and ending JWT sessions after a reset
 
 ## History
 

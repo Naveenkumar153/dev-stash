@@ -1,9 +1,10 @@
 "use server";
 
+import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { AuthError, CredentialsSignin } from "next-auth";
 
-import { signIn, signOut } from "@/auth";
+import { signIn, signOut, TooManyAttempts } from "@/auth";
 import {
   EMAIL_NOT_VERIFIED,
   getSignInErrorMessage,
@@ -20,7 +21,23 @@ import {
 } from "@/lib/auth-schemas";
 import { issuePasswordResetEmail, resetPasswordWithToken } from "@/lib/password-reset";
 import { prisma } from "@/lib/prisma";
+import {
+  getClientIp,
+  getRateLimitMessage,
+  rateLimit,
+  type RateLimitName,
+} from "@/lib/rate-limit";
 import { isEmailVerificationEnabled, issueVerificationEmail } from "@/lib/verification";
+
+/**
+ * Counts an attempt against `name` for the caller's IP, plus the email when
+ * given. Returns the message to show when the limit is reached.
+ */
+async function checkRateLimit(name: RateLimitName, email?: string): Promise<string | null> {
+  const ip = getClientIp(await headers());
+  const { success, reset } = await rateLimit(name, email ? `${ip}:${email}` : ip);
+  return success ? null : getRateLimitMessage(reset);
+}
 
 export interface SignInState {
   success: boolean;
@@ -28,6 +45,8 @@ export interface SignInState {
   fieldErrors: FieldErrors;
   /** Set when the password was right but the email is unverified, to offer a resend. */
   unverifiedEmail?: string;
+  /** Shown as a toast rather than inline. */
+  rateLimitError?: string;
 }
 
 export async function signInWithCredentials(
@@ -49,6 +68,14 @@ export async function signInWithCredentials(
       redirectTo: safeCallbackUrl(formData.get("callbackUrl")),
     });
   } catch (error) {
+    if (error instanceof TooManyAttempts) {
+      return {
+        success: false,
+        error: null,
+        fieldErrors: {},
+        rateLimitError: getRateLimitMessage(error.reset),
+      };
+    }
     if (error instanceof CredentialsSignin && error.code === EMAIL_NOT_VERIFIED) {
       return {
         success: false,
@@ -88,6 +115,11 @@ export async function resendVerificationEmail(
     return { success: true, data: null, error: null };
   }
 
+  const rateLimitError = await checkRateLimit("resendVerification", parsed.data);
+  if (rateLimitError) {
+    return { success: false, data: null, error: rateLimitError };
+  }
+
   try {
     const user = await prisma.user.findUnique({
       where: { email: parsed.data },
@@ -116,6 +148,8 @@ export interface ForgotPasswordState {
   fieldErrors: FieldErrors;
   /** The address the link was sent to, shown on the confirmation panel. */
   email?: string;
+  /** Shown as a toast rather than inline. */
+  rateLimitError?: string;
 }
 
 /**
@@ -130,6 +164,12 @@ export async function requestPasswordReset(
   const parsed = emailSchema.safeParse(formData.get("email"));
   if (!parsed.success) {
     return { success: false, error: null, fieldErrors: { email: parsed.error.issues[0].message } };
+  }
+
+  // Keyed by IP only, so a blocked reply says nothing about the email.
+  const rateLimitError = await checkRateLimit("forgotPassword");
+  if (rateLimitError) {
+    return { success: false, error: null, fieldErrors: {}, rateLimitError };
   }
 
   try {
@@ -152,6 +192,8 @@ export interface ResetPasswordState {
   fieldErrors: FieldErrors;
   /** Set when the link itself is unusable, to offer a fresh one. */
   linkFailed?: boolean;
+  /** Shown as a toast rather than inline. */
+  rateLimitError?: string;
 }
 
 export async function resetPassword(
@@ -165,6 +207,11 @@ export async function resetPassword(
       return { error: PASSWORD_RESET_ERRORS.invalid, fieldErrors: {}, linkFailed: true };
     }
     return { error: null, fieldErrors };
+  }
+
+  const rateLimitError = await checkRateLimit("resetPassword");
+  if (rateLimitError) {
+    return { error: null, fieldErrors: {}, rateLimitError };
   }
 
   const { email, token, password } = parsed.data;
