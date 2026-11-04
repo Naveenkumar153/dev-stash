@@ -24,6 +24,9 @@ export function safeCallbackUrl(value: unknown): string {
 /** `CredentialsSignin.code` for a correct password on an unverified email. */
 export const EMAIL_NOT_VERIFIED = "email_not_verified";
 
+/** `CredentialsSignin.code` for a sign-in blocked by the rate limit. */
+export const RATE_LIMITED = "rate_limited";
+
 const SIGN_IN_ERRORS: Record<string, string> = {
   CredentialsSignin: "Invalid email or password",
   [EMAIL_NOT_VERIFIED]: "Verify your email before signing in. Check your inbox for the link.",

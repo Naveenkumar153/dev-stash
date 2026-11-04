@@ -47,6 +47,11 @@ export function RegisterForm() {
       });
       const body = (await response.json()) as RegisterResponse;
 
+      if (response.status === 429) {
+        toast.error(body.error ?? SERVER_UNREACHABLE);
+        setPending(false);
+        return;
+      }
       if (!response.ok) {
         setError(body.error ?? SERVER_UNREACHABLE);
         setPending(false);

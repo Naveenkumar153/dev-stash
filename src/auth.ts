@@ -3,10 +3,11 @@ import NextAuth, { CredentialsSignin } from "next-auth";
 import Credentials from "next-auth/providers/credentials";
 
 import authConfig from "@/auth.config";
-import { EMAIL_NOT_VERIFIED } from "@/lib/auth-redirect";
+import { EMAIL_NOT_VERIFIED, RATE_LIMITED } from "@/lib/auth-redirect";
 import { signInSchema } from "@/lib/auth-schemas";
 import { verifyPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
+import { getClientIp, rateLimit } from "@/lib/rate-limit";
 import { isEmailVerificationEnabled } from "@/lib/verification";
 
 /** The password was right but the email hasn't been confirmed yet. */
@@ -14,15 +15,36 @@ export class EmailNotVerified extends CredentialsSignin {
   code = EMAIL_NOT_VERIFIED;
 }
 
+/** Too many sign-in attempts for this IP and email. */
+export class TooManyAttempts extends CredentialsSignin {
+  code = RATE_LIMITED;
+  /** Unix time in milliseconds when another attempt is allowed. */
+  reset: number;
+
+  constructor(reset: number) {
+    super();
+    this.reset = reset;
+  }
+}
+
 const credentials = Credentials({
   credentials: {
     email: { label: "Email", type: "email" },
     password: { label: "Password", type: "password" },
   },
-  async authorize(input) {
+  // Both the sign-in action and a direct POST to the credentials callback land
+  // here, so one check covers both. It runs before bcrypt so blocked attempts
+  // cost no hashing.
+  async authorize(input, request) {
     const parsed = signInSchema.safeParse(input);
     if (!parsed.success) {
       return null;
+    }
+
+    const ip = getClientIp(request.headers);
+    const limit = await rateLimit("signIn", `${ip}:${parsed.data.email}`);
+    if (!limit.success) {
+      throw new TooManyAttempts(limit.reset);
     }
 
     const user = await prisma.user.findUnique({

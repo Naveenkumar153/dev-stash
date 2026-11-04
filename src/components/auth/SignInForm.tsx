@@ -8,6 +8,7 @@ import { FormField } from "@/components/auth/FormField";
 import { FormMessage } from "@/components/auth/FormMessage";
 import { ResendVerificationButton } from "@/components/auth/ResendVerificationButton";
 import { Button } from "@/components/ui/button";
+import { useRateLimitToast } from "@/hooks/use-rate-limit-toast";
 import { FORGOT_PASSWORD_PATH } from "@/lib/auth-redirect";
 
 interface SignInFormProps {
@@ -23,6 +24,7 @@ export function SignInForm({ callbackUrl, initialError, notice }: SignInFormProp
     signInWithCredentials,
     { success: false, error: initialError, fieldErrors: {} },
   );
+  useRateLimitToast(state);
 
   // Dispatched from `onSubmit` rather than `<form action>`, which resets the
   // fields after every attempt - a failed sign-in would wipe what was typed.

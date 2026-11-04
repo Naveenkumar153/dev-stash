@@ -7,6 +7,7 @@ import { resetPassword, type ResetPasswordState } from "@/actions/auth";
 import { FormField } from "@/components/auth/FormField";
 import { FormMessage } from "@/components/auth/FormMessage";
 import { Button } from "@/components/ui/button";
+import { useRateLimitToast } from "@/hooks/use-rate-limit-toast";
 import { FORGOT_PASSWORD_PATH } from "@/lib/auth-redirect";
 
 interface ResetPasswordFormProps {
@@ -19,6 +20,7 @@ export function ResetPasswordForm({ email, token }: ResetPasswordFormProps) {
     resetPassword,
     { error: null, fieldErrors: {} },
   );
+  useRateLimitToast(state);
 
   // Dispatched from `onSubmit` so a failed attempt keeps what was typed.
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {

@@ -2,12 +2,18 @@ import { Prisma } from "@/generated/prisma/client";
 import { registerSchema } from "@/lib/auth-schemas";
 import { hashPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
+import {
+  getClientIp,
+  getRateLimitMessage,
+  getRetryAfterSeconds,
+  rateLimit,
+} from "@/lib/rate-limit";
 import { isEmailVerificationEnabled, issueVerificationEmail } from "@/lib/verification";
 
 const EMAIL_TAKEN = "An account with this email already exists";
 
-function errorResponse(error: string, status: number) {
-  return Response.json({ success: false, data: null, error }, { status });
+function errorResponse(error: string, status: number, headers?: HeadersInit) {
+  return Response.json({ success: false, data: null, error }, { status, headers });
 }
 
 export async function POST(request: Request) {
@@ -21,6 +27,15 @@ export async function POST(request: Request) {
   const parsed = registerSchema.safeParse(body);
   if (!parsed.success) {
     return errorResponse(parsed.error.issues[0].message, 400);
+  }
+
+  // Counted after validation, so only attempts that reach the database use
+  // up the allowance.
+  const limit = await rateLimit("register", getClientIp(request.headers));
+  if (!limit.success) {
+    return errorResponse(getRateLimitMessage(limit.reset), 429, {
+      "Retry-After": String(getRetryAfterSeconds(limit.reset)),
+    });
   }
 
   const { name, email, password } = parsed.data;

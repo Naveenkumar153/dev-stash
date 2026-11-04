@@ -7,6 +7,7 @@ import { requestPasswordReset, type ForgotPasswordState } from "@/actions/auth";
 import { FormField } from "@/components/auth/FormField";
 import { FormMessage } from "@/components/auth/FormMessage";
 import { Button } from "@/components/ui/button";
+import { useRateLimitToast } from "@/hooks/use-rate-limit-toast";
 import { SIGN_IN_PATH } from "@/lib/auth-redirect";
 
 export function ForgotPasswordForm() {
@@ -14,6 +15,7 @@ export function ForgotPasswordForm() {
     requestPasswordReset,
     { success: false, error: null, fieldErrors: {} },
   );
+  useRateLimitToast(state);
 
   // Dispatched from `onSubmit` so a failed attempt keeps the typed email.
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
