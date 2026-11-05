@@ -8,7 +8,11 @@ import { getSidebarCollections } from "@/lib/db/collections";
 import { getItemTypeCounts } from "@/lib/db/items";
 import { getSessionUser } from "@/lib/db/user";
 
-export default async function DashboardLayout({
+/**
+ * The signed-in app shell - sidebar, top bar and scrolling main area - shared by
+ * every page in the (app) group: /dashboard and /items/[type].
+ */
+export default async function AppLayout({
   children,
 }: Readonly<{
   children: React.ReactNode;

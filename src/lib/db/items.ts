@@ -1,6 +1,6 @@
 import { connection } from "next/server";
 
-import { getAvailableTypes } from "@/lib/db/item-types";
+import { getAvailableTypes, getItemTypeBySlug } from "@/lib/db/item-types";
 import { getCurrentUserId } from "@/lib/db/user";
 import { compareItemTypeOrder } from "@/lib/item-types";
 import { prisma } from "@/lib/prisma";
@@ -98,6 +98,43 @@ export async function getRecentItems(
   });
 
   return items.map(toSummary);
+}
+
+export interface ItemTypeList {
+  /** Item type name, e.g. "snippet" - drives the heading, icon and colors. */
+  typeName: string;
+  items: ItemSummary[];
+}
+
+/**
+ * Every item of the type whose list lives at `/items/${slug}`, newest first.
+ * Null when no available type has that slug, so the route can 404.
+ *
+ * Not capped: a cap without "load more" would silently hide items, and the
+ * free tier tops out at 50 items in total.
+ */
+export async function getItemsByType(slug: string): Promise<ItemTypeList | null> {
+  // See getRecentCollections: keeps the list out of the build-time prerender.
+  await connection();
+
+  const [userId, itemType] = await Promise.all([
+    getCurrentUserId(),
+    getItemTypeBySlug(slug),
+  ]);
+
+  if (!itemType) {
+    return null;
+  }
+
+  const items = userId
+    ? await prisma.item.findMany({
+        where: { userId, itemTypeId: itemType.id },
+        orderBy: [...NEWEST_FIRST],
+        select: ITEM_CARD_SELECT,
+      })
+    : [];
+
+  return { typeName: itemType.name, items: items.map(toSummary) };
 }
 
 export interface ItemTypeCount {

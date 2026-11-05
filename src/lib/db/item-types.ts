@@ -1,5 +1,7 @@
 import { cache } from "react";
 
+import { getCurrentUserId } from "@/lib/db/user";
+import { getItemTypeSlug } from "@/lib/item-types";
 import { prisma } from "@/lib/prisma";
 
 /** An item type reduced to what a query needs to join or label it. */
@@ -24,3 +26,18 @@ export const getAvailableTypes = cache(
       select: { id: true, name: true },
     }),
 );
+
+/**
+ * The available type whose list lives at `/items/${slug}`, e.g. "snippets".
+ * Matched exactly against the slug each type would produce rather than by
+ * stripping a trailing "s", so "snippet", "Snippets", a typo or another user's
+ * custom type is null - each list has one URL.
+ *
+ * Both lookups underneath are request-cached, so the page's metadata and its
+ * list can each call this without repeating a query.
+ */
+export async function getItemTypeBySlug(slug: string): Promise<ItemTypeRow | null> {
+  const types = await getAvailableTypes(await getCurrentUserId());
+
+  return types.find((type) => getItemTypeSlug(type.name) === slug) ?? null;
+}

@@ -98,9 +98,17 @@ const FALLBACK_STYLE: ItemTypeStyle = {
   dotClass: "bg-muted-foreground",
 };
 
+/**
+ * URL segment for a type's item list. "snippet" -> "snippets". The one place
+ * the slug is built, so the sidebar's links and the route's lookup agree.
+ */
+export function getItemTypeSlug(name: string) {
+  return `${name.toLowerCase()}s`;
+}
+
 /** Route for a type's item list. "snippet" -> "/items/snippets" */
 export function getItemTypeHref(name: string) {
-  return `/items/${name.toLowerCase()}s`;
+  return `/items/${getItemTypeSlug(name)}`;
 }
 
 /** Plural label for a type. "snippet" -> "Snippets" */

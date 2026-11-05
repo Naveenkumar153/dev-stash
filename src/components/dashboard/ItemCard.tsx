@@ -1,4 +1,3 @@
-import Link from "next/link";
 import { Pin, Star } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
@@ -9,8 +8,8 @@ import { getItemTypeLabel, getItemTypeStyleByName } from "@/lib/item-types";
 import { cn } from "@/lib/utils";
 
 /**
- * Item row card, color-coded on its left edge by item type. Used for both the
- * pinned and the recent lists.
+ * Item row card, color-coded on its left edge by item type. Used for the
+ * dashboard's pinned and recent lists and the /items/[type] grid.
  */
 export function ItemCard({ item }: Readonly<{ item: ItemSummary }>) {
   const { icon: Icon, colorClass, borderClass, bgClass } =
@@ -19,7 +18,7 @@ export function ItemCard({ item }: Readonly<{ item: ItemSummary }>) {
   return (
     <Card
       className={cn(
-        "relative gap-0 border-l-4 px-4 transition-colors hover:bg-accent/50",
+        "gap-0 border-l-4 px-4 transition-colors hover:bg-accent/50",
         borderClass,
       )}
     >
@@ -38,11 +37,9 @@ export function ItemCard({ item }: Readonly<{ item: ItemSummary }>) {
 
         <div className="min-w-0 flex-1">
           <h3 className="flex items-center gap-2 font-heading text-base font-medium">
-            <Link href={`/items/${item.id}`} className="truncate">
-              {/* Stretches over the card so the whole surface is clickable. */}
-              <span aria-hidden className="absolute inset-0" />
-              {item.title}
-            </Link>
+            {/* Not a link yet: /items/<id> would hit /items/[type] and 404.
+                The item drawer feature makes the card open the item. */}
+            <span className="truncate">{item.title}</span>
             {item.isPinned && (
               <Pin
                 aria-label="Pinned"
