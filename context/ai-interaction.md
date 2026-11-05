@@ -15,16 +15,19 @@ This is the common workflow that we will use for every single feature/fix:
 1. **Document** - Document the feature in @context/current-feature.md.
 2. **Branch** - Create new branch for feature, fix, etc
 3. **Implement** - Implement the feature/fix that I create in @context/current-feature.md
-4. **Test** - Verify it works in the browser. Implement unit testing later. Run `npm run build` and fix any errors
+4. **Test**
+   - **Unit tests** - Write Vitest tests for every server action and utility the feature adds or changes, covering the happy path and the error cases (see Testing in @context/coding-standards.md). Don't write tests just to have them: skip code with no logic of its own. Components and pages are not unit tested.
+   - **Browser** - Verify the feature works in the browser.
+   - **Checks** - Run `npm test`, `npm run lint` and `npm run build` and fix any failures.
 5. **Iterate** - Iterate and change things if needed
-6. **Commit** - Only after build passes and everything works
+6. **Commit** - Only after tests, lint and build pass and everything works
 7. **Merge** - Merge to main
 8. **Delete Branch** - Delete branch after merge
 9. **Review** - Review AI-generated code periodically and on demand.
 10. **User Understanding** -  Before you do the changes list down what are the changes are will need the user story or bug fix. Example: create a todo checkbox once you done it checkmark it one by one.
 11. Mark as completed in @context/current-feature.md and add to history
 
-Do NOT commit without permission and until the build passes. If build fails, fix the issues first.
+Do NOT commit without permission and until the tests and build pass. If either fails, fix the issues first.
 
 ## Branching
 
@@ -58,3 +61,4 @@ Review AI-generated code periodically, especially for:
 - Performance (unnecessary re-renders, N+1 queries)
 - Logic errors (edge cases)
 - Patterns (matches existing codebase?)
+- Tests (new or changed actions and utilities have unit tests)

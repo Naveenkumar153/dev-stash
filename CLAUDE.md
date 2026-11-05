@@ -24,6 +24,9 @@ Read the following files to get the full context of the project:
 - `npm run build` — production build
 - `npm run start` — start production server (requires build first)
 - `npm run lint` — run ESLint (flat config, `eslint.config.mjs`)
+- `npm test` — run the Vitest unit tests once (server actions and utilities only; `src/**/*.test.ts`)
+- `npm run test:watch` — run Vitest in watch mode
+- `npm run test:coverage` — run the tests with a v8 coverage report for `src/actions` and `src/lib` (written to `coverage/`)
 - `npm run db:migrate` — create + apply a migration against the dev database (`prisma migrate dev`)
 - `npm run db:deploy` — apply pending migrations in production (`prisma migrate deploy`)
 - `npm run db:status` — check migrations are in sync (`prisma migrate status`)
@@ -32,5 +35,3 @@ Read the following files to get the full context of the project:
 - `npm run db:test` — verify the DB connection, applied migrations and all tables, and print the seeded demo data (`scripts/test-db.ts`)
 - `npm run db:seed` — seed dev data: demo user, system item types, collections and items (`prisma/seed.ts`)
 - `npm run db:reset-users` — dry run listing every non-demo user and what they own; add `-- --confirm` to delete them (`scripts/reset-users.ts`, refuses production)
-
-<!-- No test runner is configured in this project. -->
