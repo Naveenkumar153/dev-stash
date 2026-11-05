@@ -46,6 +46,7 @@ Example v4 configuration:
 @theme {
   --color-primary: oklch(50% 0.2 250);
 }
+```
 
 ## File Organization
 
@@ -100,4 +101,22 @@ Example v4 configuration:
 - Verify error handling
 - Review naming conventions
 - Assess overall code structure and readability
-```
+
+## Testing
+
+Unit tests use **Vitest** (`vitest.config.mts`) and cover **server actions and utilities only**.
+
+- **What to test:** `src/actions/**` and the logic in `src/lib/**`, such as validation schemas, redirect and URL helpers, formatting, type metadata, and token and rate-limit rules.
+- **What not to test:** components, pages and layouts. Verify those in the browser. There is no jsdom or React Testing Library, and the config only picks up `.ts` test files.
+- **Location:** colocate the test beside the file it covers, named `<file>.test.ts` (for example `src/lib/format.ts` → `src/lib/format.test.ts`).
+- **No real services:** a unit test never reaches the database, Redis, Resend or GitHub. Mock them with `vi.mock()`:
+  - `@/lib/prisma` - a stub with only the model methods the code under test calls
+  - `@/auth` - `auth` / `signIn` / `signOut`
+  - `@/lib/password` - so bcrypt doesn't slow the suite
+  - `@/lib/email`, `next/headers` and `next/navigation` when the code calls them
+
+  `vitest.setup.ts` clears `DATABASE_URL` and the other service variables, so a forgotten Prisma mock fails with "DATABASE_URL is not set" instead of connecting.
+- **Environment:** set variables with `vi.stubEnv()`, never by assigning to `process.env`. They're restored after each test (`unstubEnvs`), and mocks are reset (`mockReset`).
+- **Time:** use `vi.useFakeTimers()` + `vi.setSystemTime()` for anything that depends on the current time.
+- **Cases:** cover the happy path and each error branch the code returns, such as not signed in, invalid input, not found, and a failed dependency. Assert on what the caller sees (the `{ success, data, error }` result) and on the calls that matter, such as the exact `where` scoping or that nothing was written.
+- **Judgement:** don't write tests just to have them. Skip code that is only a pass-through to Prisma or a library.

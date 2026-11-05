@@ -1,16 +1,21 @@
-# Current Feature
+# Current Feature: Vitest Setup
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- Install Vitest and configure it for unit tests of server actions and utilities only — no component tests, no jsdom or React Testing Library.
+- Add `npm test` (single run), `npm run test:watch` and `npm run test:coverage` scripts.
+- Make it impossible for a test to reach a real database, Redis, Resend or GitHub: external modules are mocked, and an unmocked import fails loudly.
+- Write a starter suite covering existing utilities and one server action, proving both patterns work.
+- Update the workflow (`context/ai-interaction.md`), coding standards, `CLAUDE.md` commands and the feature skill so unit tests are part of every feature.
 
 ## Notes
 
-<!-- Any extra notes -->
+- Scope: `src/actions/**` and `src/lib/**` (plus `src/hooks/**` only if logic is pure). Components and pages are verified in the browser, not unit tested.
+- Vitest 4.1.12: Vitest 5 requires `@types/node` 22+ and the project pins 20, so 4.1 avoids an unrelated upgrade. Node environment, `@/` alias to `src/`.
 
 ## History
 
