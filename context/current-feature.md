@@ -1,16 +1,22 @@
-# Current Feature
+# Current Feature: Three-Column Item Grid
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- Show the `/items/[type]` grid in three columns on larger screens, instead of the current maximum of two.
+- Keep it responsive: one column on phones and two at medium widths, as today.
+- Cards stay readable at three columns, with no horizontal page scroll at any width.
+- Change nothing else: the cards, the dashboard lists and the queries stay as they are.
 
 ## Notes
 
-<!-- Any extra notes -->
+- Inline request: "change the item listing view to be three column row instead of two on larger screens. keep it responsive".
+- The grid is in `src/app/(app)/items/[type]/page.tsx` (`grid gap-4 md:grid-cols-2`).
+- Breakpoint chosen at start: `xl` (1280px), the default proposed at load, since no other was picked. It matches the dashboard's collection grid (`sm:grid-cols-2 xl:grid-cols-3`). `lg` (1024px) leaves about 720px for the grid next to the 256px sidebar, so each card would be roughly 230px wide, tight for the icon, title, date and tags.
+- Presentation only, so there is no server action or utility to unit test. Verify in the browser at phone, medium, `lg` and `xl` widths, with the sidebar both expanded and collapsed.
 
 ## History
 
