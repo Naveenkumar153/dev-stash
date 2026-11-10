@@ -47,3 +47,10 @@ export interface UpdateItemResult {
   /** The first validation message for each invalid field, keyed by field name. */
   fieldErrors: FieldErrors;
 }
+
+/** Result of the `deleteItem` server action: the deleted item's id, or why it wasn't deleted. */
+export interface DeleteItemResult {
+  success: boolean;
+  data: { id: string } | null;
+  error: string | null;
+}

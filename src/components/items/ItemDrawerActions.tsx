@@ -1,12 +1,15 @@
 "use client";
 
-import { Copy, Pencil, Pin, Star, Trash2 } from "lucide-react";
+import { Copy, Pencil, Pin, Star } from "lucide-react";
 import { toast } from "sonner";
 
+import { ItemDeleteDialog } from "@/components/items/ItemDeleteDialog";
 import { Button } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
 interface ItemDrawerActionsProps {
+  itemId: string;
+  itemTitle: string;
   isFavorite: boolean;
   isPinned: boolean;
   /** What Copy puts on the clipboard. Null while loading, or when there is nothing to copy. */
@@ -15,15 +18,23 @@ interface ItemDrawerActionsProps {
   onEdit?: () => void;
   /** Focuses Edit when the bar mounts, i.e. when the drawer comes back from edit mode. */
   focusEdit?: boolean;
+  /** Delete waits for the full item, like Edit. */
+  canDelete: boolean;
+  /** Runs after the item has been deleted. */
+  onDeleted: () => void;
 }
 
 /**
- * The drawer's action bar. Copy and Edit work; favoriting, pinning and deleting
+ * The drawer's action bar. Copy, Edit and Delete work; favoriting and pinning
  * come with their own features, so until then those buttons are disabled rather
  * than doing nothing when clicked. Favorite and Pin still show the item's
  * current state.
  */
 export function ItemDrawerActions({
+  itemId,
+  itemTitle,
+  canDelete,
+  onDeleted,
   isFavorite,
   isPinned,
   copyText,
@@ -72,15 +83,12 @@ export function ItemDrawerActions({
           Edit
         </Button>
 
-        <Button
-          variant="ghost"
-          size="icon"
-          disabled
-          aria-label="Delete"
-          className="text-destructive"
-        >
-          <Trash2 aria-hidden />
-        </Button>
+        <ItemDeleteDialog
+          itemId={itemId}
+          itemTitle={itemTitle}
+          enabled={canDelete}
+          onDeleted={onDeleted}
+        />
       </div>
     </div>
   );

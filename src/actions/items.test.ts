@@ -1,15 +1,15 @@
 import type { Session } from "next-auth";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { updateItem } from "@/actions/items";
+import { deleteItem, updateItem } from "@/actions/items";
 import { auth } from "@/auth";
-import { updateItem as updateItemRecord } from "@/lib/db/items";
+import { deleteItem as deleteItemRecord, updateItem as updateItemRecord } from "@/lib/db/items";
 import type { ItemDetail } from "@/types/items";
 
 // The session and the query are mocked; the Zod schema runs for real, so these
 // tests also cover what the action sends to the database.
 vi.mock("@/auth", () => ({ auth: vi.fn() }));
-vi.mock("@/lib/db/items", () => ({ updateItem: vi.fn() }));
+vi.mock("@/lib/db/items", () => ({ updateItem: vi.fn(), deleteItem: vi.fn() }));
 
 /** `auth` is overloaded (it doubles as middleware), so its mock is typed by hand. */
 const mockAuth = auth as unknown as ReturnType<typeof vi.fn<() => Promise<Session | null>>>;
@@ -119,6 +119,61 @@ describe("updateItem", () => {
       data: null,
       error: "Couldn't save your changes. Please try again.",
       fieldErrors: {},
+    });
+  });
+});
+
+describe("deleteItem", () => {
+  beforeEach(() => {
+    signInAs("user-1");
+    vi.mocked(deleteItemRecord).mockResolvedValue(true);
+  });
+
+  it("deletes the signed-in user's item and returns its id", async () => {
+    const result = await deleteItem(ITEM_ID);
+
+    expect(result).toEqual({ success: true, data: { id: ITEM_ID }, error: null });
+    expect(deleteItemRecord).toHaveBeenCalledWith(ITEM_ID, "user-1");
+  });
+
+  it("refuses a signed-out request without deleting", async () => {
+    mockAuth.mockResolvedValue(null);
+
+    const result = await deleteItem(ITEM_ID);
+
+    expect(result).toEqual({
+      success: false,
+      data: null,
+      error: "Your session has expired. Sign in again.",
+    });
+    expect(deleteItemRecord).not.toHaveBeenCalled();
+  });
+
+  it("treats an id that isn't a cuid as not found without deleting", async () => {
+    const result = await deleteItem("not-an-id");
+
+    expect(result).toEqual({ success: false, data: null, error: NOT_FOUND });
+    expect(deleteItemRecord).not.toHaveBeenCalled();
+  });
+
+  it("reports someone else's item, or a missing one, as not found", async () => {
+    vi.mocked(deleteItemRecord).mockResolvedValue(false);
+
+    const result = await deleteItem(ITEM_ID);
+
+    expect(result).toEqual({ success: false, data: null, error: NOT_FOUND });
+  });
+
+  it("reports a database failure without passing on its details", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(deleteItemRecord).mockRejectedValue(new Error("connection reset by peer"));
+
+    const result = await deleteItem(ITEM_ID);
+
+    expect(result).toEqual({
+      success: false,
+      data: null,
+      error: "Couldn't delete this item. Please try again.",
     });
   });
 });

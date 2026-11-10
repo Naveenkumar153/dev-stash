@@ -252,6 +252,17 @@ export async function updateItem(
   }
 }
 
+/**
+ * Deletes one of `userId`'s items. Ownership and the delete are one statement,
+ * so there's no window between checking and deleting. False when there is no
+ * such item or it belongs to someone else. Its collection memberships cascade
+ * and its tag links go with it; the tags themselves stay.
+ */
+export async function deleteItem(itemId: string, userId: string): Promise<boolean> {
+  const { count } = await prisma.item.deleteMany({ where: { id: itemId, userId } });
+  return count > 0;
+}
+
 export interface ItemTypeCount {
   id: string;
   /** Item type name, e.g. "snippet" - drives the icon, colors and route. */

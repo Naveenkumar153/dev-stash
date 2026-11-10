@@ -47,6 +47,9 @@ export function ItemDrawerProvider({
 
   const value = useMemo(() => ({ openItem }), [openItem]);
 
+  // The summary stays, so the drawer animates out with the deleted item's header.
+  const closeDrawer = useCallback(() => setOpen(false), []);
+
   return (
     <ItemDrawerContext value={value}>
       {children}
@@ -56,6 +59,7 @@ export function ItemDrawerProvider({
         summary={summary}
         detail={detail}
         onItemSaved={replace}
+        onItemDeleted={closeDrawer}
       />
     </ItemDrawerContext>
   );

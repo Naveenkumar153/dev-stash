@@ -1,15 +1,15 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { Prisma } from "@/generated/prisma/client";
-import { updateItem } from "@/lib/db/items";
+import { deleteItem, updateItem } from "@/lib/db/items";
 import type { UpdateItemData } from "@/lib/item-schemas";
 import { prisma } from "@/lib/prisma";
 
 vi.mock("@/lib/prisma", () => ({
-  prisma: { item: { findFirst: vi.fn(), update: vi.fn() } },
+  prisma: { item: { findFirst: vi.fn(), update: vi.fn(), deleteMany: vi.fn() } },
 }));
 // The module's other queries read the current user and the item types;
-// updateItem uses neither, and mocking them keeps the session out of the test.
+// updateItem and deleteItem use neither, and mocking them keeps the session out of the test.
 vi.mock("@/lib/db/user", () => ({ getCurrentUserId: vi.fn() }));
 vi.mock("@/lib/db/item-types", () => ({ getAvailableTypes: vi.fn(), getItemTypeBySlug: vi.fn() }));
 
@@ -183,5 +183,21 @@ describe("updateItem", () => {
     vi.mocked(prisma.item.update).mockRejectedValue(new Error("connection reset"));
 
     await expect(updateItem(ITEM_ID, "user-1", data)).rejects.toThrow("connection reset");
+  });
+});
+
+describe("deleteItem", () => {
+  it("deletes only when the item is the user's, in one scoped statement", async () => {
+    vi.mocked(prisma.item.deleteMany).mockResolvedValue({ count: 1 });
+
+    await expect(deleteItem(ITEM_ID, "user-1")).resolves.toBe(true);
+    expect(prisma.item.deleteMany).toHaveBeenCalledWith({ where: { id: ITEM_ID, userId: "user-1" } });
+    expect(prisma.item.findFirst).not.toHaveBeenCalled();
+  });
+
+  it("returns false when nothing matched: someone else's item or a missing one", async () => {
+    vi.mocked(prisma.item.deleteMany).mockResolvedValue({ count: 0 });
+
+    await expect(deleteItem(ITEM_ID, "user-2")).resolves.toBe(false);
   });
 });
