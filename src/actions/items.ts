@@ -3,17 +3,53 @@
 import { auth } from "@/auth";
 import { getFieldErrors, type FieldErrors } from "@/lib/auth-schemas";
 import {
+  createItem as createItemRecord,
   deleteItem as deleteItemRecord,
   updateItem as updateItemRecord,
 } from "@/lib/db/items";
-import { itemIdSchema, updateItemSchema, type UpdateItemInput } from "@/lib/item-schemas";
-import type { DeleteItemResult, UpdateItemResult } from "@/types/items";
+import {
+  createItemSchema,
+  itemIdSchema,
+  updateItemSchema,
+  type CreateItemInput,
+  type UpdateItemInput,
+} from "@/lib/item-schemas";
+import type { CreateItemResult, DeleteItemResult, UpdateItemResult } from "@/types/items";
 
 const NOT_FOUND = "This item doesn't exist or has been deleted.";
 const SESSION_EXPIRED = "Your session has expired. Sign in again.";
 
 function failure(error: string, fieldErrors: FieldErrors = {}): UpdateItemResult {
   return { success: false, data: null, error, fieldErrors };
+}
+
+/**
+ * Creates an item from the New Item dialog for the signed-in user and returns
+ * it. The type must be one of the creatable system types; fields that type
+ * doesn't use are dropped by the query.
+ */
+export async function createItem(data: CreateItemInput): Promise<CreateItemResult> {
+  const session = await auth();
+  if (!session?.user?.id) {
+    return failure(SESSION_EXPIRED);
+  }
+
+  const parsed = createItemSchema.safeParse(data);
+  if (!parsed.success) {
+    return failure(parsed.error.issues[0].message, getFieldErrors(parsed.error));
+  }
+
+  try {
+    const item = await createItemRecord(session.user.id, parsed.data);
+    if (!item) {
+      return failure("This item type isn't available.");
+    }
+
+    return { success: true, data: item, error: null, fieldErrors: {} };
+  } catch (error) {
+    console.error("Creating item failed", error);
+    return failure("Couldn't create this item. Please try again.");
+  }
 }
 
 /**

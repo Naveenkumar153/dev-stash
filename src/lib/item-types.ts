@@ -132,6 +132,14 @@ export function isProItemType(name: string) {
 }
 
 /**
+ * The system types the New Item dialog creates, in display order. The file
+ * types need uploads, which aren't built yet.
+ */
+export const CREATABLE_ITEM_TYPES = ["snippet", "prompt", "command", "note", "link"] as const;
+
+export type CreatableItemType = (typeof CREATABLE_ITEM_TYPES)[number];
+
+/**
  * The type-specific fields an item can edit. Title, description and tags apply
  * to every type, so they aren't listed.
  */

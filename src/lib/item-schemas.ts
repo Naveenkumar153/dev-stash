@@ -1,5 +1,7 @@
 import { z } from "zod";
 
+import { CREATABLE_ITEM_TYPES, getEditableItemFields } from "@/lib/item-types";
+
 /** Item ids are Prisma cuids, so anything else can't match a row. */
 export const itemIdSchema = z.cuid();
 
@@ -51,6 +53,26 @@ export type UpdateItemInput = z.input<typeof updateItemSchema>;
 
 /** The validated, normalized payload the query writes. */
 export type UpdateItemData = z.output<typeof updateItemSchema>;
+
+/**
+ * The New Item dialog's payload: the edit fields plus the type, which must be
+ * one of the creatable system types. A link needs its URL; for every other
+ * type `createItem` drops the URL, like the fields the type doesn't use.
+ */
+export const createItemSchema = updateItemSchema
+  .extend({
+    typeName: z.enum(CREATABLE_ITEM_TYPES, { error: "Choose an item type" }),
+  })
+  .refine((data) => !getEditableItemFields(data.typeName).url || data.url !== null, {
+    message: "URL is required",
+    path: ["url"],
+  });
+
+/** What the New Item dialog sends. */
+export type CreateItemInput = z.input<typeof createItemSchema>;
+
+/** The validated, normalized payload the create query writes. */
+export type CreateItemData = z.output<typeof createItemSchema>;
 
 /**
  * The edit form's comma-separated tags as names: trimmed, blanks dropped and
