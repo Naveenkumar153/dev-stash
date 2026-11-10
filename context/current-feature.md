@@ -1,16 +1,36 @@
-# Current Feature
+# Current Feature: Delete Items
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- The drawer's Delete button (trash icon) is enabled once the item's detail has loaded and opens a shadcn `AlertDialog` confirmation; nothing is deleted without confirming
+- The dialog names the item ("Delete "<title>"?"), says it can't be undone, focuses Cancel and has a destructive Delete button that reads "Deleting..." while the request runs
+- `deleteItem(itemId)` server action in `src/actions/items.ts`: gets the session with `auth()`, validates the id with `itemIdSchema`, checks ownership, calls the query, and returns `{ success, data, error }`
+- `deleteItem` query in `src/lib/db/items.ts`, scoped to the owner, returning whether an item was deleted
+- On success: the dialog and the drawer close, a success toast ("Item deleted") shows, and `router.refresh()` removes the card from the dashboard and `/items/[type]` lists and updates the stats and sidebar counts
+- On failure: an error toast, and the dialog stays open so the user can retry or cancel
+- Unit tests for the new server action
 
 ## Notes
 
-<!-- Any extra notes -->
+- Inline spec (no spec file): "create the delete functionality for items. There should be a shadcn UI confirmation and toast on success". Builds on Item Drawer and Item Drawer Edit Mode (`src/components/items/`, `src/actions/items.ts`, `itemIdSchema` in `src/lib/item-schemas.ts`)
+- `alert-dialog` is already installed (Profile Page, repointed at `@/lib/utils`), so no shadcn CLI run is needed; `DeleteAccountDialog` in `src/components/profile/` is the pattern to follow (`useTransition`, `AlertDialogAction variant="destructive"`, failure toasted with the dialog left open)
+- Decided at `start` (all the defaults proposed at load, none overridden), except the drawer-close detail noted below:
+  - **Where:** delete from the drawer only, not from a menu on the cards, since the drawer already has the disabled trash button and cards have no controls yet
+  - **Whose items:** ownership is checked against the session user (`session.user.id`), the same rule as `updateItem`, so only the demo account can delete while reads still scope to `getCurrentUserId()`; other accounts get "This item doesn't exist or has been deleted."
+  - **Query shape:** one `deleteMany({ where: { id, userId } })` and a `count` check, so ownership and the delete are a single scoped statement with no separate lookup and no P2025 race; `ItemCollection` rows cascade and the implicit tag join rows go with the item
+  - **Orphaned tags:** not cleaned up, matching edit mode (tags are global; a later cleanup feature can handle both)
+  - **Mid-delete dismissal:** while the delete is pending, Escape and the backdrop don't close the dialog (fixing the gap the Profile Page left open for account deletion, here only)
+  - **Drawer close:** after success the provider closes the drawer (`closeDrawer`, passed down as `onItemDeleted`); the cached summary and detail stay so it animates out with content. Clearing the detail, as proposed at load, was dropped: it would flash the skeleton during the exit animation, and a reopen can't show the deleted item anyway, since `openItem()` always starts a fresh load and the card is gone after the refresh
+- `ItemDeleteDialog` (`src/components/items/`) is the trash button plus the controlled `AlertDialog`; like the edit form it toasts and calls `router.refresh()` itself, and `ItemDrawerActions` renders it in place of the disabled trash button, enabled once the detail has loaded (`canDelete`)
+- The action is `deleteItem(itemId)` in `src/actions/items.ts` and imports the query as `deleteItemRecord`, mirroring `updateItemRecord`; it returns `DeleteItemResult` (`src/types/items.ts`, `data: { id }`); the shared session-expired copy became a `SESSION_EXPIRED` constant
+- Unit tests: 5 for the action (success, signed out, non-cuid id, not found, database failure) and 2 for the query (scoped `deleteMany` with no lookup, `false` on no match); 127 tests pass, lint and build pass
+- Browser test (headless Chromium driven by a scratchpad Playwright script, since the Playwright MCP browser was held by another session) on `development` as the demo user, against two throwaway snippets inserted by SQL, one in a collection with its own tag: trash enabled after load; the dialog title names the item and focus lands on Cancel after the open animation; Escape and Cancel close only the dialog; confirming showed "Deleting...", the "Item deleted" toast, closed the drawer and removed the card from `/items/snippets` with no page errors; a second tab holding the already-deleted item's drawer got "This item doesn't exist or has been deleted." with the dialog left open. Afterwards the database had no test items, memberships or tag links, the demo user still had 18 items, and the tag `delete-test-tag` remains with no items (expected: orphans aren't cleaned up; deleting it needs destructive SQL, so it was left)
+- File and image items have no R2 uploads yet, so there is no stored file to remove
+- Not in scope: undo, bulk delete, soft delete
 
 ## History
 

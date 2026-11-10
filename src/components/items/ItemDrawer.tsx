@@ -22,6 +22,8 @@ interface ItemDrawerProps {
   detail: ItemDetailState;
   /** Takes the item a save returned, so the drawer shows it without a refetch. */
   onItemSaved: (item: ItemDetail) => void;
+  /** Runs after the open item has been deleted. */
+  onItemDeleted: () => void;
 }
 
 /** What Copy puts on the clipboard: a link's URL, otherwise the text payload. */
@@ -34,12 +36,24 @@ function getCopyText(item: ItemDetail) {
  * header and action bar render from the card's summary straight away; the body
  * waits for the full detail, showing a skeleton until it arrives.
  */
-export function ItemDrawer({ open, onOpenChange, summary, detail, onItemSaved }: ItemDrawerProps) {
+export function ItemDrawer({
+  open,
+  onOpenChange,
+  summary,
+  detail,
+  onItemSaved,
+  onItemDeleted,
+}: ItemDrawerProps) {
   return (
     <Sheet open={open} onOpenChange={onOpenChange}>
       {summary && (
         <SheetContent className="gap-0 p-0 data-[side=right]:w-full data-[side=right]:sm:max-w-lg">
-          <ItemDrawerPanel summary={summary} detail={detail} onItemSaved={onItemSaved} />
+          <ItemDrawerPanel
+            summary={summary}
+            detail={detail}
+            onItemSaved={onItemSaved}
+            onItemDeleted={onItemDeleted}
+          />
         </SheetContent>
       )}
     </Sheet>
@@ -50,6 +64,7 @@ interface ItemDrawerPanelProps {
   summary: ItemSummary;
   detail: ItemDetailState;
   onItemSaved: (item: ItemDetail) => void;
+  onItemDeleted: () => void;
 }
 
 /**
@@ -57,7 +72,7 @@ interface ItemDrawerPanelProps {
  * unmounts once the sheet has closed, so edit mode and any unsaved changes
  * never carry over to the next item opened.
  */
-function ItemDrawerPanel({ summary, detail, onItemSaved }: ItemDrawerPanelProps) {
+function ItemDrawerPanel({ summary, detail, onItemSaved, onItemDeleted }: ItemDrawerPanelProps) {
   const [editing, setEditing] = useState(false);
   // Leaving edit mode unmounts the focused Save or Cancel button, so focus goes
   // back to the Edit button the user started from rather than the popup itself.
@@ -88,6 +103,10 @@ function ItemDrawerPanel({ summary, detail, onItemSaved }: ItemDrawerPanelProps)
       ) : (
         <>
           <ItemDrawerActions
+            itemId={current.id}
+            itemTitle={current.title}
+            canDelete={item !== null}
+            onDeleted={onItemDeleted}
             isFavorite={current.isFavorite}
             isPinned={current.isPinned}
             copyText={item ? getCopyText(item) : null}
