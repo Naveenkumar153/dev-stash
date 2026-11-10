@@ -1,7 +1,10 @@
 "use client";
 
+import { useState } from "react";
+
 import { ItemDrawerActions } from "@/components/items/ItemDrawerActions";
 import { ItemDrawerDetails } from "@/components/items/ItemDrawerDetails";
+import { ItemDrawerEditForm } from "@/components/items/ItemDrawerEditForm";
 import { ItemDrawerSkeleton } from "@/components/items/ItemDrawerSkeleton";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
@@ -17,6 +20,8 @@ interface ItemDrawerProps {
   /** The card that was clicked. Null until the first item is opened. */
   summary: ItemSummary | null;
   detail: ItemDetailState;
+  /** Takes the item a save returned, so the drawer shows it without a refetch. */
+  onItemSaved: (item: ItemDetail) => void;
 }
 
 /** What Copy puts on the clipboard: a link's URL, otherwise the text payload. */
@@ -29,32 +34,73 @@ function getCopyText(item: ItemDetail) {
  * header and action bar render from the card's summary straight away; the body
  * waits for the full detail, showing a skeleton until it arrives.
  */
-export function ItemDrawer({ open, onOpenChange, summary, detail }: ItemDrawerProps) {
+export function ItemDrawer({ open, onOpenChange, summary, detail, onItemSaved }: ItemDrawerProps) {
+  return (
+    <Sheet open={open} onOpenChange={onOpenChange}>
+      {summary && (
+        <SheetContent className="gap-0 p-0 data-[side=right]:w-full data-[side=right]:sm:max-w-lg">
+          <ItemDrawerPanel summary={summary} detail={detail} onItemSaved={onItemSaved} />
+        </SheetContent>
+      )}
+    </Sheet>
+  );
+}
+
+interface ItemDrawerPanelProps {
+  summary: ItemSummary;
+  detail: ItemDetailState;
+  onItemSaved: (item: ItemDetail) => void;
+}
+
+/**
+ * The sheet's contents, in view or edit mode. It sits inside the popup, which
+ * unmounts once the sheet has closed, so edit mode and any unsaved changes
+ * never carry over to the next item opened.
+ */
+function ItemDrawerPanel({ summary, detail, onItemSaved }: ItemDrawerPanelProps) {
+  const [editing, setEditing] = useState(false);
+  // Leaving edit mode unmounts the focused Save or Cancel button, so focus goes
+  // back to the Edit button the user started from rather than the popup itself.
+  const [focusEdit, setFocusEdit] = useState(false);
   const item = detail.status === "ready" ? detail.item : null;
   const current = item ?? summary;
 
-  return (
-    <Sheet open={open} onOpenChange={onOpenChange}>
-      {current && (
-        <SheetContent className="gap-0 p-0 data-[side=right]:w-full data-[side=right]:sm:max-w-lg">
-          <ItemDrawerHeader
-            title={current.title}
-            typeName={current.typeName}
-            language={item?.language ?? null}
-          />
+  function stopEditing() {
+    setEditing(false);
+    setFocusEdit(true);
+  }
 
+  function handleSaved(saved: ItemDetail) {
+    onItemSaved(saved);
+    stopEditing();
+  }
+
+  return (
+    <>
+      <ItemDrawerHeader
+        title={current.title}
+        typeName={current.typeName}
+        language={item?.language ?? null}
+      />
+
+      {editing && item ? (
+        <ItemDrawerEditForm item={item} onCancel={stopEditing} onSaved={handleSaved} />
+      ) : (
+        <>
           <ItemDrawerActions
             isFavorite={current.isFavorite}
             isPinned={current.isPinned}
             copyText={item ? getCopyText(item) : null}
+            onEdit={item ? () => setEditing(true) : undefined}
+            focusEdit={focusEdit}
           />
 
           <div className="flex-1 overflow-y-auto p-6">
             <ItemDrawerBody detail={detail} />
           </div>
-        </SheetContent>
+        </>
       )}
-    </Sheet>
+    </>
   );
 }
 

@@ -11,15 +11,25 @@ interface ItemDrawerActionsProps {
   isPinned: boolean;
   /** What Copy puts on the clipboard. Null while loading, or when there is nothing to copy. */
   copyText: string | null;
+  /** Switches the drawer to edit mode. Undefined until the full item has loaded. */
+  onEdit?: () => void;
+  /** Focuses Edit when the bar mounts, i.e. when the drawer comes back from edit mode. */
+  focusEdit?: boolean;
 }
 
 /**
- * The drawer's action bar. Only Copy works so far: favoriting, pinning, editing
- * and deleting come with their own features, so until then those buttons are
- * disabled rather than doing nothing when clicked. Favorite and Pin still show
- * the item's current state.
+ * The drawer's action bar. Copy and Edit work; favoriting, pinning and deleting
+ * come with their own features, so until then those buttons are disabled rather
+ * than doing nothing when clicked. Favorite and Pin still show the item's
+ * current state.
  */
-export function ItemDrawerActions({ isFavorite, isPinned, copyText }: ItemDrawerActionsProps) {
+export function ItemDrawerActions({
+  isFavorite,
+  isPinned,
+  copyText,
+  onEdit,
+  focusEdit = false,
+}: ItemDrawerActionsProps) {
   async function handleCopy() {
     if (!copyText) {
       return;
@@ -57,7 +67,7 @@ export function ItemDrawerActions({ isFavorite, isPinned, copyText }: ItemDrawer
       </Button>
 
       <div className="ml-auto flex items-center gap-1">
-        <Button variant="ghost" disabled>
+        <Button variant="ghost" disabled={!onEdit} onClick={onEdit} autoFocus={focusEdit}>
           <Pencil aria-hidden />
           Edit
         </Button>

@@ -1,8 +1,10 @@
 import { connection } from "next/server";
 
+import { Prisma } from "@/generated/prisma/client";
 import { getAvailableTypes, getItemTypeBySlug } from "@/lib/db/item-types";
 import { getCurrentUserId } from "@/lib/db/user";
-import { compareItemTypeOrder } from "@/lib/item-types";
+import type { UpdateItemData } from "@/lib/item-schemas";
+import { compareItemTypeOrder, getEditableItemFields } from "@/lib/item-types";
 import { prisma } from "@/lib/prisma";
 import type { ItemDetail } from "@/types/items";
 
@@ -176,12 +178,19 @@ export async function getItemDetail(id: string): Promise<ItemDetail | null> {
     select: ITEM_DETAIL_SELECT,
   });
 
-  if (!item) {
-    return null;
-  }
+  return item ? toItemDetail(item) : null;
+}
 
-  const { itemType, tags, collections, createdAt, updatedAt, ...rest } = item;
+type ItemDetailRow = Prisma.ItemGetPayload<{ select: typeof ITEM_DETAIL_SELECT }>;
 
+function toItemDetail({
+  itemType,
+  tags,
+  collections,
+  createdAt,
+  updatedAt,
+  ...rest
+}: ItemDetailRow): ItemDetail {
   return {
     ...rest,
     typeName: itemType.name,
@@ -190,6 +199,57 @@ export async function getItemDetail(id: string): Promise<ItemDetail | null> {
     createdAt: createdAt.toISOString(),
     updatedAt: updatedAt.toISOString(),
   };
+}
+
+/**
+ * Saves the drawer's edits to one of `userId`'s items and returns it as the
+ * drawer shows it. Null when there is no such item or it belongs to someone
+ * else. Only the type-specific fields the item's type edits are written, and
+ * the tags are replaced: every current one is disconnected, then each name is
+ * connected, created first if no item uses it yet.
+ */
+export async function updateItem(
+  itemId: string,
+  userId: string,
+  data: UpdateItemData,
+): Promise<ItemDetail | null> {
+  const owned = await prisma.item.findFirst({
+    where: { id: itemId, userId },
+    select: { itemType: { select: { name: true } } },
+  });
+
+  if (!owned) {
+    return null;
+  }
+
+  const fields = getEditableItemFields(owned.itemType.name);
+
+  try {
+    const item = await prisma.item.update({
+      // Scoped to the owner again, so the write itself can't land elsewhere.
+      where: { id: itemId, userId },
+      data: {
+        title: data.title,
+        description: data.description,
+        ...(fields.content && { content: data.content }),
+        ...(fields.language && { language: data.language }),
+        ...(fields.url && { url: data.url }),
+        tags: {
+          set: [],
+          connectOrCreate: data.tags.map((name) => ({ where: { name }, create: { name } })),
+        },
+      },
+      select: ITEM_DETAIL_SELECT,
+    });
+
+    return toItemDetail(item);
+  } catch (error) {
+    // Deleted between the lookup and the write.
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
+      return null;
+    }
+    throw error;
+  }
 }
 
 export interface ItemTypeCount {

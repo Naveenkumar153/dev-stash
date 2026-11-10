@@ -1,4 +1,5 @@
 import type { ContentType } from "@/generated/prisma/enums";
+import type { FieldErrors } from "@/lib/auth-schemas";
 
 /** A collection an item belongs to, as the item drawer lists it. */
 export interface ItemCollectionRef {
@@ -36,4 +37,13 @@ export interface ItemDetailResponse {
   success: boolean;
   data: ItemDetail | null;
   error: string | null;
+}
+
+/** Result of the `updateItem` server action: the saved item, or why it wasn't saved. */
+export interface UpdateItemResult {
+  success: boolean;
+  data: ItemDetail | null;
+  error: string | null;
+  /** The first validation message for each invalid field, keyed by field name. */
+  fieldErrors: FieldErrors;
 }

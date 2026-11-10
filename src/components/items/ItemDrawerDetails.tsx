@@ -2,7 +2,7 @@ import { Calendar, ExternalLink, Folder, Tag } from "lucide-react";
 
 import { Badge } from "@/components/ui/badge";
 import { formatLongDate } from "@/lib/format";
-import type { ItemDetail } from "@/types/items";
+import type { ItemCollectionRef, ItemDetail } from "@/types/items";
 
 interface DrawerSectionProps {
   title: string;
@@ -30,6 +30,42 @@ function DateRow({ label, iso }: Readonly<{ label: string; iso: string }>) {
         <time dateTime={iso}>{formatLongDate(new Date(iso))}</time>
       </dd>
     </>
+  );
+}
+
+/** The collections an item is in, if any. Shared by view and edit mode. */
+export function ItemCollectionsSection({
+  collections,
+}: Readonly<{ collections: ItemCollectionRef[] }>) {
+  if (collections.length === 0) {
+    return null;
+  }
+
+  return (
+    <DrawerSection title="Collections" icon={<Folder aria-hidden className="size-4" />}>
+      <div className="flex flex-wrap gap-1.5">
+        {collections.map((collection) => (
+          <Badge key={collection.id} variant="outline">
+            {collection.name}
+          </Badge>
+        ))}
+      </div>
+    </DrawerSection>
+  );
+}
+
+/** Created and updated dates. Shared by view and edit mode. */
+export function ItemDatesSection({
+  createdAt,
+  updatedAt,
+}: Readonly<{ createdAt: string; updatedAt: string }>) {
+  return (
+    <DrawerSection title="Details" icon={<Calendar aria-hidden className="size-4" />}>
+      <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
+        <DateRow label="Created" iso={createdAt} />
+        <DateRow label="Updated" iso={updatedAt} />
+      </dl>
+    </DrawerSection>
   );
 }
 
@@ -82,24 +118,8 @@ export function ItemDrawerDetails({ item }: Readonly<{ item: ItemDetail }>) {
         </DrawerSection>
       )}
 
-      {item.collections.length > 0 && (
-        <DrawerSection title="Collections" icon={<Folder aria-hidden className="size-4" />}>
-          <div className="flex flex-wrap gap-1.5">
-            {item.collections.map((collection) => (
-              <Badge key={collection.id} variant="outline">
-                {collection.name}
-              </Badge>
-            ))}
-          </div>
-        </DrawerSection>
-      )}
-
-      <DrawerSection title="Details" icon={<Calendar aria-hidden className="size-4" />}>
-        <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
-          <DateRow label="Created" iso={item.createdAt} />
-          <DateRow label="Updated" iso={item.updatedAt} />
-        </dl>
-      </DrawerSection>
+      <ItemCollectionsSection collections={item.collections} />
+      <ItemDatesSection createdAt={item.createdAt} updatedAt={item.updatedAt} />
     </div>
   );
 }
