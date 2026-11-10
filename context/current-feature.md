@@ -1,16 +1,52 @@
-# Current Feature
+# Current Feature: Item Create
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- The top bar's "New Item" button opens a shadcn `Dialog` for creating an item
+- A type selector offers the five free text/url types: snippet, prompt, command, note, link
+- Fields follow the selected type:
+  - All types: title (required), description, tags
+  - snippet / command: content, language
+  - prompt / note: content
+  - link: URL (required)
+- A `createItem` server action validates with Zod and returns `{ success, data, error }` with per-field errors
+- A `createItem` query function in `src/lib/db/items.ts` writes the item
+- On success: toast, close the modal, `router.refresh()` so the dashboard lists, stats and sidebar counts update
+- Unit tests for the action, the new schema and the query; `npm test`, lint and build pass
 
 ## Notes
 
-<!-- Any extra notes -->
+Source spec: `context/features/item-create-spec.md`.
+
+What already exists to reuse:
+
+- `src/components/dashboard/TopBar.tsx` renders a display-only "New Item" button (server component), so the button plus dialog becomes a small client component dropped into the bar
+- `src/lib/item-schemas.ts` has `optionalText`, `optionalContent`, `optionalUrl` (http/https only) and `tagsSchema` behind `updateItemSchema`, plus `parseTagInput()` for the comma-separated tag field; a `createItemSchema` can reuse them and add the type and the link's required URL
+- `getEditableItemFields()` in `src/lib/item-types.ts` is the type-to-fields map the edit form and `updateItem` share; the create form and query should use the same map so a crafted request can't put a URL on a snippet
+- `ItemDrawerEditForm` is the pattern for controlled inputs with local state (no form library), `FormField` / `FormMessage` for labels and errors, and `getFieldErrors()` for per-field messages
+- `updateItem` / `deleteItem` in `src/actions/items.ts` show the action shape: `auth()` first, `SESSION_EXPIRED` copy, try/catch with a logged generic error
+- The `connectOrCreate` tag write from the `updateItem` query
+- shadcn `dialog` is **not** installed yet; the CLI has repeatedly generated components importing `cn` from the unrelated `cn` npm package, so after `npx shadcn add dialog` repoint it at `@/lib/utils` and remove that package
+
+Implementation details:
+
+- The type is looked up as a system type by name (`isSystem: true`, `userId: null`); an unknown or Pro type (file, image) is rejected server-side
+- `contentType` is `url` for link and `text` otherwise; fields the type doesn't use are not written
+- Tags reuse the global `connectOrCreate` (tags are still global, case kept)
+
+Defaults proposed at load (confirm or change at `start`):
+
+- **Ownership:** the item is created for the session user (`session.user.id`), matching `updateItem` / `deleteItem`. Lists still read `getCurrentUserId()` (the demo user), so only the demo account will see its new item appear until that moves to the session user
+- **Type selector:** changed after review at the user's request from a row of chips to a shadcn `Select` dropdown (icon + label per option, labelled "Type"), so the list scales as types are added; options come from `CREATABLE_ITEM_TYPES`; defaults to snippet
+- **Content field:** plain shadcn `textarea`, like edit mode, until the markdown/code editor feature
+- **Opened from:** the top bar only (no per-type "New" buttons on `/items/[type]` yet); closing the dialog discards the draft without a prompt, and the form resets each time it opens
+- **After create:** stay on the current page (no navigation, drawer not opened)
+
+Out of scope: file and image types (uploads), adding to collections, favorite/pin on create, Pro limits (50 items), the "New Collection" button.
 
 ## History
 

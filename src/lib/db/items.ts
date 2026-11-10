@@ -3,7 +3,7 @@ import { connection } from "next/server";
 import { Prisma } from "@/generated/prisma/client";
 import { getAvailableTypes, getItemTypeBySlug } from "@/lib/db/item-types";
 import { getCurrentUserId } from "@/lib/db/user";
-import type { UpdateItemData } from "@/lib/item-schemas";
+import type { CreateItemData, UpdateItemData } from "@/lib/item-schemas";
 import { compareItemTypeOrder, getEditableItemFields } from "@/lib/item-types";
 import { prisma } from "@/lib/prisma";
 import type { ItemDetail } from "@/types/items";
@@ -201,6 +201,50 @@ function toItemDetail({
   };
 }
 
+/** Connects each tag by name, creating it first if no item uses it yet. */
+function connectTags(names: string[]) {
+  return names.map((name) => ({ where: { name }, create: { name } }));
+}
+
+/**
+ * Creates an item of a system type for `userId` and returns it as the drawer
+ * shows it. Null when that system type isn't in the database. Only the
+ * type-specific fields the type uses are written, so a crafted request can't
+ * put a URL on a snippet; a link stores a `url` payload, every other type text.
+ */
+export async function createItem(
+  userId: string,
+  data: CreateItemData,
+): Promise<ItemDetail | null> {
+  const itemType = await prisma.itemType.findFirst({
+    where: { name: data.typeName, isSystem: true, userId: null },
+    select: { id: true },
+  });
+
+  if (!itemType) {
+    return null;
+  }
+
+  const fields = getEditableItemFields(data.typeName);
+
+  const item = await prisma.item.create({
+    data: {
+      title: data.title,
+      description: data.description,
+      contentType: fields.url ? "url" : "text",
+      content: fields.content ? data.content : null,
+      language: fields.language ? data.language : null,
+      url: fields.url ? data.url : null,
+      user: { connect: { id: userId } },
+      itemType: { connect: { id: itemType.id } },
+      tags: { connectOrCreate: connectTags(data.tags) },
+    },
+    select: ITEM_DETAIL_SELECT,
+  });
+
+  return toItemDetail(item);
+}
+
 /**
  * Saves the drawer's edits to one of `userId`'s items and returns it as the
  * drawer shows it. Null when there is no such item or it belongs to someone
@@ -234,10 +278,7 @@ export async function updateItem(
         ...(fields.content && { content: data.content }),
         ...(fields.language && { language: data.language }),
         ...(fields.url && { url: data.url }),
-        tags: {
-          set: [],
-          connectOrCreate: data.tags.map((name) => ({ where: { name }, create: { name } })),
-        },
+        tags: { set: [], connectOrCreate: connectTags(data.tags) },
       },
       select: ITEM_DETAIL_SELECT,
     });

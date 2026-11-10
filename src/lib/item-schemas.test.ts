@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { itemIdSchema, parseTagInput, updateItemSchema } from "@/lib/item-schemas";
+import { createItemSchema, itemIdSchema, parseTagInput, updateItemSchema } from "@/lib/item-schemas";
 
 const URL_ERROR = "Enter a full URL starting with http:// or https://";
 
@@ -108,6 +108,47 @@ describe("updateItemSchema", () => {
       path: ["tags"],
       message: "Tags are required",
     });
+  });
+});
+
+describe("createItemSchema", () => {
+  function parseNew(input: Record<string, unknown>) {
+    return createItemSchema.safeParse({ title: "New item", tags: [], ...input });
+  }
+
+  it.each(["snippet", "prompt", "command", "note"])("creates a %s without a URL", (typeName) => {
+    expect(parseNew({ typeName }).success).toBe(true);
+  });
+
+  it("creates a link with an http(s) URL", () => {
+    expect(parseNew({ typeName: "link", url: "https://nextjs.org" }).data?.url).toBe("https://nextjs.org");
+  });
+
+  it.each([undefined, "", "   "])("requires a link's URL (%j)", (url) => {
+    expect(parseNew({ typeName: "link", url }).error?.issues[0]).toMatchObject({
+      path: ["url"],
+      message: "URL is required",
+    });
+  });
+
+  it("still rejects a link's non-http URL", () => {
+    expect(parseNew({ typeName: "link", url: "javascript:alert(1)" }).error?.issues[0]).toMatchObject({
+      path: ["url"],
+      message: URL_ERROR,
+    });
+  });
+
+  it.each(["file", "image", "recipe", undefined])("rejects the type %j", (typeName) => {
+    expect(parseNew({ typeName }).error?.issues[0]).toMatchObject({
+      path: ["typeName"],
+      message: "Choose an item type",
+    });
+  });
+
+  it("normalizes the shared fields like the edit schema", () => {
+    expect(
+      parseNew({ typeName: "note", title: "  Notes  ", description: " ", tags: ["a", "a "] }).data,
+    ).toMatchObject({ title: "Notes", description: null, tags: ["a"] });
   });
 });
 

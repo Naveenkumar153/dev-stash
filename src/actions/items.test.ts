@@ -1,15 +1,23 @@
 import type { Session } from "next-auth";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { deleteItem, updateItem } from "@/actions/items";
+import { createItem, deleteItem, updateItem } from "@/actions/items";
 import { auth } from "@/auth";
-import { deleteItem as deleteItemRecord, updateItem as updateItemRecord } from "@/lib/db/items";
+import {
+  createItem as createItemRecord,
+  deleteItem as deleteItemRecord,
+  updateItem as updateItemRecord,
+} from "@/lib/db/items";
 import type { ItemDetail } from "@/types/items";
 
 // The session and the query are mocked; the Zod schema runs for real, so these
 // tests also cover what the action sends to the database.
 vi.mock("@/auth", () => ({ auth: vi.fn() }));
-vi.mock("@/lib/db/items", () => ({ updateItem: vi.fn(), deleteItem: vi.fn() }));
+vi.mock("@/lib/db/items", () => ({
+  createItem: vi.fn(),
+  updateItem: vi.fn(),
+  deleteItem: vi.fn(),
+}));
 
 /** `auth` is overloaded (it doubles as middleware), so its mock is typed by hand. */
 const mockAuth = auth as unknown as ReturnType<typeof vi.fn<() => Promise<Session | null>>>;
@@ -174,6 +182,92 @@ describe("deleteItem", () => {
       success: false,
       data: null,
       error: "Couldn't delete this item. Please try again.",
+    });
+  });
+});
+
+describe("createItem", () => {
+  const newItem = { ...input, typeName: "snippet" } as const;
+
+  beforeEach(() => {
+    signInAs("user-1");
+    vi.mocked(createItemRecord).mockResolvedValue(saved);
+  });
+
+  it("creates the normalized item for the signed-in user and returns it", async () => {
+    const result = await createItem(newItem);
+
+    expect(result).toEqual({ success: true, data: saved, error: null, fieldErrors: {} });
+    expect(createItemRecord).toHaveBeenCalledWith("user-1", {
+      typeName: "snippet",
+      title: "useDebounce hook",
+      description: null,
+      content: "export function useDebounce() {}",
+      language: "typescript",
+      url: null,
+      tags: ["react", "hooks"],
+    });
+  });
+
+  it("refuses a signed-out request without creating", async () => {
+    mockAuth.mockResolvedValue(null);
+
+    expect(await createItem(newItem)).toEqual({
+      success: false,
+      data: null,
+      error: "Your session has expired. Sign in again.",
+      fieldErrors: {},
+    });
+    expect(createItemRecord).not.toHaveBeenCalled();
+  });
+
+  it("returns the validation errors per field without creating", async () => {
+    const result = await createItem({ ...newItem, title: " ", typeName: "link", url: "" });
+
+    expect(result).toMatchObject({
+      success: false,
+      data: null,
+      error: "Title is required",
+      fieldErrors: { title: "Title is required" },
+    });
+    expect(createItemRecord).not.toHaveBeenCalled();
+  });
+
+  it("asks for a link's URL", async () => {
+    expect(await createItem({ ...newItem, typeName: "link", url: "" })).toMatchObject({
+      success: false,
+      fieldErrors: { url: "URL is required" },
+    });
+    expect(createItemRecord).not.toHaveBeenCalled();
+  });
+
+  it("refuses a Pro type sent by a crafted request", async () => {
+    const result = await createItem({ ...newItem, typeName: "file" as "snippet" });
+
+    expect(result).toMatchObject({ success: false, fieldErrors: { typeName: "Choose an item type" } });
+    expect(createItemRecord).not.toHaveBeenCalled();
+  });
+
+  it("reports a missing system type", async () => {
+    vi.mocked(createItemRecord).mockResolvedValue(null);
+
+    expect(await createItem(newItem)).toEqual({
+      success: false,
+      data: null,
+      error: "This item type isn't available.",
+      fieldErrors: {},
+    });
+  });
+
+  it("reports a database failure without passing on its details", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(createItemRecord).mockRejectedValue(new Error("connection reset"));
+
+    expect(await createItem(newItem)).toEqual({
+      success: false,
+      data: null,
+      error: "Couldn't create this item. Please try again.",
+      fieldErrors: {},
     });
   });
 });

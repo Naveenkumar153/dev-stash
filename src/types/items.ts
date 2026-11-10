@@ -48,6 +48,9 @@ export interface UpdateItemResult {
   fieldErrors: FieldErrors;
 }
 
+/** Result of the `createItem` server action: the new item, or why it wasn't created. */
+export type CreateItemResult = UpdateItemResult;
+
 /** Result of the `deleteItem` server action: the deleted item's id, or why it wasn't deleted. */
 export interface DeleteItemResult {
   success: boolean;

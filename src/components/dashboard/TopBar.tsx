@@ -1,12 +1,13 @@
-import { FolderPlus, Plus, Search } from "lucide-react";
+import { FolderPlus, Search } from "lucide-react";
 
 import { SidebarToggle } from "@/components/dashboard/SidebarToggle";
+import { NewItemDialog } from "@/components/items/NewItemDialog";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 /**
- * Dashboard top bar. Apart from the sidebar toggle this is display only - the
- * search field and the two actions are not wired up to any behaviour yet.
+ * Dashboard top bar. The sidebar toggle and New Item work; the search field and
+ * New Collection are display only until their own features.
  */
 export function TopBar() {
   return (
@@ -34,10 +35,7 @@ export function TopBar() {
           <FolderPlus />
           <span className="hidden sm:inline">New Collection</span>
         </Button>
-        <Button size="lg" aria-label="New item">
-          <Plus />
-          <span className="hidden sm:inline">New Item</span>
-        </Button>
+        <NewItemDialog />
       </div>
     </header>
   );
