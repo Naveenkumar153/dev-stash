@@ -131,6 +131,36 @@ export function isProItemType(name: string) {
   return PRO_TYPE_NAMES.has(name.toLowerCase());
 }
 
+/**
+ * The type-specific fields an item can edit. Title, description and tags apply
+ * to every type, so they aren't listed.
+ */
+export interface EditableItemFields {
+  content: boolean;
+  language: boolean;
+  url: boolean;
+}
+
+/** Text-payload types edit their content; the two code types also a language. */
+const CONTENT_TYPE_NAMES = new Set(["snippet", "prompt", "command", "note"]);
+const LANGUAGE_TYPE_NAMES = new Set(["snippet", "command"]);
+const URL_TYPE_NAMES = new Set(["link"]);
+
+/**
+ * Which type-specific fields an item of this type edits, e.g. "link" -> url.
+ * The edit form shows only these and `updateItem` writes only these, so the
+ * two can't disagree. Custom, file and image types edit none of them.
+ */
+export function getEditableItemFields(name: string): EditableItemFields {
+  const type = name.toLowerCase();
+
+  return {
+    content: CONTENT_TYPE_NAMES.has(type),
+    language: LANGUAGE_TYPE_NAMES.has(type),
+    url: URL_TYPE_NAMES.has(type),
+  };
+}
+
 /** "snippet" -> "Snippet". Type names are stored lowercase in the database. */
 export function getItemTypeLabel(name: string) {
   return name.charAt(0).toUpperCase() + name.slice(1);

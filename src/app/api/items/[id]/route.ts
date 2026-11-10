@@ -1,13 +1,9 @@
-import { z } from "zod";
-
 import { auth } from "@/auth";
 import { getItemDetail } from "@/lib/db/items";
+import { itemIdSchema } from "@/lib/item-schemas";
 import type { ItemDetailResponse } from "@/types/items";
 
 const NOT_FOUND = "This item doesn't exist or has been deleted.";
-
-/** Item ids are Prisma cuids, so anything else can't match a row. */
-const itemIdSchema = z.cuid();
 
 function errorResponse(error: string, status: number) {
   const body: ItemDetailResponse = { success: false, data: null, error };

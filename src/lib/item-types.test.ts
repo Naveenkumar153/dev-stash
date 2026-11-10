@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   compareItemTypeOrder,
+  getEditableItemFields,
   getItemTypeHref,
   getItemTypeLabel,
   getItemTypePlural,
@@ -47,6 +48,28 @@ describe("isProItemType", () => {
 
   it.each(["snippet", "prompt", "command", "note", "link"])("leaves %s free", (name) => {
     expect(isProItemType(name)).toBe(false);
+  });
+});
+
+describe("getEditableItemFields", () => {
+  it.each(["snippet", "command"])("gives %s content and a language", (name) => {
+    expect(getEditableItemFields(name)).toEqual({ content: true, language: true, url: false });
+  });
+
+  it.each(["prompt", "note"])("gives %s content but no language", (name) => {
+    expect(getEditableItemFields(name)).toEqual({ content: true, language: false, url: false });
+  });
+
+  it("gives a link only its URL", () => {
+    expect(getEditableItemFields("link")).toEqual({ content: false, language: false, url: true });
+  });
+
+  it.each(["file", "image", "recipe"])("gives %s none of them", (name) => {
+    expect(getEditableItemFields(name)).toEqual({ content: false, language: false, url: false });
+  });
+
+  it("ignores case", () => {
+    expect(getEditableItemFields("Snippet")).toEqual(getEditableItemFields("snippet"));
   });
 });
 

@@ -52,5 +52,14 @@ export function useItemDetail() {
     }
   }, []);
 
-  return { detail, load };
+  /**
+   * Shows an item that's already in hand, such as the one a save returned,
+   * cancelling any load still in flight so it can't overwrite it.
+   */
+  const replace = useCallback((item: ItemDetail) => {
+    controllerRef.current?.abort();
+    setDetail({ status: "ready", item });
+  }, []);
+
+  return { detail, load, replace };
 }

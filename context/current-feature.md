@@ -1,16 +1,44 @@
-# Current Feature
+# Current Feature: Item Drawer Edit Mode
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- The drawer's Edit button (pencil) is enabled and switches the open drawer into edit mode inline - same drawer, no navigation
+- In edit mode the action bar is replaced by Save and Cancel; Cancel discards the changes and returns to view mode
+- Editable for every type: Title (text input, required), Description (textarea, optional), Tags (comma-separated text input, converted to an array on save)
+- Type-specific fields, shown only for their types: Content (textarea) for snippet, prompt, command and note; Language (text input) for snippet and command; URL (text input) for link
+- Item type, collections and the created / updated dates stay display-only in edit mode
+- Save is disabled while the title is empty
+- `updateItem(itemId, data)` server action in `src/actions/items.ts`: validates with Zod before touching the database, gets the session with `auth()`, checks ownership, calls the query, and returns `{ success, data, error }` with the Zod errors the form can show
+- Zod schema for the payload: `title` non-empty and trimmed; `description`, `content` and `language` string or null; `url` a valid URL or null; `tags` an array of trimmed non-empty strings
+- `updateItem` query in `src/lib/db/items.ts`: replaces the tags (disconnect all, connect-or-create the new ones) and returns the updated `ItemDetail`
+- After Save: the drawer shows the returned detail without a second fetch and goes back to view mode, a toast reports success or the error, and `router.refresh()` updates the cards underneath
+- Unit tests for the new server action and the schema / tag-parsing utilities
 
 ## Notes
 
-<!-- Any extra notes -->
+- Spec: `context/features/item-drawer-edit-spec.md`; builds on the Item Drawer feature (`src/components/items/`, `getItemDetail()`, `ItemDetail` in `src/types/items.ts`)
+- No form library: controlled inputs with local state. The content textarea is a plain textarea, not a code editor
+- Decided at `start` (all the defaults proposed at load, none overridden; the Item Drawer review's open items stay out of scope)
+- **Whose items can be saved:** `updateItem` checks ownership against the session user (`session.user.id`), as the spec says. Reads still scope to `getCurrentUserId()`, the demo user, so only the demo account can save; any other account sees the demo items but gets "This item doesn't exist or has been deleted." on Save. Checking against `getCurrentUserId()` instead would let any registered account edit the demo data everyone sees, a cross-account write. Moving `getCurrentUserId()` to the session user would make editing work for every account but changes the whole dashboard and is outside this spec
+- Server-side field rules (default): the action writes only the fields the item's type allows, using the same type-to-fields map as the form, so a crafted request can't put a URL on a snippet. The map belongs with the other name-keyed type metadata in `src/lib/item-types.ts`
+- URL validation: Zod's `z.url()` alone accepts `javascript:` URLs, so the schema uses `z.url({ protocol: /^https?$/ })` (React 19 also blocks `javascript:` hrefs, but the schema is the source of truth). `z.httpUrl()` was rejected because its hostname rule refuses `localhost` and IP addresses, which developers save links to - checked against Zod 4.6.7
+- Content is kept exactly as typed (no trim, since indentation matters in code) and saved as null only when it's whitespace; description, language and URL are trimmed
+- Empty optional inputs (description, content, language, url) are saved as null rather than empty strings
+- Tags (default): trimmed, empties dropped and exact duplicates removed (a repeated name in one connect-or-create would break the update), case kept as typed. Tags are global and unique by name (`Tag.name @unique`), so "React" and the seeded "react" would be separate tags. Tags left with no items after an edit aren't cleaned up; the spec doesn't ask for it
+- Validation errors: following `changePassword()` in `src/actions/profile.ts`, the result carries per-field `fieldErrors` from `getFieldErrors()` (currently in `src/lib/auth-schemas.ts`) alongside `error`
+- The spec names both the action and the query `updateItem`; the action imports the query as `updateItemRecord`
+- The query checks ownership and reads the item's type with a `findFirst` on `id` + `userId`, then writes with `update({ where: { id, userId } })`, so the write is scoped to the owner too; a P2025 (deleted in between) returns null. Tags use `set: []` plus `connectOrCreate` in that one update; checked against `development` that the result is exactly the new set, i.e. `set` runs first
+- `itemIdSchema` moved into the new `src/lib/item-schemas.ts`, and `GET /api/items/[id]` now imports it instead of keeping its own copy
+- `useItemDetail()` gained `replace()`, which aborts any load in flight and shows the saved item; the provider passes it to the drawer as `onItemSaved`
+- Edit state lives in `ItemDrawerPanel` inside the sheet's popup, which unmounts when the sheet closes, so edit mode and unsaved edits reset when the drawer closes (Escape or the backdrop discard without a prompt). Leaving edit mode returns focus to the Edit button rather than the popup
+- `textarea` was added with the shadcn CLI, which imported `cn` from the unrelated `cn` npm package for the fifth time; repointed at `@/lib/utils` and the package removed, so `package.json` is unchanged
+- No max lengths in the spec; Next's default 1 MB server-action body limit is the only cap, including on the number of tags
+- Out of scope: the Item Drawer review's open items (double-click closing the drawer, no `Cache-Control` on `GET /api/items/[id]`, no tests for `getItemDetail()` or that route)
+- Left in `development` by the browser test: the tag `debounce`, now on no items (expected, since orphans aren't cleaned up), and the `useDebounce hook` item's `updatedAt` moved to 2026-11-10 after its title and tags were restored
 
 ## History
 
