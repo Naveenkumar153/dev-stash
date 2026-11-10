@@ -4,6 +4,7 @@ import { getAvailableTypes, getItemTypeBySlug } from "@/lib/db/item-types";
 import { getCurrentUserId } from "@/lib/db/user";
 import { compareItemTypeOrder } from "@/lib/item-types";
 import { prisma } from "@/lib/prisma";
+import type { ItemDetail } from "@/types/items";
 
 const RECENT_ITEM_LIMIT = 10;
 const PINNED_ITEM_LIMIT = 10;
@@ -135,6 +136,60 @@ export async function getItemsByType(slug: string): Promise<ItemTypeList | null>
     : [];
 
   return { typeName: itemType.name, items: items.map(toSummary) };
+}
+
+/** What the drawer shows on top of the card: the payload, collections and dates. */
+const ITEM_DETAIL_SELECT = {
+  id: true,
+  title: true,
+  description: true,
+  contentType: true,
+  content: true,
+  url: true,
+  language: true,
+  isPinned: true,
+  isFavorite: true,
+  createdAt: true,
+  updatedAt: true,
+  itemType: { select: { name: true } },
+  tags: { select: { name: true }, orderBy: { name: "asc" } },
+  collections: {
+    select: { collection: { select: { id: true, name: true } } },
+    orderBy: { collection: { name: "asc" } },
+  },
+} as const;
+
+/**
+ * One item with everything the item drawer shows, for `GET /api/items/[id]`.
+ * Null when there is no such item or it belongs to someone else - the caller
+ * can't tell the two apart, so an id can't be used to probe other users' items.
+ */
+export async function getItemDetail(id: string): Promise<ItemDetail | null> {
+  const userId = await getCurrentUserId();
+
+  if (!userId) {
+    return null;
+  }
+
+  const item = await prisma.item.findFirst({
+    where: { id, userId },
+    select: ITEM_DETAIL_SELECT,
+  });
+
+  if (!item) {
+    return null;
+  }
+
+  const { itemType, tags, collections, createdAt, updatedAt, ...rest } = item;
+
+  return {
+    ...rest,
+    typeName: itemType.name,
+    tags: tags.map((tag) => tag.name),
+    collections: collections.map(({ collection }) => collection),
+    createdAt: createdAt.toISOString(),
+    updatedAt: updatedAt.toISOString(),
+  };
 }
 
 export interface ItemTypeCount {

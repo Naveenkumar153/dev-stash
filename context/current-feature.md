@@ -1,16 +1,31 @@
-# Current Feature
+# Current Feature: Item Drawer
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- Clicking an `ItemCard` opens a right-side shadcn `Sheet` showing that item's full detail; there is no separate item page and no page navigation
+- Works on both the dashboard (pinned and recent lists) and the `/items/[type]` grid
+- A client wrapper component holds the drawer state (open / selected item id), since the pages stay server components
+- Card data keeps coming from the server components as before; full detail (content, collections, language, etc.) is fetched on click from `GET /api/items/[id]`
+- The detail query lives in `src/lib/db/items.ts`; the API route checks the session before calling it and returns 401 / 404 as appropriate
+- The drawer shows a skeleton while the detail is loading
+- Header: type icon tile, title, a type badge and a language badge (when set)
+- Action bar: Favorite (star, yellow when active), Pin, Copy, Edit (pencil) and Delete (trash, right-aligned, destructive)
+- Body sections, per the screenshot: Description, Content, Tags, Collections, Details (Created / Updated)
 
 ## Notes
 
-<!-- Any extra notes -->
+- Spec: `context/features/item-drawer-spec.md`; design: `context/screenshots/dashboard-ui-drawer.png`
+- Out of scope for now: the code editor / syntax highlighting and other type-specific extras. Content renders as plain preformatted text
+- Decided at `start` (the defaults proposed at load, none overridden): only Copy works, copying a link's URL or otherwise the text content, with a toast. Favorite, Pin, Edit and Delete are rendered but `disabled` until their own features land, so they look dimmed; Favorite and Pin still show the item's state through color and `aria-pressed`
+- Decided at `start`: `GET /api/items/[id]` requires a session (401 otherwise) but `getItemDetail()` scopes to `getCurrentUserId()` like every list query, so the drawer opens exactly the items the lists show and follows automatically when that function moves to the session user
+- `src/components/ui/sheet.tsx` already existed (added in Dashboard UI Phase 2 for the mobile sidebar); `skeleton` was added with the shadcn CLI, which again imported `cn` from the unrelated `cn` npm package and installed it, so it was repointed at `@/lib/utils` and the package removed
+- `ItemCard` stays a server component: the title is a client `OpenItemButton` whose `::after` stretches over the card, so the whole card is the click target while the button carries the accessible name, the focus stop and `aria-haspopup="dialog"`; the card shows a focus ring through `has-focus-visible:`
+- The detail query selects only what the drawer shows and filters on `id` and `userId` together (`findFirst`), so another user's item is a 404 like a missing one. Only the demo user owns items in `development`, so the cross-user 404 wasn't exercised in the browser - it's a candidate for a unit test on the `where` clause
+- Unit tests: none added yet - run `/feature test`. Candidates: `getItemDetail()`'s scoping and mapping, and the route's 401 / 404 / 200 / 500 branches
 
 ## History
 

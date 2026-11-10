@@ -3,6 +3,7 @@ import { redirect } from "next/navigation";
 import { Sidebar } from "@/components/dashboard/Sidebar";
 import { SidebarProvider } from "@/components/dashboard/SidebarProvider";
 import { TopBar } from "@/components/dashboard/TopBar";
+import { ItemDrawerProvider } from "@/components/items/ItemDrawerProvider";
 import { SIGN_IN_PATH } from "@/lib/auth-redirect";
 import { getSidebarCollections } from "@/lib/db/collections";
 import { getItemTypeCounts } from "@/lib/db/items";
@@ -31,14 +32,17 @@ export default async function AppLayout({
 
   return (
     <SidebarProvider>
-      <div className="flex h-svh overflow-hidden">
-        <Sidebar itemTypes={itemTypes} collections={collections} user={user} />
+      {/* One item drawer for the whole shell, opened by any item card. */}
+      <ItemDrawerProvider>
+        <div className="flex h-svh overflow-hidden">
+          <Sidebar itemTypes={itemTypes} collections={collections} user={user} />
 
-        <div className="flex min-w-0 flex-1 flex-col">
-          <TopBar />
-          <main className="flex-1 overflow-y-auto p-4 sm:p-6">{children}</main>
+          <div className="flex min-w-0 flex-1 flex-col">
+            <TopBar />
+            <main className="flex-1 overflow-y-auto p-4 sm:p-6">{children}</main>
+          </div>
         </div>
-      </div>
+      </ItemDrawerProvider>
     </SidebarProvider>
   );
 }

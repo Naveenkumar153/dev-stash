@@ -1,5 +1,6 @@
 import { Pin, Star } from "lucide-react";
 
+import { OpenItemButton } from "@/components/items/OpenItemButton";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import type { ItemSummary } from "@/lib/db/items";
@@ -9,7 +10,8 @@ import { cn } from "@/lib/utils";
 
 /**
  * Item row card, color-coded on its left edge by item type. Used for the
- * dashboard's pinned and recent lists and the /items/[type] grid.
+ * dashboard's pinned and recent lists and the /items/[type] grid. Clicking
+ * anywhere on it opens the item drawer, through the button on its title.
  */
 export function ItemCard({ item }: Readonly<{ item: ItemSummary }>) {
   const { icon: Icon, colorClass, borderClass, bgClass } =
@@ -18,7 +20,7 @@ export function ItemCard({ item }: Readonly<{ item: ItemSummary }>) {
   return (
     <Card
       className={cn(
-        "gap-0 border-l-4 px-4 transition-colors hover:bg-accent/50",
+        "relative gap-0 border-l-4 px-4 transition-colors hover:bg-accent/50 has-focus-visible:ring-3 has-focus-visible:ring-ring/50",
         borderClass,
       )}
     >
@@ -37,9 +39,9 @@ export function ItemCard({ item }: Readonly<{ item: ItemSummary }>) {
 
         <div className="min-w-0 flex-1">
           <h3 className="flex items-center gap-2 font-heading text-base font-medium">
-            {/* Not a link yet: /items/<id> would hit /items/[type] and 404.
-                The item drawer feature makes the card open the item. */}
-            <span className="truncate">{item.title}</span>
+            <OpenItemButton item={item} className="truncate">
+              {item.title}
+            </OpenItemButton>
             {item.isPinned && (
               <Pin
                 aria-label="Pinned"
