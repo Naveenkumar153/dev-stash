@@ -1,7 +1,9 @@
 import { Calendar, ExternalLink, Folder, Tag } from "lucide-react";
 
+import { CodeEditor } from "@/components/items/CodeEditor";
 import { Badge } from "@/components/ui/badge";
 import { formatLongDate } from "@/lib/format";
+import { isCodeItemType } from "@/lib/item-types";
 import type { ItemCollectionRef, ItemDetail } from "@/types/items";
 
 interface DrawerSectionProps {
@@ -71,8 +73,8 @@ export function ItemDatesSection({
 
 /**
  * The drawer body once the full item has loaded. Sections with nothing to show
- * are left out. Content is plain preformatted text for now - the code editor
- * and syntax highlighting come later.
+ * are left out. Snippet and command content shows in a read-only code editor;
+ * other text stays plain preformatted text.
  */
 export function ItemDrawerDetails({ item }: Readonly<{ item: ItemDetail }>) {
   return (
@@ -100,9 +102,13 @@ export function ItemDrawerDetails({ item }: Readonly<{ item: ItemDetail }>) {
 
       {item.content && (
         <DrawerSection title="Content">
-          <pre className="overflow-x-auto rounded-lg border border-border bg-muted/30 p-4 font-mono text-[13px] leading-relaxed">
-            <code>{item.content}</code>
-          </pre>
+          {isCodeItemType(item.typeName) ? (
+            <CodeEditor value={item.content} language={item.language} readOnly ariaLabel="Content" />
+          ) : (
+            <pre className="overflow-x-auto rounded-lg border border-border bg-muted/30 p-4 font-mono text-[13px] leading-relaxed">
+              <code>{item.content}</code>
+            </pre>
+          )}
         </DrawerSection>
       )}
 

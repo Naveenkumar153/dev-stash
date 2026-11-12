@@ -2,9 +2,14 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { ItemCard } from "@/components/dashboard/ItemCard";
+import { NewItemDialog } from "@/components/items/NewItemDialog";
 import { getItemTypeBySlug } from "@/lib/db/item-types";
 import { getItemsByType } from "@/lib/db/items";
-import { getItemTypePlural, getItemTypeStyleByName } from "@/lib/item-types";
+import {
+  getItemTypePlural,
+  getItemTypeStyleByName,
+  isCreatableItemType,
+} from "@/lib/item-types";
 import { cn } from "@/lib/utils";
 
 export async function generateMetadata({
@@ -40,12 +45,14 @@ export default async function ItemTypePage({ params }: PageProps<"/items/[type]"
         >
           <Icon aria-hidden className={cn("size-6", colorClass)} />
         </span>
-        <div>
+        <div className="min-w-0 flex-1">
           <h1 className="font-heading text-3xl font-semibold">{plural}</h1>
           <p className="mt-1 text-muted-foreground">
             {items.length} {items.length === 1 ? "item" : "items"}
           </p>
         </div>
+        {/* File and image types need uploads, which the dialog can't do yet. */}
+        {isCreatableItemType(typeName) && <NewItemDialog defaultType={typeName} />}
       </header>
 
       <section aria-labelledby="item-list-heading">

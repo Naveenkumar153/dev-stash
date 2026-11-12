@@ -1,16 +1,36 @@
-# Current Feature
+# Current Feature: Code Editor
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- [x] A reusable `CodeEditor` component (Monaco, dark theme) in `src/components/items/`
+- [x] Snippet and command content uses `CodeEditor` in both the edit form and the New Item dialog; prompt and note keep the `Textarea`
+- [x] The drawer's view mode shows snippet and command content in a read-only `CodeEditor` instead of the plain `<pre><code>` block; prompt and note content stays as it is
+- [x] Editor header with macOS-style window dots (red / yellow / green), the item's language and a quick copy button beside it
+- [x] Height grows with the content up to a 400px maximum, then scrolls, with a scrollbar styled to match the dark theme
+- [x] Works in both read-only (display) and editable modes from the same component
+- [x] Added mid-feature at the user's request: each creatable type's list page (`/items/snippets`, ...) has a "New <Type>" button that opens the New Item dialog with that type preselected; file and image pages get none. The top bar's New Item button also starts on the current list page's type (`getCreatableTypeFromPath()` on `usePathname()`), falling back to snippet on the dashboard, the file and image lists and other pages
 
 ## Notes
 
-<!-- Any extra notes -->
+- Spec: `context/features/code-editor-spec.md`
+- Where the content renders today:
+  - Edit + create: the `content` field in `src/components/items/ItemFormFields.tsx` (a mono `Textarea`, shared by `ItemDrawerEditForm` and `NewItemDialog`)
+  - View: the Content section in `src/components/items/ItemDrawerDetails.tsx` (`<pre><code>`)
+- Which types are "code" should be name-keyed in `src/lib/item-types.ts` beside `getEditableItemFields()` (snippet, command), not hard-coded in the components
+- Library: `@monaco-editor/react` (4.7.0, React 19 in its peer range) plus `monaco-editor`. Monaco touches `window`, so the editor must be a client component loaded without SSR (`next/dynamic` with `ssr: false`, or the wrapper's own lazy loader), with a lightweight fallback while it loads. Check the Next 16 docs in `node_modules/next/dist/docs/` for `dynamic` before using it
+- Decide at start whether Monaco loads from the wrapper's default CDN (jsDelivr) or is bundled locally via `loader.config({ monaco })`; bundling avoids a runtime third-party fetch but grows the client bundle
+- Language: the `language` field is free text (seeded values: `typescript`, `bash`, `dockerfile`); map common aliases (e.g. `ts`, `js`, `sh`, `shell`) to Monaco language ids and fall back to `plaintext`. In the edit form the editor should follow the Language input as it changes
+- Copy in the editor header duplicates the drawer action bar's Copy; reuse the same clipboard + toast behaviour
+- Fluid height: size from Monaco's `getContentHeight()` (via `onDidContentSizeChange`), clamped to 400px, with `scrollBeyondLastLine: false` and minimap off; the scrollbar styling goes through Monaco's `scrollbar` options and theme colors (and `globals.css` tokens if needed), not inline styles
+- Accessibility: the editor must stay reachable by keyboard and labelled from the form's "Content" label; Monaco traps Tab by default, so check how focus leaves it in the edit form
+- Mostly UI: unit tests only for any new utility (e.g. the language alias mapping and the code-type lookup); components are verified in the browser
+- No schema change, no migration
+- Decisions at start: Monaco is bundled locally (`monaco-editor@0.57` tree-shakeable entries: `monaco-editor/editor` + `features/register.all` + Monarch `languages/definitions/register.all`, no TS/JSON/CSS/HTML language services, so only the editor worker in `monaco.worker.ts`), wired through `loader.config({ monaco })`; JSON highlights with the JavaScript grammar; edit mode keeps a 160px floor (the old textarea's height), read-only is fully fluid; word suggestions and Monaco's context menu are off (the menu renders outside the drawer/dialog, which close on a click outside it); the wheel passes through to the drawer at the editor's scroll ends; Tab leaves the read-only editor, while in edit mode it indents (Ctrl+M / Ctrl+Shift+M toggles, Monaco's standard)
+- Monaco's lazy chunks total about 4.3 MB minified (uncompressed), loaded only when a code editor first renders
 
 ## History
 

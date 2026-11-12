@@ -140,6 +140,21 @@ export const CREATABLE_ITEM_TYPES = ["snippet", "prompt", "command", "note", "li
 export type CreatableItemType = (typeof CREATABLE_ITEM_TYPES)[number];
 
 /**
+ * The creatable type whose list page `pathname` is, e.g. "/items/notes" ->
+ * "note". Null on any other page, including the file and image lists.
+ */
+export function getCreatableTypeFromPath(pathname: string): CreatableItemType | null {
+  const slug = /^\/items\/([^/]+)\/?$/.exec(pathname)?.[1];
+
+  return CREATABLE_ITEM_TYPES.find((type) => getItemTypeSlug(type) === slug) ?? null;
+}
+
+/** Whether the New Item dialog can create this type, e.g. "note" yes, "file" no. */
+export function isCreatableItemType(name: string): name is CreatableItemType {
+  return (CREATABLE_ITEM_TYPES as readonly string[]).includes(name);
+}
+
+/**
  * The type-specific fields an item can edit. Title, description and tags apply
  * to every type, so they aren't listed.
  */
@@ -151,8 +166,16 @@ export interface EditableItemFields {
 
 /** Text-payload types edit their content; the two code types also a language. */
 const CONTENT_TYPE_NAMES = new Set(["snippet", "prompt", "command", "note"]);
-const LANGUAGE_TYPE_NAMES = new Set(["snippet", "command"]);
+const CODE_TYPE_NAMES = new Set(["snippet", "command"]);
 const URL_TYPE_NAMES = new Set(["link"]);
+
+/**
+ * Whether a type's content is code, e.g. "command". Code is shown and edited
+ * in the code editor; other text types keep a plain textarea.
+ */
+export function isCodeItemType(name: string) {
+  return CODE_TYPE_NAMES.has(name.toLowerCase());
+}
 
 /**
  * Which type-specific fields an item of this type edits, e.g. "link" -> url.
@@ -164,7 +187,7 @@ export function getEditableItemFields(name: string): EditableItemFields {
 
   return {
     content: CONTENT_TYPE_NAMES.has(type),
-    language: LANGUAGE_TYPE_NAMES.has(type),
+    language: CODE_TYPE_NAMES.has(type),
     url: URL_TYPE_NAMES.has(type),
   };
 }

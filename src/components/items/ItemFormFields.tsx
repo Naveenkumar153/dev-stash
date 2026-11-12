@@ -1,5 +1,6 @@
 import { useId } from "react";
 
+import { CodeEditor } from "@/components/items/CodeEditor";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
@@ -46,11 +47,19 @@ interface ItemFormFieldsProps {
   values: ItemFormValues;
   errors: FieldErrors;
   fields: EditableItemFields;
+  /** Edits the content in the code editor rather than a textarea. */
+  codeContent: boolean;
   onChange: (name: keyof ItemFormValues, value: string) => void;
 }
 
 /** Title, description and tags for every type, plus the type's own fields. */
-export function ItemFormFields({ values, errors, fields, onChange }: ItemFormFieldsProps) {
+export function ItemFormFields({
+  values,
+  errors,
+  fields,
+  codeContent,
+  onChange,
+}: ItemFormFieldsProps) {
   const id = useId();
   const field = (name: keyof ItemFormValues) => ({ id: `${id}-${name}`, error: errors[name] });
   const bind = (name: keyof ItemFormValues) => ({
@@ -71,14 +80,24 @@ export function ItemFormFields({ values, errors, fields, onChange }: ItemFormFie
 
       {fields.content && (
         <Field {...field("content")} label="Content">
-          {(control) => (
-            <Textarea
-              {...control}
-              {...bind("content")}
-              spellCheck={false}
-              className="min-h-40 font-mono text-[13px] leading-relaxed"
-            />
-          )}
+          {(control) =>
+            codeContent ? (
+              <CodeEditor
+                value={values.content}
+                language={values.language}
+                onChange={(value) => onChange("content", value)}
+                ariaLabel="Content"
+                invalid={control["aria-invalid"]}
+              />
+            ) : (
+              <Textarea
+                {...control}
+                {...bind("content")}
+                spellCheck={false}
+                className="min-h-40 font-mono text-[13px] leading-relaxed"
+              />
+            )
+          }
         </Field>
       )}
 

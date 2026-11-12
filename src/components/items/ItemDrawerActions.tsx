@@ -1,10 +1,10 @@
 "use client";
 
 import { Copy, Pencil, Pin, Star } from "lucide-react";
-import { toast } from "sonner";
 
 import { ItemDeleteDialog } from "@/components/items/ItemDeleteDialog";
 import { Button } from "@/components/ui/button";
+import { copyToClipboard } from "@/lib/clipboard";
 import { cn } from "@/lib/utils";
 
 interface ItemDrawerActionsProps {
@@ -41,17 +41,9 @@ export function ItemDrawerActions({
   onEdit,
   focusEdit = false,
 }: ItemDrawerActionsProps) {
-  async function handleCopy() {
-    if (!copyText) {
-      return;
-    }
-
-    try {
-      await navigator.clipboard.writeText(copyText);
-      toast.success("Copied to clipboard");
-    } catch {
-      // No clipboard access: an insecure origin or a denied permission.
-      toast.error("Couldn't copy to the clipboard.");
+  function handleCopy() {
+    if (copyText) {
+      void copyToClipboard(copyText);
     }
   }
 
