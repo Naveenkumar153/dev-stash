@@ -2,12 +2,15 @@ import { describe, expect, it } from "vitest";
 
 import {
   compareItemTypeOrder,
+  getCreatableTypeFromPath,
   getEditableItemFields,
   getItemTypeHref,
   getItemTypeLabel,
   getItemTypePlural,
   getItemTypeSlug,
   getItemTypeStyleByName,
+  isCodeItemType,
+  isCreatableItemType,
   isProItemType,
 } from "@/lib/item-types";
 
@@ -70,6 +73,44 @@ describe("getEditableItemFields", () => {
 
   it("ignores case", () => {
     expect(getEditableItemFields("Snippet")).toEqual(getEditableItemFields("snippet"));
+  });
+});
+
+describe("isCodeItemType", () => {
+  it.each(["snippet", "command", "Snippet"])("treats %s as code", (name) => {
+    expect(isCodeItemType(name)).toBe(true);
+  });
+
+  it.each(["prompt", "note", "link", "file", "recipe"])("treats %s as plain text", (name) => {
+    expect(isCodeItemType(name)).toBe(false);
+  });
+});
+
+describe("getCreatableTypeFromPath", () => {
+  it.each([
+    ["/items/snippets", "snippet"],
+    ["/items/commands", "command"],
+    ["/items/notes/", "note"],
+    ["/items/links", "link"],
+  ])("reads %s as %s", (pathname, type) => {
+    expect(getCreatableTypeFromPath(pathname)).toBe(type);
+  });
+
+  it.each(["/items/files", "/items/images", "/items/recipes", "/dashboard", "/items", "/items/notes/x"])(
+    "finds no creatable type on %s",
+    (pathname) => {
+      expect(getCreatableTypeFromPath(pathname)).toBeNull();
+    },
+  );
+});
+
+describe("isCreatableItemType", () => {
+  it.each(["snippet", "prompt", "command", "note", "link"])("lets the dialog create %s", (name) => {
+    expect(isCreatableItemType(name)).toBe(true);
+  });
+
+  it.each(["file", "image", "recipe", "Snippet"])("refuses %s", (name) => {
+    expect(isCreatableItemType(name)).toBe(false);
   });
 });
 

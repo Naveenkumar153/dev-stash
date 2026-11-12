@@ -14,7 +14,7 @@ import {
 } from "@/components/items/ItemFormFields";
 import { Button } from "@/components/ui/button";
 import type { FieldErrors } from "@/lib/auth-schemas";
-import { getEditableItemFields } from "@/lib/item-types";
+import { getEditableItemFields, isCodeItemType } from "@/lib/item-types";
 import type { ItemDetail } from "@/types/items";
 
 function toFormValues(item: ItemDetail): ItemFormValues {
@@ -88,6 +88,7 @@ export function ItemDrawerEditForm({ item, onCancel, onSaved }: ItemDrawerEditFo
           values={values}
           errors={fieldErrors}
           fields={fields}
+          codeContent={isCodeItemType(item.typeName)}
           onChange={handleChange}
         />
         <ItemCollectionsSection collections={item.collections} />

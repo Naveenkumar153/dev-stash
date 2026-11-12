@@ -1,7 +1,7 @@
 "use client";
 
 import { Plus } from "lucide-react";
-import { useRouter } from "next/navigation";
+import { usePathname, useRouter } from "next/navigation";
 import { useState, useTransition, type TransitionStartFunction } from "react";
 import { toast } from "sonner";
 
@@ -25,15 +25,31 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog";
 import type { FieldErrors } from "@/lib/auth-schemas";
-import { getEditableItemFields, type CreatableItemType } from "@/lib/item-types";
+import {
+  getCreatableTypeFromPath,
+  getEditableItemFields,
+  getItemTypeLabel,
+  isCodeItemType,
+  type CreatableItemType,
+} from "@/lib/item-types";
 
 const CREATE_FAILED = "Couldn't create this item. Please try again.";
 
+interface NewItemDialogProps {
+  /**
+   * The type the form starts on, which also names the button ("New Note"), as
+   * on a type's list page. Without it the button is the top bar's generic one,
+   * which starts on the type of the list page it's shown over, else snippet.
+   */
+  defaultType?: CreatableItemType;
+}
+
 /**
- * The top bar's New Item button and the dialog it opens. The form mounts with
- * the dialog's popup, so every open starts blank and closing discards the draft.
+ * A New Item button and the dialog it opens. The form mounts with the dialog's
+ * popup, so every open starts blank and closing discards the draft.
  */
-export function NewItemDialog() {
+export function NewItemDialog({ defaultType }: NewItemDialogProps) {
+  const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
 
@@ -47,16 +63,25 @@ export function NewItemDialog() {
 
   return (
     <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogTrigger render={<Button size="lg" aria-label="New item" />}>
-        <Plus aria-hidden />
-        <span className="hidden sm:inline">New Item</span>
-      </DialogTrigger>
+      {defaultType ? (
+        <DialogTrigger render={<Button size="lg" />}>
+          <Plus aria-hidden />
+          New {getItemTypeLabel(defaultType)}
+        </DialogTrigger>
+      ) : (
+        // The text hides on phones, so the label carries the name.
+        <DialogTrigger render={<Button size="lg" aria-label="New item" />}>
+          <Plus aria-hidden />
+          <span className="hidden sm:inline">New Item</span>
+        </DialogTrigger>
+      )}
       <DialogContent className="max-h-[calc(100dvh-2rem)] gap-0 overflow-y-auto p-0 sm:max-w-lg">
         <DialogHeader className="p-6 pb-4">
           <DialogTitle>New item</DialogTitle>
           <DialogDescription>Save a snippet, prompt, command, note or link.</DialogDescription>
         </DialogHeader>
         <NewItemForm
+          defaultType={defaultType ?? getCreatableTypeFromPath(pathname) ?? "snippet"}
           pending={pending}
           startTransition={startTransition}
           onCreated={() => setOpen(false)}
@@ -67,6 +92,7 @@ export function NewItemDialog() {
 }
 
 interface NewItemFormProps {
+  defaultType: CreatableItemType;
   pending: boolean;
   /** The dialog's transition, so it knows not to close while the create runs. */
   startTransition: TransitionStartFunction;
@@ -74,9 +100,9 @@ interface NewItemFormProps {
 }
 
 /** The type picker, the fields that type uses, and Create / Cancel. */
-function NewItemForm({ pending, startTransition, onCreated }: NewItemFormProps) {
+function NewItemForm({ defaultType, pending, startTransition, onCreated }: NewItemFormProps) {
   const router = useRouter();
-  const [typeName, setTypeName] = useState<CreatableItemType>("snippet");
+  const [typeName, setTypeName] = useState<CreatableItemType>(defaultType);
   const [values, setValues] = useState<ItemFormValues>(EMPTY_ITEM_FORM);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const fields = getEditableItemFields(typeName);
@@ -118,6 +144,7 @@ function NewItemForm({ pending, startTransition, onCreated }: NewItemFormProps) 
           values={values}
           errors={fieldErrors}
           fields={fields}
+          codeContent={isCodeItemType(typeName)}
           onChange={handleChange}
         />
       </div>
