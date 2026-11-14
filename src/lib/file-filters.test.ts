@@ -2,11 +2,16 @@ import { describe, expect, it } from "vitest";
 
 import {
   DEFAULT_FILE_FILTERS,
+  DEFAULT_FILE_SORT,
   FILE_TYPE_FILTERS,
   getDateFilterStart,
+  getDefaultSort,
   getFileCategory,
+  getSortOrderLabel,
   isFileFilterActive,
   matchesFileFilters,
+  sortFiles,
+  sortFolders,
   type FileFilters,
 } from "@/lib/file-filters";
 import { UPLOAD_CONSTRAINTS } from "@/lib/file-upload";
@@ -119,5 +124,98 @@ describe("matchesFileFilters", () => {
     expect(matchesFileFilters(file("a.pdf", new Date("2026-11-10T12:00:00.000Z")), recentPdfs, NOW)).toBe(true);
     expect(matchesFileFilters(file("a.pdf", tenDaysAgo), recentPdfs, NOW)).toBe(false);
     expect(matchesFileFilters(file("a.csv", NOW), recentPdfs, NOW)).toBe(false);
+  });
+});
+
+describe("file sort labels", () => {
+  it("defaults to newest first", () => {
+    expect(DEFAULT_FILE_SORT).toEqual({ field: "uploaded", direction: "desc" });
+    expect(getSortOrderLabel(DEFAULT_FILE_SORT)).toBe("Newest first");
+  });
+
+  it("switches each field to its natural direction", () => {
+    expect(getDefaultSort("name")).toEqual({ field: "name", direction: "asc" });
+    expect(getDefaultSort("size")).toEqual({ field: "size", direction: "desc" });
+    expect(getDefaultSort("uploaded")).toEqual({ field: "uploaded", direction: "desc" });
+  });
+
+  it("names each order in words", () => {
+    expect(getSortOrderLabel({ field: "name", direction: "desc" })).toBe("Z to A");
+    expect(getSortOrderLabel({ field: "size", direction: "asc" })).toBe("Smallest first");
+    expect(getSortOrderLabel({ field: "uploaded", direction: "asc" })).toBe("Oldest first");
+  });
+});
+
+function sortable(id: string, title: string, fileSize: number | null, day: number) {
+  return { id, title, fileSize, createdAt: new Date(Date.UTC(2026, 10, day)) };
+}
+
+const ids = (entries: readonly { id: string }[]) => entries.map((entry) => entry.id);
+
+describe("sortFiles", () => {
+  const files = [
+    sortable("a", "File 10", 300, 3),
+    sortable("b", "file 2", null, 1),
+    sortable("c", "Énoncé", 100, 4),
+    sortable("d", "Budget", 300, 2),
+  ];
+
+  it("sorts by name numerically, ignoring case and accents", () => {
+    expect(ids(sortFiles(files, { field: "name", direction: "asc" }))).toEqual(["d", "c", "b", "a"]);
+    expect(ids(sortFiles(files, { field: "name", direction: "desc" }))).toEqual(["a", "b", "c", "d"]);
+  });
+
+  it("sorts by upload time", () => {
+    expect(ids(sortFiles(files, { field: "uploaded", direction: "desc" }))).toEqual(["c", "a", "d", "b"]);
+    expect(ids(sortFiles(files, { field: "uploaded", direction: "asc" }))).toEqual(["b", "d", "a", "c"]);
+  });
+
+  it("sorts by size with files without a size last either way, ties by upload time", () => {
+    expect(ids(sortFiles(files, { field: "size", direction: "desc" }))).toEqual(["a", "d", "c", "b"]);
+    expect(ids(sortFiles(files, { field: "size", direction: "asc" }))).toEqual(["c", "d", "a", "b"]);
+  });
+
+  it("orders files without a size among themselves by upload time", () => {
+    const unsized = [sortable("p", "One", null, 1), sortable("q", "Two", null, 9), sortable("r", "Three", 50, 5)];
+
+    expect(ids(sortFiles(unsized, { field: "size", direction: "desc" }))).toEqual(["r", "q", "p"]);
+    expect(ids(sortFiles(unsized, { field: "size", direction: "asc" }))).toEqual(["r", "p", "q"]);
+  });
+
+  it("breaks a tie on the same upload time by id, so flipping the direction reverses the list", () => {
+    const twins = [sortable("y", "Same", 1, 5), sortable("x", "Same", 1, 5)];
+
+    expect(ids(sortFiles(twins, { field: "name", direction: "asc" }))).toEqual(["x", "y"]);
+    expect(ids(sortFiles(twins, { field: "name", direction: "desc" }))).toEqual(["y", "x"]);
+  });
+
+  it("leaves the input untouched", () => {
+    const before = ids(files);
+    sortFiles(files, { field: "name", direction: "asc" });
+
+    expect(ids(files)).toEqual(before);
+  });
+});
+
+describe("sortFolders", () => {
+  const folders = [
+    { id: "a", name: "reports", createdAt: new Date(Date.UTC(2026, 10, 2)) },
+    { id: "b", name: "Archive", createdAt: new Date(Date.UTC(2026, 10, 3)) },
+    { id: "c", name: "docs", createdAt: new Date(Date.UTC(2026, 10, 1)) },
+  ];
+
+  it("sorts by name for Name, in either direction", () => {
+    expect(ids(sortFolders(folders, { field: "name", direction: "asc" }))).toEqual(["b", "c", "a"]);
+    expect(ids(sortFolders(folders, { field: "name", direction: "desc" }))).toEqual(["a", "c", "b"]);
+  });
+
+  it("sorts A to Z for Size whichever way the files go, since folders have no size", () => {
+    expect(ids(sortFolders(folders, { field: "size", direction: "desc" }))).toEqual(["b", "c", "a"]);
+    expect(ids(sortFolders(folders, { field: "size", direction: "asc" }))).toEqual(["b", "c", "a"]);
+  });
+
+  it("sorts by creation time for Uploaded", () => {
+    expect(ids(sortFolders(folders, { field: "uploaded", direction: "desc" }))).toEqual(["b", "a", "c"]);
+    expect(ids(sortFolders(folders, { field: "uploaded", direction: "asc" }))).toEqual(["c", "a", "b"]);
   });
 });

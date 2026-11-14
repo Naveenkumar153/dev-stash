@@ -1,7 +1,9 @@
 import { auth } from "@/auth";
 import { getFieldErrors, type FieldErrors } from "@/lib/auth-schemas";
+import { findFolder } from "@/lib/db/folders";
 import { createFileItem } from "@/lib/db/items";
 import { MAX_UPLOAD_BYTES, buildFileKey, validateUpload } from "@/lib/file-upload";
+import { FOLDER_NOT_FOUND } from "@/lib/folder-schemas";
 import { createFileItemSchema, type CreateFileItemData } from "@/lib/item-schemas";
 import { putFile } from "@/lib/r2";
 import { discardStoredFiles } from "@/lib/stored-files";
@@ -49,6 +51,7 @@ export async function POST(request: Request) {
     title: form.get("title"),
     description: form.get("description"),
     tags: form.getAll("tags"),
+    folderId: form.get("folderId"),
   });
   if (!parsed.success) {
     return errorResponse(parsed.error.issues[0].message, 400, getFieldErrors(parsed.error));
@@ -64,7 +67,30 @@ export async function POST(request: Request) {
     return errorResponse(check.error, 400, { file: check.error });
   }
 
+  // Checked before the file is stored, so a missing folder costs no R2 write.
+  const folderError = parsed.data.folderId && (await checkFolder(userId, parsed.data.folderId));
+  if (folderError) {
+    return folderError;
+  }
+
   return storeAndCreate(userId, parsed.data, file, check.contentType);
+}
+
+/**
+ * An error response when the upload's folder isn't one of `userId`'s, which
+ * also covers a folder deleted while the dialog was open; null when it is.
+ */
+async function checkFolder(userId: string, folderId: string): Promise<Response | null> {
+  try {
+    if (await findFolder(userId, folderId)) {
+      return null;
+    }
+  } catch (error) {
+    console.error("Looking up upload folder failed", error);
+    return errorResponse(CREATE_FAILED, 500);
+  }
+
+  return errorResponse(FOLDER_NOT_FOUND, 404, { folderId: FOLDER_NOT_FOUND });
 }
 
 /**

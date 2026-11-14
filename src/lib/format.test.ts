@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { formatFileSize, formatLongDate, formatShortDate } from "@/lib/format";
+import { formatCount, formatFileSize, formatLongDate, formatShortDate } from "@/lib/format";
 
 // 23:30 UTC is already the next day east of UTC and still the same day west of
 // it, so these only pass if the formatting ignores the machine's time zone.
@@ -34,5 +34,13 @@ describe("formatLongDate", () => {
   it("formats in UTC", () => {
     expect(formatLongDate(LATE_UTC)).toBe("January 15, 2026");
     expect(formatLongDate(EARLY_UTC)).toBe("January 15, 2026");
+  });
+});
+
+describe("formatCount", () => {
+  it("uses the singular only for exactly one", () => {
+    expect(formatCount(1, "file")).toBe("1 file");
+    expect(formatCount(0, "file")).toBe("0 files");
+    expect(formatCount(3, "folder")).toBe("3 folders");
   });
 });

@@ -48,13 +48,18 @@ interface NewItemDialogProps {
    * which starts on the type of the list page it's shown over, else snippet.
    */
   defaultType?: CreatableItemType;
+  /**
+   * The folder a new file goes in: the files page passes the open folder.
+   * Ignored for every other type, since only files go in folders.
+   */
+  folderId?: string | null;
 }
 
 /**
  * A New Item button and the dialog it opens. The form mounts with the dialog's
  * popup, so every open starts blank and closing discards the draft.
  */
-export function NewItemDialog({ defaultType }: NewItemDialogProps) {
+export function NewItemDialog({ defaultType, folderId = null }: NewItemDialogProps) {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
@@ -88,6 +93,7 @@ export function NewItemDialog({ defaultType }: NewItemDialogProps) {
         </DialogHeader>
         <NewItemForm
           defaultType={defaultType ?? getCreatableTypeFromPath(pathname) ?? "snippet"}
+          folderId={folderId}
           pending={pending}
           startTransition={startTransition}
           onCreated={() => setOpen(false)}
@@ -99,6 +105,7 @@ export function NewItemDialog({ defaultType }: NewItemDialogProps) {
 
 interface NewItemFormProps {
   defaultType: CreatableItemType;
+  folderId: string | null;
   pending: boolean;
   /** The dialog's transition, so it knows not to close while the create runs. */
   startTransition: TransitionStartFunction;
@@ -106,7 +113,13 @@ interface NewItemFormProps {
 }
 
 /** The type picker, the file picker for file types, the fields that type uses, and Create / Cancel. */
-function NewItemForm({ defaultType, pending, startTransition, onCreated }: NewItemFormProps) {
+function NewItemForm({
+  defaultType,
+  folderId,
+  pending,
+  startTransition,
+  onCreated,
+}: NewItemFormProps) {
   const router = useRouter();
   const fileInputId = useId();
   const [typeName, setTypeName] = useState<CreatableItemType>(defaultType);
@@ -142,7 +155,12 @@ function NewItemForm({ defaultType, pending, startTransition, onCreated }: NewIt
       if (isFileItemType(typeName)) {
         if (!upload) return;
         setProgress(0);
-        result = await uploadFileItem(typeName, toItemInput(values, fields), upload.file, setProgress);
+        result = await uploadFileItem(
+          { typeName, folderId: typeName === "file" ? folderId : null },
+          toItemInput(values, fields),
+          upload.file,
+          setProgress,
+        );
         setProgress(null);
       } else {
         result = await createItem({ ...toItemInput(values, fields), typeName });
@@ -215,13 +233,16 @@ function ignoreFileDrop(event: React.DragEvent) {
  * up. A dropped connection resolves to an error result rather than throwing.
  */
 async function uploadFileItem(
-  typeName: FileItemType,
+  { typeName, folderId }: { typeName: FileItemType; folderId: string | null },
   input: UpdateItemInput,
   file: File,
   onProgress: (fraction: number) => void,
 ): Promise<UploadItemResponse> {
   const form = new FormData();
   form.set("typeName", typeName);
+  if (folderId) {
+    form.set("folderId", folderId);
+  }
   form.set("title", input.title);
   form.set("description", input.description ?? "");
   for (const tag of input.tags) {

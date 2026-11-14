@@ -190,6 +190,7 @@ describe("createFileItemSchema", () => {
       title: "Diagram",
       description: null,
       tags: ["docs"],
+      folderId: null,
     });
   });
 
@@ -206,5 +207,28 @@ describe("createFileItemSchema", () => {
     expect(data).not.toHaveProperty("content");
     expect(data).not.toHaveProperty("language");
     expect(data).not.toHaveProperty("url");
+  });
+  it.each([undefined, null, "", "   "])("reads the folder %j as the top level", (folderId) => {
+    expect(parseFile({ typeName: "file", folderId }).data?.folderId).toBeNull();
+  });
+
+  it("puts a file in a folder by its id", () => {
+    expect(parseFile({ typeName: "file", folderId: " cmfolderdocs000000000001 " }).data?.folderId).toBe(
+      "cmfolderdocs000000000001",
+    );
+  });
+
+  it("refuses a folder id that isn't a cuid", () => {
+    expect(parseFile({ typeName: "file", folderId: "../docs" }).error?.issues[0]).toMatchObject({
+      path: ["folderId"],
+      message: "This folder doesn't exist or has been deleted.",
+    });
+  });
+
+  it("refuses a folder for an image, since only files go in folders", () => {
+    expect(parseFile({ typeName: "image", folderId: "cmfolderdocs000000000001" }).error?.issues[0]).toMatchObject({
+      path: ["folderId"],
+      message: "Only files can go in folders",
+    });
   });
 });

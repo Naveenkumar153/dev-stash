@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { POST } from "@/app/api/items/upload/route";
 import { auth } from "@/auth";
+import { findFolder } from "@/lib/db/folders";
 import { createFileItem } from "@/lib/db/items";
 import { deleteFile, putFile } from "@/lib/r2";
 import type { ItemDetail } from "@/types/items";
@@ -11,6 +12,7 @@ import type { ItemDetail } from "@/types/items";
 // schema run for real, so these tests also cover what reaches R2 and the database.
 vi.mock("@/auth", () => ({ auth: vi.fn() }));
 vi.mock("@/lib/db/items", () => ({ createFileItem: vi.fn() }));
+vi.mock("@/lib/db/folders", () => ({ findFolder: vi.fn() }));
 vi.mock("@/lib/r2", () => ({ putFile: vi.fn(), deleteFile: vi.fn() }));
 
 /** `auth` is overloaded (it doubles as middleware), so its mock is typed by hand. */
@@ -89,7 +91,7 @@ describe("POST /api/items/upload", () => {
 
     expect(createFileItem).toHaveBeenCalledWith(
       "user-1",
-      { typeName: "file", title: "Server config", description: null, tags: ["config", "server"] },
+      { typeName: "file", title: "Server config", description: null, tags: ["config", "server"], folderId: null },
       { key: KEY, fileName: "config.toml", fileSize: 21 },
     );
     expect(deleteFile).not.toHaveBeenCalled();
@@ -227,5 +229,66 @@ describe("POST /api/items/upload", () => {
     expect(status).toBe(500);
     expect(body.error).toBe(CREATE_FAILED);
     expect(log).toHaveBeenCalledWith("Discarding stored file failed", expect.objectContaining({ key: KEY }));
+  });
+  describe("into a folder", () => {
+    const FOLDER_ID = "cmfolderdocs000000000001";
+    const FOLDER_NOT_FOUND = "This folder doesn't exist or has been deleted.";
+
+    it("checks the folder is the user's, then creates the file inside it", async () => {
+      vi.mocked(findFolder).mockResolvedValue({ id: FOLDER_ID, name: "Docs", parentId: null });
+
+      const { status } = await send(uploadRequest({ fields: { folderId: FOLDER_ID } }));
+
+      expect(status).toBe(201);
+      expect(findFolder).toHaveBeenCalledWith("user-1", FOLDER_ID);
+      expect(vi.mocked(createFileItem).mock.calls[0][1]).toMatchObject({ folderId: FOLDER_ID });
+    });
+
+    it("skips the folder lookup for an upload to the top level", async () => {
+      await send(uploadRequest({ fields: { folderId: "" } }));
+
+      expect(findFolder).not.toHaveBeenCalled();
+      expect(vi.mocked(createFileItem).mock.calls[0][1]).toMatchObject({ folderId: null });
+    });
+
+    it("answers a folder that is missing or another user's with a 404, storing nothing", async () => {
+      vi.mocked(findFolder).mockResolvedValue(null);
+
+      const { status, body } = await send(uploadRequest({ fields: { folderId: FOLDER_ID } }));
+
+      expect(status).toBe(404);
+      expect(body).toEqual({
+        success: false,
+        data: null,
+        error: FOLDER_NOT_FOUND,
+        fieldErrors: { folderId: FOLDER_NOT_FOUND },
+      });
+      expect(putFile).not.toHaveBeenCalled();
+      expect(createFileItem).not.toHaveBeenCalled();
+    });
+
+    it("answers a failed folder lookup with a 500, storing nothing", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      vi.mocked(findFolder).mockRejectedValue(new Error("connection reset"));
+
+      const { status, body } = await send(uploadRequest({ fields: { folderId: FOLDER_ID } }));
+
+      expect(status).toBe(500);
+      expect(body.error).toBe(CREATE_FAILED);
+      expect(putFile).not.toHaveBeenCalled();
+    });
+
+    it("refuses a folder for an image with a 400, before any lookup", async () => {
+      const png = new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], "diagram.png", { type: "image/png" });
+
+      const { status, body } = await send(
+        uploadRequest({ fields: { typeName: "image", folderId: FOLDER_ID }, file: png }),
+      );
+
+      expect(status).toBe(400);
+      expect(body.fieldErrors).toEqual({ folderId: "Only files can go in folders" });
+      expect(findFolder).not.toHaveBeenCalled();
+      expect(putFile).not.toHaveBeenCalled();
+    });
   });
 });

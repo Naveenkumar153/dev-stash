@@ -1,5 +1,6 @@
 import { z } from "zod";
 
+import { folderIdSchema } from "@/lib/folder-schemas";
 import { FILE_ITEM_TYPES, NON_FILE_ITEM_TYPES, getEditableItemFields } from "@/lib/item-types";
 
 /** Item ids are Prisma cuids, so anything else can't match a row. */
@@ -77,12 +78,18 @@ export type CreateItemData = z.output<typeof createItemSchema>;
 
 /**
  * The fields sent alongside an upload to `POST /api/items/upload`. File items
- * carry no text payload, so only the shared fields and the type are read.
+ * carry no text payload, so only the shared fields, the type and the folder
+ * are read. Only files go in folders; a blank folder means the top level.
  */
 export const createFileItemSchema = updateItemSchema
   .pick({ title: true, description: true, tags: true })
   .extend({
     typeName: z.enum(FILE_ITEM_TYPES, { error: "Choose an item type" }),
+    folderId: optionalText.pipe(folderIdSchema.nullable()),
+  })
+  .refine((data) => data.folderId === null || data.typeName === "file", {
+    message: "Only files can go in folders",
+    path: ["folderId"],
   });
 
 /** What the upload form sends besides the file. */
