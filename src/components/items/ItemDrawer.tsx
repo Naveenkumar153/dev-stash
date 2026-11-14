@@ -10,6 +10,7 @@ import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import type { ItemDetailState } from "@/hooks/use-item-detail";
 import type { ItemSummary } from "@/lib/db/items";
+import { getItemCopyText } from "@/lib/item-copy";
 import { getItemTypeLabel, getItemTypeStyleByName } from "@/lib/item-types";
 import { cn } from "@/lib/utils";
 import type { ItemDetail } from "@/types/items";
@@ -24,11 +25,6 @@ interface ItemDrawerProps {
   onItemSaved: (item: ItemDetail) => void;
   /** Runs after the open item has been deleted. */
   onItemDeleted: () => void;
-}
-
-/** What Copy puts on the clipboard: a link's URL, otherwise the text payload. */
-function getCopyText(item: ItemDetail) {
-  return item.contentType === "url" ? item.url : item.content;
 }
 
 /**
@@ -109,7 +105,7 @@ function ItemDrawerPanel({ summary, detail, onItemSaved, onItemDeleted }: ItemDr
             onDeleted={onItemDeleted}
             isFavorite={current.isFavorite}
             isPinned={current.isPinned}
-            copyText={item ? getCopyText(item) : null}
+            copyText={item ? getItemCopyText(item) : null}
             onEdit={item ? () => setEditing(true) : undefined}
             focusEdit={focusEdit}
           />
