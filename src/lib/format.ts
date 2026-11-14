@@ -34,3 +34,8 @@ export function formatLongDate(date: Date) {
     timeZone: "UTC",
   });
 }
+
+/** A count with its noun: 1 -> "1 file", 3 -> "3 files". Nouns here all take a plain "s". */
+export function formatCount(count: number, noun: string) {
+  return `${count} ${noun}${count === 1 ? "" : "s"}`;
+}

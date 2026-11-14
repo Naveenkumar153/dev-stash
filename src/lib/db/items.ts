@@ -24,6 +24,8 @@ export interface ItemSummary {
   fileName: string | null;
   /** Size in bytes of a file or image item's upload; null for other types. */
   fileSize: number | null;
+  /** The folder a file item sits in on /items/files; null at the top level and for other types. */
+  folderId: string | null;
   createdAt: Date;
 }
 
@@ -36,6 +38,7 @@ const ITEM_CARD_SELECT = {
   isFavorite: true,
   fileName: true,
   fileSize: true,
+  folderId: true,
   createdAt: true,
   itemType: { select: { name: true } },
   tags: { select: { name: true }, orderBy: { name: "asc" } },
@@ -52,6 +55,7 @@ interface ItemRow {
   isFavorite: boolean;
   fileName: string | null;
   fileSize: number | null;
+  folderId: string | null;
   createdAt: Date;
   itemType: { name: string };
   tags: { name: string }[];
@@ -265,8 +269,9 @@ export interface StoredUpload {
 
 /**
  * Creates a file or image item for `userId` around a file already stored in
- * R2, and returns it as the drawer shows it. Null when that system type isn't
- * in the database, so the caller can remove the stored file.
+ * R2, inside `data.folderId` when set, and returns it as the drawer shows it.
+ * Null when that system type isn't in the database, so the caller can remove
+ * the stored file.
  */
 export async function createFileItem(
   userId: string,
@@ -290,6 +295,8 @@ export async function createFileItem(
       fileUrl: upload.key,
       fileName: upload.fileName,
       fileSize: upload.fileSize,
+      // The upload route has already checked the folder is this user's.
+      ...(data.folderId && { folder: { connect: { id: data.folderId } } }),
       user: { connect: { id: userId } },
       itemType: { connect: { id: itemType.id } },
       tags: { connectOrCreate: connectTags(data.tags) },

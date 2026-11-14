@@ -321,6 +321,7 @@ describe("createFileItem", () => {
     description: null,
     tags: ["docs"],
     typeName: "image",
+    folderId: null,
   };
   const upload = { key: "user-1/8f14e45f-diagram.png", fileName: "diagram.png", fileSize: 6302 };
   const fileRow = {
@@ -362,6 +363,15 @@ describe("createFileItem", () => {
       user: { connect: { id: "user-1" } },
       itemType: { connect: { id: TYPE_ID } },
       tags: { connectOrCreate: [{ where: { name: "docs" }, create: { name: "docs" } }] },
+    });
+  });
+
+  it("puts a file uploaded inside a folder into that folder", async () => {
+    const FOLDER_ID = "cmtg169y00003zzx5folder01";
+    await createFileItem("user-1", { ...fileData, typeName: "file", folderId: FOLDER_ID }, upload);
+
+    expect(vi.mocked(prisma.item.create).mock.calls[0][0].data).toMatchObject({
+      folder: { connect: { id: FOLDER_ID } },
     });
   });
 

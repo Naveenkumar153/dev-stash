@@ -78,3 +78,117 @@ export function matchesFileFilters(
 
   return start === null || file.createdAt >= start;
 }
+
+/**
+ * The /items/files sort fields. Picking one switches to its natural direction
+ * (A to Z for names, largest first for sizes, newest first for dates), and
+ * each direction has a plain-language name for the order toggle.
+ */
+export const FILE_SORT_FIELDS = [
+  { value: "uploaded", label: "Uploaded", defaultDirection: "desc", asc: "Oldest first", desc: "Newest first" },
+  { value: "name", label: "Name", defaultDirection: "asc", asc: "A to Z", desc: "Z to A" },
+  { value: "size", label: "Size", defaultDirection: "desc", asc: "Smallest first", desc: "Largest first" },
+] as const satisfies readonly {
+  value: string;
+  label: string;
+  defaultDirection: SortDirection;
+  asc: string;
+  desc: string;
+}[];
+
+export type FileSortField = (typeof FILE_SORT_FIELDS)[number]["value"];
+
+export type SortDirection = "asc" | "desc";
+
+export interface FileSort {
+  field: FileSortField;
+  direction: SortDirection;
+}
+
+/** Newest first, the order the list had before it could be sorted. */
+export const DEFAULT_FILE_SORT: FileSort = { field: "uploaded", direction: "desc" };
+
+function getSortField(field: FileSortField) {
+  return FILE_SORT_FIELDS.find((option) => option.value === field)!;
+}
+
+/** A sort field at its natural direction. */
+export function getDefaultSort(field: FileSortField): FileSort {
+  return { field, direction: getSortField(field).defaultDirection };
+}
+
+/** The order a sort puts the list in, in words: "Newest first", "A to Z". */
+export function getSortOrderLabel({ field, direction }: FileSort): string {
+  return getSortField(field)[direction];
+}
+
+/**
+ * A fixed locale rather than the runtime's, so the server render and the
+ * browser put names in the same order. Numeric, so "File 2" comes before
+ * "File 10"; base sensitivity, so case and accents don't split names apart.
+ */
+const nameCollator = new Intl.Collator("en", { numeric: true, sensitivity: "base" });
+
+type Comparison = (a: SortableEntry, b: SortableEntry) => number;
+
+interface SortableEntry {
+  id: string;
+  createdAt: Date;
+}
+
+/** Oldest first; createdAt ties break on id, so the order is stable. */
+const byCreated: Comparison = (a, b) =>
+  a.createdAt.getTime() - b.createdAt.getTime() || (a.id < b.id ? -1 : a.id > b.id ? 1 : 0);
+
+function sortBy<T extends SortableEntry>(
+  entries: readonly T[],
+  compare: (a: T, b: T) => number,
+  direction: SortDirection,
+): T[] {
+  const sign = direction === "asc" ? 1 : -1;
+
+  return [...entries].sort((a, b) => sign * (compare(a, b) || byCreated(a, b)));
+}
+
+/**
+ * Files in a sort's order: by title for Name, by size for Size, by upload time
+ * for Uploaded. Files without a size go last in either direction. Ties break on
+ * upload time then id, in the same direction, so flipping it reverses the list.
+ */
+export function sortFiles<T extends SortableEntry & { title: string; fileSize: number | null }>(
+  files: readonly T[],
+  { field, direction }: FileSort,
+): T[] {
+  if (field === "name") {
+    return sortBy(files, (a, b) => nameCollator.compare(a.title, b.title), direction);
+  }
+  if (field === "uploaded") {
+    return sortBy(files, () => 0, direction);
+  }
+
+  const sized = files.filter((file) => file.fileSize !== null);
+  const unsized = files.filter((file) => file.fileSize === null);
+
+  return [
+    ...sortBy(sized, (a, b) => a.fileSize! - b.fileSize!, direction),
+    ...sortBy(unsized, () => 0, direction),
+  ];
+}
+
+/**
+ * Folders in a sort's order. Folders have no size, so Name and Size both sort
+ * them by name - A to Z under Size, whichever way the files go - and Uploaded
+ * sorts them by when they were created.
+ */
+export function sortFolders<T extends SortableEntry & { name: string }>(
+  folders: readonly T[],
+  { field, direction }: FileSort,
+): T[] {
+  const byName = (a: T, b: T) => nameCollator.compare(a.name, b.name);
+
+  if (field === "uploaded") {
+    return sortBy(folders, () => 0, direction);
+  }
+
+  return sortBy(folders, byName, field === "size" ? "asc" : direction);
+}

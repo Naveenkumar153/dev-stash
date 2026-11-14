@@ -38,6 +38,7 @@ model User {
   items       Item[]
   collections Collection[]
   itemTypes   ItemType[] // custom (user-owned) types only
+  folders     Folder[]
 
   accounts Account[] // NextAuth
   sessions Session[] // NextAuth
@@ -98,6 +99,13 @@ model Item {
   tags        Tag[]
   collections ItemCollection[]
 
+  // The folder a file item sits in on /items/files; null at the top level.
+  // SetNull, never Cascade: deleting a folder's files has to go through the
+  // app so their R2 objects are removed too, and a database cascade would
+  // leave those objects in the bucket with no row pointing at them.
+  folderId String?
+  folder   Folder? @relation(fields: [folderId], references: [id], onDelete: SetNull)
+
   createdAt DateTime @default(now())
   updatedAt DateTime @updatedAt
 
@@ -107,7 +115,36 @@ model Item {
   @@index([userId, createdAt(sort: Desc), id(sort: Desc)])
   @@index([userId, isPinned, createdAt(sort: Desc), id(sort: Desc)])
   @@index([itemTypeId])
+  @@index([folderId])
   @@map("items")
+}
+
+// A folder on /items/files. Folders nest to any depth through parentId.
+// Sibling names are unique per user ignoring case, which the schema can't
+// express (and NULL parentIds would defeat a plain @@unique at the top
+// level), so the folder actions check it.
+model Folder {
+  id   String @id @default(cuid())
+  name String
+
+  userId String
+  user   User   @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Null at the top level. Folders hold no R2 objects themselves, so a
+  // cascade here only reaches sub-folders, and their items fall back to the
+  // top level through Item.folder's SetNull rather than being deleted.
+  parentId String?
+  parent   Folder?  @relation("FolderTree", fields: [parentId], references: [id], onDelete: Cascade)
+  children Folder[] @relation("FolderTree")
+
+  items Item[]
+
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  @@index([userId, parentId])
+  @@index([parentId])
+  @@map("folders")
 }
 
 model Collection {
