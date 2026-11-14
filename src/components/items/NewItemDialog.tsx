@@ -26,10 +26,10 @@ import {
 } from "@/components/ui/dialog";
 import type { FieldErrors } from "@/lib/auth-schemas";
 import {
+  getContentEditorKind,
   getCreatableTypeFromPath,
   getEditableItemFields,
   getItemTypeLabel,
-  isCodeItemType,
   type CreatableItemType,
 } from "@/lib/item-types";
 
@@ -144,7 +144,7 @@ function NewItemForm({ defaultType, pending, startTransition, onCreated }: NewIt
           values={values}
           errors={fieldErrors}
           fields={fields}
-          codeContent={isCodeItemType(typeName)}
+          contentEditor={getContentEditorKind(typeName)}
           onChange={handleChange}
         />
       </div>

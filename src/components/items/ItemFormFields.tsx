@@ -1,12 +1,13 @@
 import { useId } from "react";
 
 import { CodeEditor } from "@/components/items/CodeEditor";
+import { MarkdownEditor } from "@/components/items/MarkdownEditor";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
 import type { FieldErrors } from "@/lib/auth-schemas";
 import { parseTagInput, type UpdateItemInput } from "@/lib/item-schemas";
-import type { EditableItemFields } from "@/lib/item-types";
+import type { ContentEditorKind, EditableItemFields } from "@/lib/item-types";
 
 /** The form's inputs, as typed. Tags stay one comma-separated string until Save. */
 export interface ItemFormValues {
@@ -47,8 +48,8 @@ interface ItemFormFieldsProps {
   values: ItemFormValues;
   errors: FieldErrors;
   fields: EditableItemFields;
-  /** Edits the content in the code editor rather than a textarea. */
-  codeContent: boolean;
+  /** Which editor the content field uses: code, markdown or a plain textarea. */
+  contentEditor: ContentEditorKind;
   onChange: (name: keyof ItemFormValues, value: string) => void;
 }
 
@@ -57,7 +58,7 @@ export function ItemFormFields({
   values,
   errors,
   fields,
-  codeContent,
+  contentEditor,
   onChange,
 }: ItemFormFieldsProps) {
   const id = useId();
@@ -80,24 +81,41 @@ export function ItemFormFields({
 
       {fields.content && (
         <Field {...field("content")} label="Content">
-          {(control) =>
-            codeContent ? (
-              <CodeEditor
-                value={values.content}
-                language={values.language}
-                onChange={(value) => onChange("content", value)}
-                ariaLabel="Content"
-                invalid={control["aria-invalid"]}
-              />
-            ) : (
+          {(control) => {
+            if (contentEditor === "code") {
+              return (
+                <CodeEditor
+                  value={values.content}
+                  language={values.language}
+                  onChange={(value) => onChange("content", value)}
+                  ariaLabel="Content"
+                  invalid={control["aria-invalid"]}
+                />
+              );
+            }
+
+            if (contentEditor === "markdown") {
+              return (
+                <MarkdownEditor
+                  id={control.id}
+                  describedBy={control["aria-describedby"]}
+                  value={values.content}
+                  onChange={(value) => onChange("content", value)}
+                  ariaLabel="Content"
+                  invalid={control["aria-invalid"]}
+                />
+              );
+            }
+
+            return (
               <Textarea
                 {...control}
                 {...bind("content")}
                 spellCheck={false}
                 className="min-h-40 font-mono text-[13px] leading-relaxed"
               />
-            )
-          }
+            );
+          }}
         </Field>
       )}
 

@@ -1,9 +1,10 @@
 import { Calendar, ExternalLink, Folder, Tag } from "lucide-react";
 
 import { CodeEditor } from "@/components/items/CodeEditor";
+import { MarkdownEditor } from "@/components/items/MarkdownEditor";
 import { Badge } from "@/components/ui/badge";
 import { formatLongDate } from "@/lib/format";
-import { isCodeItemType } from "@/lib/item-types";
+import { getContentEditorKind } from "@/lib/item-types";
 import type { ItemCollectionRef, ItemDetail } from "@/types/items";
 
 interface DrawerSectionProps {
@@ -71,10 +72,34 @@ export function ItemDatesSection({
   );
 }
 
+interface ItemContentProps {
+  typeName: string;
+  content: string;
+  language: string | null;
+}
+
+/**
+ * Read-only content: snippets and commands in the code editor, notes and
+ * prompts as rendered markdown, anything else as plain preformatted text.
+ */
+function ItemContent({ typeName, content, language }: Readonly<ItemContentProps>) {
+  switch (getContentEditorKind(typeName)) {
+    case "code":
+      return <CodeEditor value={content} language={language} readOnly ariaLabel="Content" />;
+    case "markdown":
+      return <MarkdownEditor value={content} readOnly ariaLabel="Content" />;
+    case "plain":
+      return (
+        <pre className="overflow-x-auto rounded-lg border border-border bg-muted/30 p-4 font-mono text-[13px] leading-relaxed">
+          <code>{content}</code>
+        </pre>
+      );
+  }
+}
+
 /**
  * The drawer body once the full item has loaded. Sections with nothing to show
- * are left out. Snippet and command content shows in a read-only code editor;
- * other text stays plain preformatted text.
+ * are left out.
  */
 export function ItemDrawerDetails({ item }: Readonly<{ item: ItemDetail }>) {
   return (
@@ -102,13 +127,7 @@ export function ItemDrawerDetails({ item }: Readonly<{ item: ItemDetail }>) {
 
       {item.content && (
         <DrawerSection title="Content">
-          {isCodeItemType(item.typeName) ? (
-            <CodeEditor value={item.content} language={item.language} readOnly ariaLabel="Content" />
-          ) : (
-            <pre className="overflow-x-auto rounded-lg border border-border bg-muted/30 p-4 font-mono text-[13px] leading-relaxed">
-              <code>{item.content}</code>
-            </pre>
-          )}
+          <ItemContent typeName={item.typeName} content={item.content} language={item.language} />
         </DrawerSection>
       )}
 
