@@ -11,6 +11,7 @@ import {
   getItemTypeSlug,
   getItemTypeStyleByName,
   isCreatableItemType,
+  isFileItemType,
   isProItemType,
 } from "@/lib/item-types";
 
@@ -96,11 +97,13 @@ describe("getCreatableTypeFromPath", () => {
     ["/items/commands", "command"],
     ["/items/notes/", "note"],
     ["/items/links", "link"],
+    ["/items/files", "file"],
+    ["/items/images", "image"],
   ])("reads %s as %s", (pathname, type) => {
     expect(getCreatableTypeFromPath(pathname)).toBe(type);
   });
 
-  it.each(["/items/files", "/items/images", "/items/recipes", "/dashboard", "/items", "/items/notes/x"])(
+  it.each(["/items/recipes", "/dashboard", "/items", "/items/notes/x"])(
     "finds no creatable type on %s",
     (pathname) => {
       expect(getCreatableTypeFromPath(pathname)).toBeNull();
@@ -109,11 +112,11 @@ describe("getCreatableTypeFromPath", () => {
 });
 
 describe("isCreatableItemType", () => {
-  it.each(["snippet", "prompt", "command", "note", "link"])("lets the dialog create %s", (name) => {
+  it.each(["snippet", "prompt", "command", "note", "link", "file", "image"])("lets the dialog create %s", (name) => {
     expect(isCreatableItemType(name)).toBe(true);
   });
 
-  it.each(["file", "image", "recipe", "Snippet"])("refuses %s", (name) => {
+  it.each(["recipe", "Snippet"])("refuses %s", (name) => {
     expect(isCreatableItemType(name)).toBe(false);
   });
 });
@@ -135,5 +138,15 @@ describe("compareItemTypeOrder", () => {
       "apple",
       "zebra",
     ]);
+  });
+});
+
+describe("isFileItemType", () => {
+  it.each(["file", "image"])("treats %s as a file type", (name) => {
+    expect(isFileItemType(name)).toBe(true);
+  });
+
+  it.each(["snippet", "link", "recipe", "Image"])("doesn't treat %s as a file type", (name) => {
+    expect(isFileItemType(name)).toBe(false);
   });
 });

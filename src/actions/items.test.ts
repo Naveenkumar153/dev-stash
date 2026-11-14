@@ -8,6 +8,7 @@ import {
   deleteItem as deleteItemRecord,
   updateItem as updateItemRecord,
 } from "@/lib/db/items";
+import { deleteFile } from "@/lib/r2";
 import type { ItemDetail } from "@/types/items";
 
 // The session and the query are mocked; the Zod schema runs for real, so these
@@ -18,6 +19,7 @@ vi.mock("@/lib/db/items", () => ({
   updateItem: vi.fn(),
   deleteItem: vi.fn(),
 }));
+vi.mock("@/lib/r2", () => ({ deleteFile: vi.fn() }));
 
 /** `auth` is overloaded (it doubles as middleware), so its mock is typed by hand. */
 const mockAuth = auth as unknown as ReturnType<typeof vi.fn<() => Promise<Session | null>>>;
@@ -46,6 +48,8 @@ const saved: ItemDetail = {
   content: "export function useDebounce() {}",
   url: null,
   language: "typescript",
+  fileName: null,
+  fileSize: null,
   isPinned: false,
   isFavorite: false,
   typeName: "snippet",
@@ -134,7 +138,7 @@ describe("updateItem", () => {
 describe("deleteItem", () => {
   beforeEach(() => {
     signInAs("user-1");
-    vi.mocked(deleteItemRecord).mockResolvedValue(true);
+    vi.mocked(deleteItemRecord).mockResolvedValue({ fileKey: null });
   });
 
   it("deletes the signed-in user's item and returns its id", async () => {
@@ -165,7 +169,7 @@ describe("deleteItem", () => {
   });
 
   it("reports someone else's item, or a missing one, as not found", async () => {
-    vi.mocked(deleteItemRecord).mockResolvedValue(false);
+    vi.mocked(deleteItemRecord).mockResolvedValue(null);
 
     const result = await deleteItem(ITEM_ID);
 
@@ -183,6 +187,47 @@ describe("deleteItem", () => {
       data: null,
       error: "Couldn't delete this item. Please try again.",
     });
+    expect(deleteFile).not.toHaveBeenCalled();
+  });
+
+  it("leaves R2 alone for an item without a file", async () => {
+    await deleteItem(ITEM_ID);
+
+    expect(deleteFile).not.toHaveBeenCalled();
+  });
+
+  it("removes a file item's file from R2 after the row is gone", async () => {
+    vi.mocked(deleteItemRecord).mockResolvedValue({ fileKey: "user-1/abc-notes.md" });
+
+    const result = await deleteItem(ITEM_ID);
+
+    expect(result).toEqual({ success: true, data: { id: ITEM_ID }, error: null });
+    expect(deleteFile).toHaveBeenCalledWith("user-1/abc-notes.md");
+    expect(vi.mocked(deleteItemRecord).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(deleteFile).mock.invocationCallOrder[0],
+    );
+  });
+
+  it("still reports success when removing the file fails, and logs it", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(deleteItemRecord).mockResolvedValue({ fileKey: "user-1/abc-notes.md" });
+    vi.mocked(deleteFile).mockRejectedValue(new Error("R2 unavailable"));
+
+    const result = await deleteItem(ITEM_ID);
+
+    expect(result).toEqual({ success: true, data: { id: ITEM_ID }, error: null });
+    expect(log).toHaveBeenCalledWith(
+      "Discarding stored file failed",
+      expect.objectContaining({ key: "user-1/abc-notes.md" }),
+    );
+  });
+
+  it("doesn't touch R2 when the item wasn't found", async () => {
+    vi.mocked(deleteItemRecord).mockResolvedValue(null);
+
+    await deleteItem(ITEM_ID);
+
+    expect(deleteFile).not.toHaveBeenCalled();
   });
 });
 

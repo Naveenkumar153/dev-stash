@@ -1,6 +1,12 @@
 import { describe, expect, it } from "vitest";
 
-import { createItemSchema, itemIdSchema, parseTagInput, updateItemSchema } from "@/lib/item-schemas";
+import {
+  createFileItemSchema,
+  createItemSchema,
+  itemIdSchema,
+  parseTagInput,
+  updateItemSchema,
+} from "@/lib/item-schemas";
 
 const URL_ERROR = "Enter a full URL starting with http:// or https://";
 
@@ -159,5 +165,46 @@ describe("itemIdSchema", () => {
 
   it.each(["", "not-a-cuid", "12345"])("rejects %j", (id) => {
     expect(itemIdSchema.safeParse(id).success).toBe(false);
+  });
+});
+
+describe("createFileItemSchema", () => {
+  function parseFile(input: Record<string, unknown>) {
+    return createFileItemSchema.safeParse({ typeName: "image", title: "Diagram", tags: [], ...input });
+  }
+
+  it.each(["file", "image"])("accepts the %s type", (typeName) => {
+    expect(parseFile({ typeName }).success).toBe(true);
+  });
+
+  it.each(["snippet", "link", "recipe", undefined])("rejects the type %j", (typeName) => {
+    expect(parseFile({ typeName }).error?.issues[0]).toMatchObject({
+      path: ["typeName"],
+      message: "Choose an item type",
+    });
+  });
+
+  it("normalizes the shared fields like the other item schemas", () => {
+    expect(parseFile({ title: "  Diagram  ", description: "  ", tags: ["docs", " docs "] }).data).toEqual({
+      typeName: "image",
+      title: "Diagram",
+      description: null,
+      tags: ["docs"],
+    });
+  });
+
+  it("requires a title", () => {
+    expect(parseFile({ title: "   " }).error?.issues[0]).toMatchObject({
+      path: ["title"],
+      message: "Title is required",
+    });
+  });
+
+  it("drops the text payload fields a file item doesn't have", () => {
+    const data = parseFile({ content: "x", language: "ts", url: "https://example.com" }).data;
+
+    expect(data).not.toHaveProperty("content");
+    expect(data).not.toHaveProperty("language");
+    expect(data).not.toHaveProperty("url");
   });
 });

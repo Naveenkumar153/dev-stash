@@ -76,7 +76,7 @@ model Item {
   content String?
 
   // File payload (null when text-based)
-  fileUrl  String? // Cloudflare R2 URL
+  fileUrl  String? // Cloudflare R2 object key, served through /api/items/[id]/file
   fileName String?
   fileSize Int? // bytes
 

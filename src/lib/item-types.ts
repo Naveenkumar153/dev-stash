@@ -132,16 +132,34 @@ export function isProItemType(name: string) {
 }
 
 /**
- * The system types the New Item dialog creates, in display order. The file
- * types need uploads, which aren't built yet.
+ * The system types whose payload is typed into the New Item form, created by
+ * the `createItem` server action.
  */
-export const CREATABLE_ITEM_TYPES = ["snippet", "prompt", "command", "note", "link"] as const;
+export const NON_FILE_ITEM_TYPES = ["snippet", "prompt", "command", "note", "link"] as const;
+
+export type NonFileItemType = (typeof NON_FILE_ITEM_TYPES)[number];
+
+/**
+ * The system types whose payload is an uploaded file stored in R2, created by
+ * `POST /api/items/upload` so the upload can report progress.
+ */
+export const FILE_ITEM_TYPES = ["file", "image"] as const;
+
+export type FileItemType = (typeof FILE_ITEM_TYPES)[number];
+
+/** The system types the New Item dialog creates, in display order. */
+export const CREATABLE_ITEM_TYPES = [...NON_FILE_ITEM_TYPES, ...FILE_ITEM_TYPES] as const;
 
 export type CreatableItemType = (typeof CREATABLE_ITEM_TYPES)[number];
 
+/** Whether a type's payload is an uploaded file, e.g. "image" yes, "note" no. */
+export function isFileItemType(name: string): name is FileItemType {
+  return (FILE_ITEM_TYPES as readonly string[]).includes(name);
+}
+
 /**
  * The creatable type whose list page `pathname` is, e.g. "/items/notes" ->
- * "note". Null on any other page, including the file and image lists.
+ * "note". Null on any other page.
  */
 export function getCreatableTypeFromPath(pathname: string): CreatableItemType | null {
   const slug = /^\/items\/([^/]+)\/?$/.exec(pathname)?.[1];
@@ -149,7 +167,7 @@ export function getCreatableTypeFromPath(pathname: string): CreatableItemType | 
   return CREATABLE_ITEM_TYPES.find((type) => getItemTypeSlug(type) === slug) ?? null;
 }
 
-/** Whether the New Item dialog can create this type, e.g. "note" yes, "file" no. */
+/** Whether the New Item dialog can create this type, e.g. "note" yes, a custom type no. */
 export function isCreatableItemType(name: string): name is CreatableItemType {
   return (CREATABLE_ITEM_TYPES as readonly string[]).includes(name);
 }

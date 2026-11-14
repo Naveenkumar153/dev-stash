@@ -1,16 +1,61 @@
-# Current Feature
+# Current Feature: File & Image Upload (Cloudflare R2)
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- Upload API route that stores files and images in Cloudflare R2
+- Database functions stay in `src/lib/db/items.ts`
+- `FileUpload` component with drag-and-drop
+- Upload progress indicator while a file uploads
+- Image preview for images; file info (name, size) for files
+- New Item dialog uses `FileUpload` for the `file` and `image` types
+- Deleting an item also deletes its file from R2
+- Download proxy API route (streams the file from R2, avoiding CORS)
+- Download button in the item drawer for file types
+- Server-side checks on size, extension and MIME type:
+  - Images: 5 MB max; `.png`, `.jpg`, `.jpeg`, `.gif`, `.webp`, `.svg`; `image/png`, `image/jpeg`, `image/gif`, `image/webp`, `image/svg+xml`
+  - Files: 10 MB max; `.pdf`, `.txt`, `.md`, `.json`, `.yaml`, `.yml`, `.xml`, `.csv`, `.toml`, `.ini`; `application/pdf`, `text/plain`, `text/markdown`, `application/json`, `application/x-yaml`, `text/yaml`, `application/xml`, `text/xml`, `text/csv`, `application/toml` (`.ini` as `text/plain`)
 
 ## Notes
 
-<!-- Any extra notes -->
+- Spec: `context/features/file-image-spec.md`
+- Schema already has `Item.fileUrl`, `fileName`, `fileSize` and `ContentType.file`, so no migration is expected
+- No R2 SDK or env vars exist yet: needs an S3-compatible client (e.g. `@aws-sdk/client-s3`) and R2 credentials (account id, access key, secret, bucket) added to `.env.example`
+- `CREATABLE_ITEM_TYPES` in `src/lib/item-types.ts` currently excludes `file` and `image`; `createItemSchema` rejects them, and `deleteItem` in `src/lib/db/items.ts` is a single `deleteMany`, so it needs the file key before deleting
+- Progress tracking means the upload goes through an API route (XHR upload events), not a server action, per the coding standards
+- File and image are Pro types; per the dev note, gating hooks are not enforced during development
+- Browsers often send an empty or generic MIME type for `.md`, `.yaml`, `.toml` and `.ini`, so validation needs to lean on the extension for those
+- SVG can carry scripts: serve downloads with `Content-Disposition` and a safe content type rather than inline from our origin
+- Open questions to settle at start: whether editing a file item can replace its file, and how R2 keys are structured (e.g. `userId/cuid-filename`)
+
+### Decisions made at start
+
+- Editing a file item can't replace its file (not in the spec); edit mode keeps title, description and tags
+- R2 key: `userId/<uuid>-<sanitized name>`, stored in `Item.fileUrl` (comment in `schema.prisma` updated, no migration). The bucket stays private and the key never reaches the browser; everything goes through the proxy
+- One route creates the item: `POST /api/items/upload` takes the file plus title / description / tags / type, stores the file in R2, creates the row, and deletes the stored file again if the row can't be created. The file is picked and checked on drop, then uploaded on Create, so cancelling the dialog never leaves a file behind
+- The stored and served content type comes from the extension, never the browser's report; an empty or `application/octet-stream` report is accepted, and the extension decides
+- The proxy (`GET /api/items/[id]/file`) serves images inline for the preview (otherwise as an attachment, or whenever `?download=1` is set) with `CSP: sandbox`, `nosniff` and `private, max-age=3600`. Reads are scoped through `getCurrentUserId()` like the drawer
+- `deleteItem` deletes the row first, then the R2 object; an R2 failure is logged, not reported
+
+### Review fixes
+
+- `deleteAccount` collects the user's file keys (`getUserFileKeys()` in `src/lib/db/items.ts`) alongside the tag ids, then removes them from R2 after the transaction and before `signOut`
+- The new `discardStoredFiles()` (`src/lib/stored-files.ts`) is the one best-effort R2 cleanup, with each failed key logged. Item delete, the upload route's rollback and account delete all use it
+- `FileUpload` is keyed by type in the New Item dialog, so a rejection under File no longer shows under Image
+- File drops are handled on the whole field, so a file dropped on the picked file's card replaces it. The form ignores file drops elsewhere, so the browser never opens the file and loses the draft; text drags are untouched
+- `FileUpload` renders its own label: it points at the input while the input exists, then names the picked file's card (`role="group"`). The unused `describedBy` prop was removed
+
+### Open
+
+- `.env` and `.env.production` point at the same R2 bucket (same as Upstash)
+- Uploads have no rate limit or storage quota, and the Pro gate isn't enforced yet (as planned)
+- `discardStoredFiles()` sends every delete at once, which is fine at the free tier's 50 items but unbounded for Pro
+- A chunked upload with no `Content-Length` skips the early 413 and is buffered before the per-type size check
+- 390px wasn't checked: the headed browser stops at 487px, where nothing overflowed
+- Windows can report `.csv` as `application/vnd.ms-excel`, which the spec's list rejects
 
 ## History
 

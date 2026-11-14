@@ -3,7 +3,7 @@ import { connection } from "next/server";
 import { Prisma } from "@/generated/prisma/client";
 import { getAvailableTypes, getItemTypeBySlug } from "@/lib/db/item-types";
 import { getCurrentUserId } from "@/lib/db/user";
-import type { CreateItemData, UpdateItemData } from "@/lib/item-schemas";
+import type { CreateFileItemData, CreateItemData, UpdateItemData } from "@/lib/item-schemas";
 import { compareItemTypeOrder, getEditableItemFields } from "@/lib/item-types";
 import { prisma } from "@/lib/prisma";
 import type { ItemDetail } from "@/types/items";
@@ -149,6 +149,8 @@ const ITEM_DETAIL_SELECT = {
   content: true,
   url: true,
   language: true,
+  fileName: true,
+  fileSize: true,
   isPinned: true,
   isFavorite: true,
   createdAt: true,
@@ -245,6 +247,81 @@ export async function createItem(
   return toItemDetail(item);
 }
 
+/** An upload already stored in R2, ready to attach to a new item. */
+export interface StoredUpload {
+  /** Where the file lives in R2. Saved in `Item.fileUrl`. */
+  key: string;
+  fileName: string;
+  fileSize: number;
+}
+
+/**
+ * Creates a file or image item for `userId` around a file already stored in
+ * R2, and returns it as the drawer shows it. Null when that system type isn't
+ * in the database, so the caller can remove the stored file.
+ */
+export async function createFileItem(
+  userId: string,
+  data: CreateFileItemData,
+  upload: StoredUpload,
+): Promise<ItemDetail | null> {
+  const itemType = await prisma.itemType.findFirst({
+    where: { name: data.typeName, isSystem: true, userId: null },
+    select: { id: true },
+  });
+
+  if (!itemType) {
+    return null;
+  }
+
+  const item = await prisma.item.create({
+    data: {
+      title: data.title,
+      description: data.description,
+      contentType: "file",
+      fileUrl: upload.key,
+      fileName: upload.fileName,
+      fileSize: upload.fileSize,
+      user: { connect: { id: userId } },
+      itemType: { connect: { id: itemType.id } },
+      tags: { connectOrCreate: connectTags(data.tags) },
+    },
+    select: ITEM_DETAIL_SELECT,
+  });
+
+  return toItemDetail(item);
+}
+
+export interface ItemFile {
+  /** Where the file lives in R2. */
+  key: string;
+  fileName: string;
+}
+
+/**
+ * Where one item's file is stored, for the download proxy. Scoped like
+ * `getItemDetail`, so the drawer can download exactly the items it can open,
+ * and null for another user's item, a missing one, or one without a file.
+ */
+export async function getItemFile(id: string): Promise<ItemFile | null> {
+  const userId = await getCurrentUserId();
+
+  if (!userId) {
+    return null;
+  }
+
+  const item = await prisma.item.findFirst({
+    where: { id, userId, contentType: "file" },
+    select: { fileUrl: true, fileName: true },
+  });
+
+  if (!item?.fileUrl || !item.fileName) {
+    return null;
+  }
+
+  return { key: item.fileUrl, fileName: item.fileName };
+}
+
 /**
  * Saves the drawer's edits to one of `userId`'s items and returns it as the
  * drawer shows it. Null when there is no such item or it belongs to someone
@@ -294,14 +371,44 @@ export async function updateItem(
 }
 
 /**
+ * Where every file `userId`'s items point at is stored in R2, so deleting the
+ * account can remove them too.
+ */
+export async function getUserFileKeys(userId: string): Promise<string[]> {
+  const items = await prisma.item.findMany({
+    where: { userId, fileUrl: { not: null } },
+    select: { fileUrl: true },
+  });
+
+  return items.flatMap((item) => (item.fileUrl ? [item.fileUrl] : []));
+}
+
+export interface DeletedItem {
+  /** Where the item's file was stored in R2, for the caller to remove. Null for non-file items. */
+  fileKey: string | null;
+}
+
+/**
  * Deletes one of `userId`'s items. Ownership and the delete are one statement,
- * so there's no window between checking and deleting. False when there is no
+ * so there's no window between checking and deleting. Null when there is no
  * such item or it belongs to someone else. Its collection memberships cascade
  * and its tag links go with it; the tags themselves stay.
  */
-export async function deleteItem(itemId: string, userId: string): Promise<boolean> {
-  const { count } = await prisma.item.deleteMany({ where: { id: itemId, userId } });
-  return count > 0;
+export async function deleteItem(itemId: string, userId: string): Promise<DeletedItem | null> {
+  try {
+    const item = await prisma.item.delete({
+      where: { id: itemId, userId },
+      select: { fileUrl: true },
+    });
+
+    return { fileKey: item.fileUrl };
+  } catch (error) {
+    // No such item, or not this user's.
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
+      return null;
+    }
+    throw error;
+  }
 }
 
 export interface ItemTypeCount {
