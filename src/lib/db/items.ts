@@ -20,6 +20,8 @@ export interface ItemSummary {
   /** Item type name, e.g. "snippet" - drives the card's icon and colors. */
   typeName: string;
   tags: string[];
+  /** Original name of a file or image item's upload; null for other types. */
+  fileName: string | null;
   createdAt: Date;
 }
 
@@ -30,6 +32,7 @@ const ITEM_CARD_SELECT = {
   description: true,
   isPinned: true,
   isFavorite: true,
+  fileName: true,
   createdAt: true,
   itemType: { select: { name: true } },
   tags: { select: { name: true }, orderBy: { name: "asc" } },
@@ -44,6 +47,7 @@ interface ItemRow {
   description: string | null;
   isPinned: boolean;
   isFavorite: boolean;
+  fileName: string | null;
   createdAt: Date;
   itemType: { name: string };
   tags: { name: string }[];

@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { ItemCard } from "@/components/dashboard/ItemCard";
+import { ImageCard } from "@/components/items/ImageCard";
 import { NewItemDialog } from "@/components/items/NewItemDialog";
 import { getItemTypeBySlug } from "@/lib/db/item-types";
 import { getItemsByType } from "@/lib/db/items";
@@ -33,6 +34,8 @@ export default async function ItemTypePage({ params }: PageProps<"/items/[type]"
   const { typeName, items } = list;
   const { icon: Icon, colorClass, bgClass } = getItemTypeStyleByName(typeName);
   const plural = getItemTypePlural(typeName);
+  // Images get a thumbnail gallery; every other type keeps the row cards.
+  const Card = typeName === "image" ? ImageCard : ItemCard;
 
   return (
     <div className="mx-auto flex w-full max-w-7xl flex-col gap-8">
@@ -68,7 +71,7 @@ export default async function ItemTypePage({ params }: PageProps<"/items/[type]"
         ) : (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {items.map((item) => (
-              <ItemCard key={item.id} item={item} />
+              <Card key={item.id} item={item} />
             ))}
           </div>
         )}

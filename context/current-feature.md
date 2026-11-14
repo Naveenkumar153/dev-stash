@@ -1,16 +1,32 @@
-# Current Feature
+# Current Feature: Image Gallery View
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- `/items/images` shows image items as a gallery of thumbnail cards instead of the regular `ItemCard` rows
+- A new image thumbnail card replaces `ItemCard` for image items in that grid
+- The gallery grid has 3 columns
+- Each thumbnail uses a 16:9 aspect ratio (`aspect-video`)
+- The image fills the card with `object-cover` (edges may crop)
+- Subtle hover zoom on the image: 5% scale (`scale-105`) with a 300ms transition
+- Clicking a thumbnail card still opens the item drawer, like every other card
 
 ## Notes
 
-<!-- Any extra notes -->
+- Spec: `context/features/image-display-spec.md`
+- Thumbnails load through the existing download proxy (`getItemFileUrl(itemId)` → `GET /api/items/[id]/file`, served `inline` for images), the same source as the drawer's preview, so the R2 bucket stays private and the key never reaches the browser. `next/image` with `unoptimized`, as in `ItemDrawerDetails`
+- `ItemSummary` / `ITEM_CARD_SELECT` in `src/lib/db/items.ts` carry no file fields today; the card needs at least `fileName` (to confirm it's an image via `isImageFileName()` and for alt text). Adding it to the shared card select is cheap (a short string, no payload) — decide at start whether to add it there or only to the images list
+- Keep `ItemCard`'s stretched-link pattern: `OpenItemButton` on the title with its `::after` over a `relative` card, so the whole card opens the drawer and keyboard focus/ring still work; the zoom needs `overflow-hidden` on the image wrapper so the scaled image stays inside the 16:9 box
+- Proposed defaults (confirm at start):
+  - Scope: the gallery applies to `/items/images` only; the dashboard's pinned/recent lists keep `ItemCard` for image items
+  - Columns: keep the page's responsive grid (1 column on phones, 2 from `md`, 3 from `xl`) rather than a fixed 3 columns, which would leave cards very narrow on small screens
+  - Card body below the image: title (with pin/favorite icons), plus tags and date as on `ItemCard`; description omitted to keep the gallery visual
+  - An image item with no file (or a non-image file name) shows a placeholder with the type's `Image` icon instead of a broken image
+  - Hover zoom respects `motion-reduce` (no scale when reduced motion is on)
+- Unit tests: likely only for a select/mapping change in `src/lib/db/items.ts` if `fileName` is added to the summary; the card itself is a component and isn't unit tested
 
 ## History
 
