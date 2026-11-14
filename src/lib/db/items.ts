@@ -22,6 +22,8 @@ export interface ItemSummary {
   tags: string[];
   /** Original name of a file or image item's upload; null for other types. */
   fileName: string | null;
+  /** Size in bytes of a file or image item's upload; null for other types. */
+  fileSize: number | null;
   createdAt: Date;
 }
 
@@ -33,6 +35,7 @@ const ITEM_CARD_SELECT = {
   isPinned: true,
   isFavorite: true,
   fileName: true,
+  fileSize: true,
   createdAt: true,
   itemType: { select: { name: true } },
   tags: { select: { name: true }, orderBy: { name: "asc" } },
@@ -48,6 +51,7 @@ interface ItemRow {
   isPinned: boolean;
   isFavorite: boolean;
   fileName: string | null;
+  fileSize: number | null;
   createdAt: Date;
   itemType: { name: string };
   tags: { name: string }[];
