@@ -1,16 +1,42 @@
-# Current Feature
+# Current Feature: Markdown Editor
 
 ## Status
 
 <!-- Not Started|In Progress|Completed -->
 
+In Progress
+
 ## Goals
 
 <!-- Goals & requirements -->
 
+- A `MarkdownEditor` component (`src/components/items/MarkdownEditor.tsx`) with a tabbed Write / Preview interface
+- Notes and prompts use it in place of the plain textarea / `<pre>` in all three places: the New Item dialog's content field, the item drawer's edit form, and the item drawer's view mode (read-only)
+- Snippets and commands keep `CodeEditor` unchanged
+- Preview renders GitHub Flavored Markdown through `react-markdown` + `remark-gfm` (tables, task lists, strikethrough, autolinks)
+- Header holds the tabs and a copy button styled like `CodeEditor`'s (ghost `icon-xs`, `Copy` icon, disabled when empty, shared `copyToClipboard()`)
+- Read-only mode shows only the Preview tab; edit mode opens on Write with Preview one click away
+- Preview styled through a custom `.markdown-preview` class in `src/app/globals.css`: distinct h1-h6 sizes and weights, dark monospace code blocks, subtly highlighted inline code, indented ordered / unordered lists with markers, blockquotes with a left accent border, blue links with a hover state, tables with borders and a header background
+- Fluid height capped at 400px, then scrolls, matching `CodeEditor`
+- Unit tests for any new utility (e.g. a markdown-type helper in `src/lib/item-types.ts`); `npm test`, lint and build pass; verified in the browser
+
 ## Notes
 
 <!-- Any extra notes -->
+
+- Spec: `context/features/markdown-editor-spec.md`
+- Neither `react-markdown` nor `remark-gfm` is installed yet. No shadcn `tabs` component is installed either.
+- Where content renders today: `ItemFormFields` picks `CodeEditor` or `Textarea` through its `codeContent` prop (from `isCodeItemType()`), and `ItemDrawerDetails` renders non-code content as a plain `<pre><code>`. Only the four text types have a content field, so after this change every content field is either code or markdown.
+- Color conflict in the spec: it asks for `bg-[#1e1e1e]` on the container and `bg-[#2d2d2d]` on the header to "match existing dark theme styling", but `CodeEditor` doesn't use those. It uses theme tokens (`bg-muted/30` with `border-border` read-only; `border-input dark:bg-input/30` with a focus ring when editable; a plain `border-b` header). Hard-coded hex values would make the two editors look different in the same drawer.
+- Proposed defaults, kept at start unless changed:
+  1. **Colors:** use `CodeEditor`'s theme tokens rather than the spec's hex values, so the markdown and code boxes match. Alternative: follow the spec's hex values literally.
+  2. **Tabs:** add the shadcn `tabs` component (Base UI). The CLI has imported `cn` from the unrelated `cn` npm package on every add so far, so repoint it at `@/lib/utils` and remove that package.
+  3. **Write tab:** the existing shadcn `Textarea` (already `field-sizing-content`), borderless inside the box, with the same 160px floor as the code editor in edit mode and a 400px cap.
+  4. **Safety:** no raw HTML (no `rehype-raw`). `react-markdown`'s default `urlTransform` already drops `javascript:` and similar links. Links in the preview open in a new tab with `rel="noopener noreferrer"`.
+  5. **Copy label:** "Copy content". An empty Preview shows muted "Nothing to preview".
+  6. **Type helper:** add `isMarkdownItemType()` (note, prompt) beside `isCodeItemType()` in `src/lib/item-types.ts`, and replace `ItemFormFields`' boolean `codeContent` prop with the content editor kind.
+- Changed at start: default 6 became one `getContentEditorKind()` (`"code" | "markdown" | "plain"`) that replaces `isCodeItemType()`, rather than two booleans every call site would chain. Found in the browser: a `javascript:` link was emptied to `href=""` but still opened a new tab, so links with no `href` now render without one; at 390px a wide table or code block widened the dialog until the editor got `min-w-0`.
+- Not in scope: a formatting toolbar, syntax highlighting inside fenced code blocks, and live split-view preview.
 
 ## History
 

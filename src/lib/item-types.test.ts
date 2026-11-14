@@ -2,6 +2,7 @@ import { describe, expect, it } from "vitest";
 
 import {
   compareItemTypeOrder,
+  getContentEditorKind,
   getCreatableTypeFromPath,
   getEditableItemFields,
   getItemTypeHref,
@@ -9,7 +10,6 @@ import {
   getItemTypePlural,
   getItemTypeSlug,
   getItemTypeStyleByName,
-  isCodeItemType,
   isCreatableItemType,
   isProItemType,
 } from "@/lib/item-types";
@@ -76,13 +76,17 @@ describe("getEditableItemFields", () => {
   });
 });
 
-describe("isCodeItemType", () => {
-  it.each(["snippet", "command", "Snippet"])("treats %s as code", (name) => {
-    expect(isCodeItemType(name)).toBe(true);
+describe("getContentEditorKind", () => {
+  it.each(["snippet", "command", "Snippet"])("edits %s as code", (name) => {
+    expect(getContentEditorKind(name)).toBe("code");
   });
 
-  it.each(["prompt", "note", "link", "file", "recipe"])("treats %s as plain text", (name) => {
-    expect(isCodeItemType(name)).toBe(false);
+  it.each(["prompt", "note", "Note"])("edits %s as markdown", (name) => {
+    expect(getContentEditorKind(name)).toBe("markdown");
+  });
+
+  it.each(["link", "file", "recipe"])("falls back to plain text for %s", (name) => {
+    expect(getContentEditorKind(name)).toBe("plain");
   });
 });
 

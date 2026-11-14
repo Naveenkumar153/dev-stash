@@ -148,3 +148,115 @@
     @apply font-sans;
     }
 }
+
+/* Rendered markdown in MarkdownEditor's preview (notes and prompts). */
+@layer components {
+  .markdown-preview {
+    @apply text-sm leading-relaxed break-words text-foreground;
+
+    & > :first-child {
+      @apply mt-0;
+    }
+    & > :last-child {
+      @apply mb-0;
+    }
+
+    & :where(p, ul, ol, blockquote, pre, table, hr) {
+      @apply my-3;
+    }
+
+    & :where(h1, h2, h3, h4, h5, h6) {
+      @apply mt-5 mb-2 font-semibold tracking-tight text-foreground;
+    }
+    & h1 {
+      @apply border-b border-border pb-1.5 text-2xl font-bold;
+    }
+    & h2 {
+      @apply border-b border-border pb-1 text-xl;
+    }
+    & h3 {
+      @apply text-lg;
+    }
+    & h4 {
+      @apply text-base;
+    }
+    & h5 {
+      @apply text-sm;
+    }
+    & h6 {
+      @apply text-sm text-muted-foreground;
+    }
+
+    & a {
+      @apply text-blue-400 underline-offset-2 hover:text-blue-300 hover:underline;
+    }
+
+    & strong {
+      @apply font-semibold;
+    }
+    & del {
+      @apply text-muted-foreground;
+    }
+
+    & ul {
+      @apply list-disc pl-6;
+    }
+    & ol {
+      @apply list-decimal pl-6;
+    }
+    & li {
+      @apply my-1 pl-1 marker:text-muted-foreground;
+    }
+    & li > :where(ul, ol) {
+      @apply my-1;
+    }
+    & ul ul {
+      @apply list-[circle];
+    }
+    & ul ul ul {
+      @apply list-[square];
+    }
+    /* GFM task lists: the checkbox replaces the bullet. */
+    & li.task-list-item {
+      @apply list-none;
+    }
+    & ul.contains-task-list {
+      @apply pl-2;
+    }
+    & .task-list-item input[type="checkbox"] {
+      @apply mr-2 align-middle accent-blue-500;
+    }
+
+    & blockquote {
+      @apply border-l-4 border-blue-500/60 py-0.5 pl-4 text-muted-foreground;
+    }
+
+    & code {
+      @apply rounded-md bg-muted px-1.5 py-0.5 font-mono text-[0.85em];
+    }
+    & pre {
+      @apply overflow-x-auto rounded-lg border border-border bg-muted p-3 font-mono text-[13px] leading-relaxed dark:bg-black/40;
+    }
+    & pre code {
+      @apply rounded-none bg-transparent p-0 text-[length:inherit];
+    }
+
+    & table {
+      @apply block w-max max-w-full overflow-x-auto border-collapse text-left;
+    }
+    & :where(th, td) {
+      @apply border border-border px-3 py-1.5;
+    }
+    & th {
+      @apply bg-muted font-semibold;
+    }
+
+    & hr {
+      @apply border-border;
+    }
+
+    & img {
+      @apply max-w-full rounded-md;
+    }
+  }
+}

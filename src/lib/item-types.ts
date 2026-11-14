@@ -167,14 +167,23 @@ export interface EditableItemFields {
 /** Text-payload types edit their content; the two code types also a language. */
 const CONTENT_TYPE_NAMES = new Set(["snippet", "prompt", "command", "note"]);
 const CODE_TYPE_NAMES = new Set(["snippet", "command"]);
+const MARKDOWN_TYPE_NAMES = new Set(["prompt", "note"]);
 const URL_TYPE_NAMES = new Set(["link"]);
 
+/** How an item's text content is shown and edited. */
+export type ContentEditorKind = "code" | "markdown" | "plain";
+
 /**
- * Whether a type's content is code, e.g. "command". Code is shown and edited
- * in the code editor; other text types keep a plain textarea.
+ * The editor for a type's content: "code" (snippet, command) in the code
+ * editor, "markdown" (prompt, note) in the markdown editor, and "plain" for
+ * any other type, e.g. a custom one.
  */
-export function isCodeItemType(name: string) {
-  return CODE_TYPE_NAMES.has(name.toLowerCase());
+export function getContentEditorKind(name: string): ContentEditorKind {
+  const type = name.toLowerCase();
+
+  if (CODE_TYPE_NAMES.has(type)) return "code";
+  if (MARKDOWN_TYPE_NAMES.has(type)) return "markdown";
+  return "plain";
 }
 
 /**
