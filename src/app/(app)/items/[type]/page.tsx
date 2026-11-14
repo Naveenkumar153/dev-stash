@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 
 import { ItemCard } from "@/components/dashboard/ItemCard";
+import { FileList } from "@/components/items/FileList";
 import { ImageCard } from "@/components/items/ImageCard";
 import { NewItemDialog } from "@/components/items/NewItemDialog";
 import { getItemTypeBySlug } from "@/lib/db/item-types";
@@ -68,6 +69,9 @@ export default async function ItemTypePage({ params }: PageProps<"/items/[type]"
           <p className="text-sm text-muted-foreground">
             No {plural.toLowerCase()} yet.
           </p>
+        ) : typeName === "file" ? (
+          // Files get a Drive-style list with filters instead of a card grid.
+          <FileList items={items} />
         ) : (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
             {items.map((item) => (

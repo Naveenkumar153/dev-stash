@@ -1,17 +1,37 @@
-# Current Feature
+# Current Feature: File List View
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- `/items/files` shows file items as a single-column list of rows (like Google Drive / Dropbox) instead of the card grid
+- Each row shows a file icon chosen by extension, the file name, the file size, the upload date and a Download button
+- Rows highlight on hover
+- Clicking a row opens the item drawer
+- The Download button downloads the file directly and does not open the drawer
+- On mobile, a row stacks its details vertically instead of using columns
+- A file type filter beside the New File button, like Google Drive's "Type" chip
+- A date filter (Today, Last 7 days, Last 30 days), like Google Drive's "Modified" chip
 
 ## Notes
 
-<!-- Any extra notes -->
-
+- Spec: `context/features/file-display-spec.md`
+- Accepted file extensions, from `UPLOAD_CONSTRAINTS.file` in `src/lib/file-upload.ts`: pdf, txt, md, json, yaml, yml, xml, csv, toml, ini
+- Data: `ItemSummary` already carries `fileName` (added by Image Gallery View); `fileSize` needs adding to `ITEM_CARD_SELECT` / `ItemSummary` / `ItemRow` in `src/lib/db/items.ts`. Size via `formatFileSize()` and date via `formatShortDate()` in `src/lib/format.ts`
+- Download: `getItemFileUrl(id, true)` → `GET /api/items/[id]/file?download=1`, as the drawer's Download button does. Rows reuse the stretched `OpenItemButton` pattern (its `::after` covers the row), so the Download link needs `relative z-10` to sit above it; it's a sibling of the button, not a child, so its click never reaches the drawer and no `stopPropagation()` is needed
+- The spec says "sorting" for Today / Last 7 days / Last 30 days, but in Google Drive these are options of the "Modified" filter, which narrows the list rather than reordering it; read as a filter. The list stays newest first
+- Proposed defaults (confirm at start):
+  - Scope: the list applies to `/items/files` only; the dashboard keeps `ItemCard` for file items
+  - Layout: one bordered list of rows with a column header (Name, Size, Uploaded) from `md` up; on phones each row shows the name with "size · date" underneath and the header is hidden
+  - File icons by extension (lucide): pdf → `FileText` (red), txt / md → `FileText`, json → `FileJson`, csv → `FileSpreadsheet`, xml → `FileCode`, yaml / yml / toml / ini → `FileCog`, anything else → `File`
+  - Type filter: a dropdown with All types, PDFs (pdf), Documents (txt, md), Spreadsheets (csv), Data (json, xml), Config (yaml, yml, toml, ini)
+  - Date filter: a dropdown with Any time, Today, Last 7 days, Last 30 days, applied to the upload date (`createdAt`) since that's the date the row shows; "Today" means since local midnight in the viewer's time zone
+  - Filtering runs in the browser over the list the page already loads (uncapped, and the free tier tops out at 50 items), so no query or URL change; the filters reset on reload
+  - The count under the heading shows the filtered count ("3 of 8 files") while a filter is on, and an empty filter result shows "No files match these filters" with a Clear filters button
+  - Filter controls are the shadcn `select` already installed for the New Item dialog
+- Unit tests: the filter logic goes in a pure helper in `src/lib/` (extension → category, date range check with an injected `now`) and gets Vitest tests with fake timers; the list and row components aren't unit tested
 ## History
 
 <!-- Keep this updated. Earliest to latest -->
