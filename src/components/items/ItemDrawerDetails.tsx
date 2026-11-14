@@ -1,10 +1,13 @@
-import { Calendar, ExternalLink, Folder, Tag } from "lucide-react";
+import { Calendar, Download, ExternalLink, File as FileIcon, Folder, Tag } from "lucide-react";
+import Image from "next/image";
 
 import { CodeEditor } from "@/components/items/CodeEditor";
 import { MarkdownEditor } from "@/components/items/MarkdownEditor";
 import { Badge } from "@/components/ui/badge";
-import { formatLongDate } from "@/lib/format";
-import { getContentEditorKind } from "@/lib/item-types";
+import { Button } from "@/components/ui/button";
+import { getItemFileUrl, isImageFileName } from "@/lib/file-upload";
+import { formatFileSize, formatLongDate } from "@/lib/format";
+import { getContentEditorKind, getItemTypeLabel } from "@/lib/item-types";
 import type { ItemCollectionRef, ItemDetail } from "@/types/items";
 
 interface DrawerSectionProps {
@@ -97,6 +100,53 @@ function ItemContent({ typeName, content, language }: Readonly<ItemContentProps>
   }
 }
 
+interface ItemFileProps {
+  itemId: string;
+  fileName: string;
+  fileSize: number | null;
+}
+
+/**
+ * A file or image item's file: a preview for images, then the name, size and
+ * a Download button. Both go through the download proxy, never R2 directly.
+ */
+function ItemFile({ itemId, fileName, fileSize }: Readonly<ItemFileProps>) {
+  return (
+    <div className="flex flex-col gap-3">
+      {isImageFileName(fileName) && (
+        <div className="relative h-64 w-full overflow-hidden rounded-lg border border-border bg-muted/30">
+          <Image
+            src={getItemFileUrl(itemId)}
+            alt={`Preview of ${fileName}`}
+            fill
+            unoptimized
+            className="object-contain"
+          />
+        </div>
+      )}
+
+      <div className="flex items-center gap-3 rounded-lg border border-border bg-muted/30 p-3">
+        <FileIcon aria-hidden className="size-5 shrink-0 text-muted-foreground" />
+        <div className="flex min-w-0 flex-1 flex-col">
+          <span className="truncate text-sm font-medium">{fileName}</span>
+          {fileSize !== null && (
+            <span className="text-xs text-muted-foreground">{formatFileSize(fileSize)}</span>
+          )}
+        </div>
+        <Button
+          variant="outline"
+          size="sm"
+          render={<a href={getItemFileUrl(itemId, true)} download={fileName} />}
+          nativeButton={false}
+        >
+          <Download aria-hidden />
+          Download
+        </Button>
+      </div>
+    </div>
+  );
+}
+
 /**
  * The drawer body once the full item has loaded. Sections with nothing to show
  * are left out.
@@ -122,6 +172,12 @@ export function ItemDrawerDetails({ item }: Readonly<{ item: ItemDetail }>) {
             <ExternalLink aria-hidden className="mt-0.5 size-3.5 shrink-0" />
             <span className="sr-only">(opens in a new tab)</span>
           </a>
+        </DrawerSection>
+      )}
+
+      {item.fileName && (
+        <DrawerSection title={getItemTypeLabel(item.typeName)}>
+          <ItemFile itemId={item.id} fileName={item.fileName} fileSize={item.fileSize} />
         </DrawerSection>
       )}
 

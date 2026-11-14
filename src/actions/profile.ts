@@ -3,10 +3,12 @@
 import { auth, signOut } from "@/auth";
 import { SIGN_IN_PATH } from "@/lib/auth-redirect";
 import { changePasswordSchema, getFieldErrors, type FieldErrors } from "@/lib/auth-schemas";
+import { getUserFileKeys } from "@/lib/db/items";
 import { DEMO_USER_EMAIL } from "@/lib/db/user";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { resetIdentifier } from "@/lib/password-reset";
 import { prisma } from "@/lib/prisma";
+import { discardStoredFiles } from "@/lib/stored-files";
 
 export interface ChangePasswordResult {
   success: boolean;
@@ -105,7 +107,7 @@ export async function deleteAccount(): Promise<DeleteAccountResult> {
       return { success: false, data: null, error: "The demo account can't be deleted." };
     }
 
-    const tagIds = await getUserTagIds(userId);
+    const [tagIds, fileKeys] = await Promise.all([getUserTagIds(userId), getUserFileKeys(userId)]);
     // One transaction, so a failure leaves the account as it was. Items go
     // first because `Item.itemType` has no cascade, so a custom type can't be
     // deleted while its items exist.
@@ -119,6 +121,9 @@ export async function deleteAccount(): Promise<DeleteAccountResult> {
       // Tags are global, so only this user's that nothing else uses now go.
       prisma.tag.deleteMany({ where: { id: { in: tagIds }, items: { none: {} } } }),
     ]);
+
+    // R2 isn't part of the transaction, so its files go once the rows are gone.
+    await discardStoredFiles(fileKeys);
   } catch (error) {
     console.error("Deleting account failed", error);
     return { success: false, data: null, error: "Could not delete your account. Please try again." };

@@ -3,12 +3,16 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { changePassword, deleteAccount } from "@/actions/profile";
 import { auth, signOut } from "@/auth";
+import { getUserFileKeys } from "@/lib/db/items";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
+import { deleteFile } from "@/lib/r2";
 
 // Server actions are tested with every outside dependency mocked: the session,
-// the database and bcrypt. Nothing here reaches a real service.
+// the database, bcrypt and R2. Nothing here reaches a real service.
 vi.mock("@/auth", () => ({ auth: vi.fn(), signOut: vi.fn() }));
+vi.mock("@/lib/db/items", () => ({ getUserFileKeys: vi.fn() }));
+vi.mock("@/lib/r2", () => ({ deleteFile: vi.fn() }));
 vi.mock("@/lib/password", () => ({ hashPassword: vi.fn(), verifyPassword: vi.fn() }));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
@@ -126,6 +130,7 @@ describe("changePassword", () => {
 describe("deleteAccount", () => {
   beforeEach(() => {
     signInAs("user-1");
+    vi.mocked(getUserFileKeys).mockResolvedValue([]);
   });
 
   it("refuses a signed-out request", async () => {
@@ -170,5 +175,42 @@ describe("deleteAccount", () => {
       error: "Could not delete your account. Please try again.",
     });
     expect(signOut).not.toHaveBeenCalled();
+    expect(deleteFile).not.toHaveBeenCalled();
+  });
+
+  it("removes the user's stored files once the rows are gone, then signs out", async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({ email: "ada@example.com" } as never);
+    vi.mocked(prisma.tag.findMany).mockResolvedValue([]);
+    vi.mocked(getUserFileKeys).mockResolvedValue(["user-1/a-diagram.png", "user-1/b-notes.md"]);
+
+    await deleteAccount();
+
+    expect(getUserFileKeys).toHaveBeenCalledWith("user-1");
+    expect(deleteFile).toHaveBeenCalledTimes(2);
+    expect(deleteFile).toHaveBeenCalledWith("user-1/a-diagram.png");
+    expect(deleteFile).toHaveBeenCalledWith("user-1/b-notes.md");
+    expect(vi.mocked(prisma.$transaction).mock.invocationCallOrder[0]).toBeLessThan(
+      vi.mocked(deleteFile).mock.invocationCallOrder[0],
+    );
+    expect(vi.mocked(deleteFile).mock.invocationCallOrder[1]).toBeLessThan(
+      vi.mocked(signOut).mock.invocationCallOrder[0],
+    );
+  });
+
+  it("still deletes the account and signs out when removing a file fails", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({ email: "ada@example.com" } as never);
+    vi.mocked(prisma.tag.findMany).mockResolvedValue([]);
+    vi.mocked(getUserFileKeys).mockResolvedValue(["user-1/a-diagram.png", "user-1/b-notes.md"]);
+    vi.mocked(deleteFile).mockRejectedValueOnce(new Error("R2 unavailable"));
+
+    await deleteAccount();
+
+    expect(deleteFile).toHaveBeenCalledTimes(2);
+    expect(log).toHaveBeenCalledWith(
+      "Discarding stored file failed",
+      expect.objectContaining({ key: "user-1/a-diagram.png" }),
+    );
+    expect(signOut).toHaveBeenCalledWith({ redirectTo: "/sign-in?deleted=1" });
   });
 });

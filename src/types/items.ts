@@ -22,6 +22,13 @@ export interface ItemDetail {
   url: string | null;
   /** Syntax-highlight hint, e.g. "typescript". */
   language: string | null;
+  /**
+   * File payload: the uploaded file's original name and size in bytes. The
+   * file itself is served by `GET /api/items/[id]/file`; where it's stored in
+   * R2 never leaves the server.
+   */
+  fileName: string | null;
+  fileSize: number | null;
   isPinned: boolean;
   isFavorite: boolean;
   /** Item type name, e.g. "snippet" - drives the icon and colors. */
@@ -50,6 +57,9 @@ export interface UpdateItemResult {
 
 /** Result of the `createItem` server action: the new item, or why it wasn't created. */
 export type CreateItemResult = UpdateItemResult;
+
+/** Body returned by `POST /api/items/upload`: the new file item, or why it wasn't created. */
+export type UploadItemResponse = UpdateItemResult;
 
 /** Result of the `deleteItem` server action: the deleted item's id, or why it wasn't deleted. */
 export interface DeleteItemResult {

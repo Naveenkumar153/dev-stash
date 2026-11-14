@@ -1,6 +1,6 @@
 import { z } from "zod";
 
-import { CREATABLE_ITEM_TYPES, getEditableItemFields } from "@/lib/item-types";
+import { FILE_ITEM_TYPES, NON_FILE_ITEM_TYPES, getEditableItemFields } from "@/lib/item-types";
 
 /** Item ids are Prisma cuids, so anything else can't match a row. */
 export const itemIdSchema = z.cuid();
@@ -55,13 +55,14 @@ export type UpdateItemInput = z.input<typeof updateItemSchema>;
 export type UpdateItemData = z.output<typeof updateItemSchema>;
 
 /**
- * The New Item dialog's payload: the edit fields plus the type, which must be
- * one of the creatable system types. A link needs its URL; for every other
+ * The New Item dialog's payload for a typed-in item: the edit fields plus the
+ * type, which must be one of the non-file system types - file and image items
+ * go through the upload route instead. A link needs its URL; for every other
  * type `createItem` drops the URL, like the fields the type doesn't use.
  */
 export const createItemSchema = updateItemSchema
   .extend({
-    typeName: z.enum(CREATABLE_ITEM_TYPES, { error: "Choose an item type" }),
+    typeName: z.enum(NON_FILE_ITEM_TYPES, { error: "Choose an item type" }),
   })
   .refine((data) => !getEditableItemFields(data.typeName).url || data.url !== null, {
     message: "URL is required",
@@ -73,6 +74,22 @@ export type CreateItemInput = z.input<typeof createItemSchema>;
 
 /** The validated, normalized payload the create query writes. */
 export type CreateItemData = z.output<typeof createItemSchema>;
+
+/**
+ * The fields sent alongside an upload to `POST /api/items/upload`. File items
+ * carry no text payload, so only the shared fields and the type are read.
+ */
+export const createFileItemSchema = updateItemSchema
+  .pick({ title: true, description: true, tags: true })
+  .extend({
+    typeName: z.enum(FILE_ITEM_TYPES, { error: "Choose an item type" }),
+  });
+
+/** What the upload form sends besides the file. */
+export type CreateFileItemInput = z.input<typeof createFileItemSchema>;
+
+/** The validated, normalized fields the file-item query writes. */
+export type CreateFileItemData = z.output<typeof createFileItemSchema>;
 
 /**
  * The edit form's comma-separated tags as names: trimmed, blanks dropped and

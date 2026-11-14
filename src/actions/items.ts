@@ -14,6 +14,7 @@ import {
   type CreateItemInput,
   type UpdateItemInput,
 } from "@/lib/item-schemas";
+import { discardStoredFiles } from "@/lib/stored-files";
 import type { CreateItemResult, DeleteItemResult, UpdateItemResult } from "@/types/items";
 
 const NOT_FOUND = "This item doesn't exist or has been deleted.";
@@ -94,9 +95,10 @@ function deleteFailure(error: string): DeleteItemResult {
 }
 
 /**
- * Permanently deletes one of the signed-in user's items. Like `updateItem`,
- * the delete is scoped to the session's user, so anyone else's item fails like
- * a missing one.
+ * Permanently deletes one of the signed-in user's items, and its file from R2
+ * for a file or image item. Like `updateItem`, the delete is scoped to the
+ * session's user, so anyone else's item fails like a missing one. The row goes
+ * first, so a failure can never leave an item pointing at a missing file.
  */
 export async function deleteItem(itemId: string): Promise<DeleteItemResult> {
   const session = await auth();
@@ -108,15 +110,22 @@ export async function deleteItem(itemId: string): Promise<DeleteItemResult> {
     return deleteFailure(NOT_FOUND);
   }
 
+  let deleted;
   try {
-    const deleted = await deleteItemRecord(itemId, session.user.id);
-    if (!deleted) {
-      return deleteFailure(NOT_FOUND);
-    }
-
-    return { success: true, data: { id: itemId }, error: null };
+    deleted = await deleteItemRecord(itemId, session.user.id);
   } catch (error) {
     console.error("Deleting item failed", error);
     return deleteFailure("Couldn't delete this item. Please try again.");
   }
+
+  if (!deleted) {
+    return deleteFailure(NOT_FOUND);
+  }
+
+  // The row is already gone, so a failure here only leaves an unreachable file.
+  if (deleted.fileKey) {
+    await discardStoredFiles([deleted.fileKey]);
+  }
+
+  return { success: true, data: { id: itemId }, error: null };
 }
