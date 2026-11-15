@@ -36,6 +36,7 @@ const data: UpdateItemData = {
   language: "typescript",
   url: "https://example.com",
   tags: ["react", "hooks"],
+  collectionIds: ["col-1", "col-2"],
 };
 
 const savedRow = {
@@ -61,6 +62,19 @@ const replacedTags = {
     { where: { name: "react" }, create: { name: "react" } },
     { where: { name: "hooks" }, create: { name: "hooks" } },
   ],
+};
+
+/**
+ * The memberships an edit writes: rows for collections no longer chosen go,
+ * rows for the chosen ones are added unless they already exist, so a kept
+ * membership keeps its date.
+ */
+const replacedCollections = {
+  deleteMany: { collectionId: { notIn: ["col-1", "col-2"] } },
+  createMany: {
+    data: [{ collectionId: "col-1" }, { collectionId: "col-2" }],
+    skipDuplicates: true,
+  },
 };
 
 function ownItemOfType(name: string) {
@@ -110,6 +124,7 @@ describe("updateItem", () => {
       content: data.content,
       language: data.language,
       tags: replacedTags,
+      collections: replacedCollections,
     });
   });
 
@@ -123,6 +138,7 @@ describe("updateItem", () => {
       description: data.description,
       content: data.content,
       tags: replacedTags,
+      collections: replacedCollections,
     });
   });
 
@@ -136,6 +152,7 @@ describe("updateItem", () => {
       description: data.description,
       url: data.url,
       tags: replacedTags,
+      collections: replacedCollections,
     });
   });
 
@@ -148,6 +165,7 @@ describe("updateItem", () => {
       title: data.title,
       description: data.description,
       tags: replacedTags,
+      collections: replacedCollections,
     });
   });
 
@@ -306,6 +324,7 @@ describe("createItem", () => {
       user: { connect: { id: "user-1" } },
       itemType: { connect: { id: TYPE_ID } },
       tags: newTags,
+      collections: { create: [{ collectionId: "col-1" }, { collectionId: "col-2" }] },
     });
   });
 
@@ -343,6 +362,7 @@ describe("createFileItem", () => {
     title: "Architecture diagram",
     description: null,
     tags: ["docs"],
+    collectionIds: ["col-1"],
     typeName: "image",
     folderId: null,
   };
@@ -386,6 +406,7 @@ describe("createFileItem", () => {
       user: { connect: { id: "user-1" } },
       itemType: { connect: { id: TYPE_ID } },
       tags: { connectOrCreate: [{ where: { name: "docs" }, create: { name: "docs" } }] },
+      collections: { create: [{ collectionId: "col-1" }] },
     });
   });
 

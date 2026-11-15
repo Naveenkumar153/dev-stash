@@ -10,6 +10,7 @@ import {
   EMPTY_ITEM_FORM,
   ItemFormFields,
   toItemInput,
+  type ItemFormChange,
   type ItemFormValues,
 } from "@/components/items/ItemFormFields";
 import { ItemTypeSelector } from "@/components/items/ItemTypeSelector";
@@ -54,9 +55,9 @@ export function NewItemForm({
   const fields = getEditableItemFields(typeName);
   const needsFile = isFileItemType(typeName);
 
-  function handleChange(name: keyof ItemFormValues, value: string) {
+  const handleChange: ItemFormChange = (name, value) => {
     setValues((current) => ({ ...current, [name]: value }));
-  }
+  };
 
   function handleTypeChange(next: CreatableItemType) {
     setTypeName(next);

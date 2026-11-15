@@ -35,3 +35,9 @@ export const ITEM_CREATE_FAILED = "Couldn't create this item. Please try again."
 
 /** Creating a collection failed for a reason the user can't act on. */
 export const COLLECTION_CREATE_FAILED = "Couldn't create this collection. Please try again.";
+
+/** An item was saved into a collection that isn't the user's, or no longer exists. */
+export const COLLECTIONS_NOT_FOUND = "One of these collections doesn't exist or has been deleted.";
+
+/** Loading the Collections picker's options failed. */
+export const COLLECTIONS_LOAD_FAILED = "Couldn't load your collections.";

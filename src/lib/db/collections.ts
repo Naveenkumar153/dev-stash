@@ -5,6 +5,7 @@ import { getAvailableTypes, type ItemTypeRow } from "@/lib/db/item-types";
 import { getCurrentUserId } from "@/lib/db/user";
 import { compareItemTypeOrder } from "@/lib/item-types";
 import { prisma } from "@/lib/prisma";
+import type { CollectionOption } from "@/types/collections";
 
 const RECENT_COLLECTION_LIMIT = 6;
 const SIDEBAR_COLLECTION_LIMIT = 5;
@@ -230,4 +231,33 @@ export async function createCollection(
   });
 
   return summarize(collection, new Map());
+}
+
+/**
+ * Every collection `userId` owns, by name, for the item forms' Collections
+ * picker. Only ids and names: the picker shows nothing else.
+ */
+export async function getCollectionOptions(userId: string): Promise<CollectionOption[]> {
+  return prisma.collection.findMany({
+    where: { userId },
+    orderBy: [{ name: "asc" }, { id: "asc" }],
+    select: { id: true, name: true },
+  });
+}
+
+/**
+ * Whether every id in `collectionIds` is one of `userId`'s collections, so an
+ * item can't be put in someone else's collection or a deleted one. Expects
+ * the ids deduplicated, as the item schemas leave them. No query for none.
+ */
+export async function ownsCollections(userId: string, collectionIds: string[]): Promise<boolean> {
+  if (collectionIds.length === 0) {
+    return true;
+  }
+
+  const owned = await prisma.collection.count({
+    where: { userId, id: { in: collectionIds } },
+  });
+
+  return owned === collectionIds.length;
 }

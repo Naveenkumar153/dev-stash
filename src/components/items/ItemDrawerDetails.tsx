@@ -39,8 +39,8 @@ function DateRow({ label, iso }: Readonly<{ label: string; iso: string }>) {
   );
 }
 
-/** The collections an item is in, if any. Shared by view and edit mode. */
-export function ItemCollectionsSection({
+/** The collections an item is in, if any. Edit mode shows them in the Collections picker instead. */
+function ItemCollectionsSection({
   collections,
 }: Readonly<{ collections: ItemCollectionRef[] }>) {
   if (collections.length === 0) {

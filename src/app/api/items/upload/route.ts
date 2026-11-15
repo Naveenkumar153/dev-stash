@@ -1,4 +1,5 @@
 import {
+  COLLECTIONS_NOT_FOUND,
   FOLDER_NOT_FOUND,
   ITEM_CREATE_FAILED,
   SESSION_EXPIRED,
@@ -6,6 +7,7 @@ import {
   type FieldErrors,
 } from "@/lib/action-result";
 import { errorResponse } from "@/lib/api-response";
+import { ownsCollections } from "@/lib/db/collections";
 import { findFolder } from "@/lib/db/folders";
 import { createFileItem } from "@/lib/db/items";
 import { MAX_UPLOAD_BYTES, buildFileKey, validateUpload } from "@/lib/file-upload";
@@ -53,6 +55,7 @@ export async function POST(request: Request) {
     title: form.get("title"),
     description: form.get("description"),
     tags: form.getAll("tags"),
+    collectionIds: form.getAll("collectionIds"),
     folderId: form.get("folderId"),
   });
   if (!parsed.success) {
@@ -69,10 +72,16 @@ export async function POST(request: Request) {
     return uploadFailure(check.error, 400, { file: check.error });
   }
 
-  // Checked before the file is stored, so a missing folder costs no R2 write.
+  // Checked before the file is stored, so a missing folder or collection
+  // costs no R2 write.
   const folderError = parsed.data.folderId && (await checkFolder(userId, parsed.data.folderId));
   if (folderError) {
     return folderError;
+  }
+
+  const collectionsError = await checkCollections(userId, parsed.data.collectionIds);
+  if (collectionsError) {
+    return collectionsError;
   }
 
   return storeAndCreate(userId, parsed.data, file, check.contentType);
@@ -93,6 +102,23 @@ async function checkFolder(userId: string, folderId: string): Promise<Response |
   }
 
   return uploadFailure(FOLDER_NOT_FOUND, 404, { folderId: FOLDER_NOT_FOUND });
+}
+
+/**
+ * An error response when one of the upload's collections isn't `userId`'s,
+ * including one deleted while the dialog was open; null when all are.
+ */
+async function checkCollections(userId: string, collectionIds: string[]): Promise<Response | null> {
+  try {
+    if (await ownsCollections(userId, collectionIds)) {
+      return null;
+    }
+  } catch (error) {
+    console.error("Looking up upload collections failed", error);
+    return uploadFailure(ITEM_CREATE_FAILED, 500);
+  }
+
+  return uploadFailure(COLLECTIONS_NOT_FOUND, 404, { collectionIds: COLLECTIONS_NOT_FOUND });
 }
 
 /**

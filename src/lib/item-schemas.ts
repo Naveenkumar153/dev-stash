@@ -40,6 +40,17 @@ const tagsSchema = z
   .transform((tags) => [...new Set(tags)]);
 
 /**
+ * The collections an item goes in, each kept once in the order given. Empty is
+ * fine: an item needn't be in any. Whether they're the user's is checked
+ * against the database by the caller.
+ */
+const collectionIdsSchema = z
+  .array(z.cuid({ error: "Choose collections from the list" }), {
+    error: "Choose collections from the list",
+  })
+  .transform((ids) => [...new Set(ids)]);
+
+/**
  * The item drawer's edit payload. Fields that don't apply to the item's type
  * are still validated here; `updateItem` decides which ones it writes.
  */
@@ -50,6 +61,8 @@ export const updateItemSchema = z.object({
   language: optionalText,
   url: optionalUrl,
   tags: tagsSchema,
+  /** Replaces the item's collections on save, so it's required, not defaulted. */
+  collectionIds: collectionIdsSchema,
 });
 
 /** What the edit form sends. */
@@ -81,11 +94,11 @@ export type CreateItemData = z.output<typeof createItemSchema>;
 
 /**
  * The fields sent alongside an upload to `POST /api/items/upload`. File items
- * carry no text payload, so only the shared fields, the type and the folder
- * are read. Only files go in folders; a blank folder means the top level.
+ * carry no text payload, so only the shared fields, the collections, the type
+ * and the folder are read. Only files go in folders; a blank folder means the top level.
  */
 export const createFileItemSchema = updateItemSchema
-  .pick({ title: true, description: true, tags: true })
+  .pick({ title: true, description: true, tags: true, collectionIds: true })
   .extend({
     typeName: z.enum(FILE_ITEM_TYPES, { error: "Choose an item type" }),
     folderId: optionalText.pipe(folderIdSchema.nullable()),

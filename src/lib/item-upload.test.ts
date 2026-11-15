@@ -6,7 +6,12 @@ import { postFormWithProgress } from "@/lib/upload-request";
 
 vi.mock("@/lib/upload-request", () => ({ postFormWithProgress: vi.fn() }));
 
-const input = { title: "Release notes", description: null, tags: ["docs", "release"] };
+const input = {
+  title: "Release notes",
+  description: null,
+  tags: ["docs", "release"],
+  collectionIds: ["col-1", "col-2"],
+};
 const file = new File(["%PDF-1.7"], "notes.pdf", { type: "application/pdf" });
 
 /** The form the one upload sent. */
@@ -15,7 +20,7 @@ function sentForm(): FormData {
 }
 
 describe("uploadFileItem", () => {
-  it("sends the type, folder, fields, each tag and the file, and returns the route's reply", async () => {
+  it("sends the type, folder, fields, each tag and collection and the file, and returns the route's reply", async () => {
     const reply = { success: true, data: { id: "item-1" }, error: null, fieldErrors: {} };
     vi.mocked(postFormWithProgress).mockResolvedValue({ status: 201, body: reply });
     const onProgress = vi.fn();
@@ -35,6 +40,7 @@ describe("uploadFileItem", () => {
     expect(form.get("title")).toBe("Release notes");
     expect(form.get("description")).toBe("");
     expect(form.getAll("tags")).toEqual(["docs", "release"]);
+    expect(form.getAll("collectionIds")).toEqual(["col-1", "col-2"]);
     expect((form.get("file") as File).name).toBe("notes.pdf");
   });
 

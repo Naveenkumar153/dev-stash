@@ -9,3 +9,16 @@ export interface CreateCollectionResult {
   /** The first validation message for each invalid field, keyed by field name. */
   fieldErrors: FieldErrors;
 }
+
+/** A collection as the item forms' Collections picker lists it. */
+export interface CollectionOption {
+  id: string;
+  name: string;
+}
+
+/** Body returned by `GET /api/collections`. */
+export interface CollectionOptionsResponse {
+  success: boolean;
+  data: CollectionOption[] | null;
+  error: string | null;
+}

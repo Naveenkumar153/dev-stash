@@ -261,6 +261,29 @@ function connectTags(names: string[]) {
 }
 
 /**
+ * A new item's memberships, one join row per collection. The caller has
+ * already checked the collections are the user's.
+ */
+function addToCollections(collectionIds: string[]) {
+  return { create: collectionIds.map((collectionId) => ({ collectionId })) };
+}
+
+/**
+ * Replaces an item's memberships with `collectionIds`: rows for collections
+ * left out are deleted and rows for new ones added, while a collection the
+ * item stays in keeps its row, and with it the date it was added.
+ */
+function replaceCollections(collectionIds: string[]) {
+  return {
+    deleteMany: { collectionId: { notIn: collectionIds } },
+    createMany: {
+      data: collectionIds.map((collectionId) => ({ collectionId })),
+      skipDuplicates: true,
+    },
+  };
+}
+
+/**
  * Creates an item of a system type for `userId` and returns it as the drawer
  * shows it. Null when that system type isn't in the database. Only the
  * type-specific fields the type uses are written, so a crafted request can't
@@ -292,6 +315,7 @@ export async function createItem(
       user: { connect: { id: userId } },
       itemType: { connect: { id: itemType.id } },
       tags: { connectOrCreate: connectTags(data.tags) },
+      collections: addToCollections(data.collectionIds),
     },
     select: ITEM_DETAIL_SELECT,
   });
@@ -340,6 +364,7 @@ export async function createFileItem(
       user: { connect: { id: userId } },
       itemType: { connect: { id: itemType.id } },
       tags: { connectOrCreate: connectTags(data.tags) },
+      collections: addToCollections(data.collectionIds),
     },
     select: ITEM_DETAIL_SELECT,
   });
@@ -389,7 +414,8 @@ export type UpdateItemOutcome =
  * Saves the drawer's edits to one of `userId`'s items and returns it as the
  * drawer shows it. Only the type-specific fields the item's type edits are
  * written, and the tags are replaced: every current one is disconnected, then
- * each name is connected, created first if no item uses it yet. The edit
+ * each name is connected, created first if no item uses it yet. The
+ * collections are replaced too; the caller has checked they're the user's. The edit
  * payload carries no type, so a link losing its URL is caught here, once the
  * stored type is known.
  */
@@ -424,6 +450,7 @@ export async function updateItem(
         ...(fields.language && { language: data.language }),
         ...(fields.url && { url: data.url }),
         tags: { set: [], connectOrCreate: connectTags(data.tags) },
+        collections: replaceCollections(data.collectionIds),
       },
       select: ITEM_DETAIL_SELECT,
     });
