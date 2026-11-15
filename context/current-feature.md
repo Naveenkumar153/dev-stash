@@ -1,16 +1,55 @@
-# Current Feature
+# Current Feature: Editor Preferences Settings
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+Complete
 
 ## Goals
 
-<!-- Goals & requirements -->
+- `/settings` gains an "Editor preferences" card with five controls:
+  - [x] Font size dropdown
+  - [x] Tab size dropdown
+  - [x] Word wrap toggle (default: on)
+  - [x] Minimap toggle (default: off)
+  - [x] Theme dropdown: `vs-dark`, `monokai`, `github-dark` (default: `vs-dark`)
+- [x] Preferences are stored in a new JSON column `editorPreferences` on `User`, added by a Prisma migration (`npm run db:migrate`, never `db push`)
+- [x] A server action updates the preferences: it checks the session, validates with Zod and returns `{ success, data, error }`
+- [x] Every change saves automatically, with no Save button, and shows a success toast
+- [x] An `EditorPreferencesContext` (provider + hook) gives client components the current preferences
+- [x] The Monaco editor (`MonacoEditor`, used by `CodeEditor` in the item drawer, its edit form and the New Item dialog) applies font size, tab size, word wrap, minimap and theme
+- [x] Unit tests for the action and the preferences schema / defaults helper; `npm test`, lint, build and `db:status` pass
 
 ## Notes
 
-<!-- Any extra notes -->
+- **Spec:** `context/features/editor-settings-spec.md`.
+- **Defaults the spec leaves open (proposed):**
+  - Font size options 12 / 13 / 14 / 16 / 18 px, default 13, today's hardcoded value.
+  - Tab size options 2 / 4 / 8, default 2.
+  - Monaco's `detectIndentation` turned off, since otherwise it overrides the chosen tab size from each snippet's content.
+- **Storage:**
+  - `editorPreferences Json?` is nullable, and null means "all defaults", so existing users need no backfill. The migration is additive only.
+  - Production gets the column through `npm run db:deploy`; nothing touches production here.
+- **Reading preferences:**
+  - Stored JSON is parsed with a Zod schema and missing or invalid keys fall back to defaults. A partial or older shape therefore never breaks the editor.
+  - The parse lives in a Zod-free helper where possible, so Zod stays out of the app shell (see Code Scan Fixes M2).
+- **Themes:**
+  - Monaco ships `vs-dark` only. `monokai` and `github-dark` must be defined with `monaco.editor.defineTheme` (token rules plus editor colors).
+  - Today's custom `devstash-dark` (a transparent background over the Tailwind box) is the current look. The proposal is to keep it as the `vs-dark` choice, so the default looks unchanged.
+  - The other two themes paint their own background, which the box must not fight.
+- **Font size:** `CODE_EDITOR_LINE_HEIGHT` (20 px) and `estimateEditorHeight()` assume 13 px. The line height has to scale with the font size, or larger sizes clip.
+- **Where the provider goes:**
+  - `/settings` sits outside the `(app)` shell, where every Monaco editor lives.
+  - The proposal is to load the session user's preferences in `src/app/(app)/layout.tsx`, in its existing `Promise.all`, and wrap the shell in `EditorPreferencesProvider`.
+  - The settings card gets its initial values from the page and saves through the action. Returning to the app shell re-renders with the saved values.
+- **Scoping:** preferences belong to the session user (`getSessionUserId()`), not `getCurrentUserId()`, since they are per account.
+- **Auto-save:**
+  - Each control saves on change, updating the UI optimistically.
+  - On failure it reverts and shows an error toast. On success it shows a toast such as "Editor preferences saved".
+  - Dropdowns and toggles fire once per change, so no debounce is needed.
+- **Dev-server fix found while testing:**
+  - After the migration and `db:generate`, the running dev server threw "Unknown field `editorPreferences`". The `globalThis` Prisma singleton in `src/lib/prisma.ts` kept the instance built from the pre-generate client.
+  - The cache now also stores the `PrismaClient` class. When regeneration produces a new class, the singleton disconnects the old instance and builds a new one, so a migration no longer needs a dev-server restart.
+- **Out of scope:** a live preview editor on the settings page, per-item overrides, and the read-only drawer's `tabFocusMode` / height rules, which are unchanged apart from the preferences.
 
 ## History
 

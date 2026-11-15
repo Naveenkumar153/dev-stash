@@ -51,3 +51,6 @@ export const COLLECTIONS_LOAD_FAILED = "Couldn't load your collections.";
 
 /** Loading the command palette's items and collections failed. */
 export const SEARCH_LOAD_FAILED = "Couldn't load your items and collections.";
+
+/** Saving editor preferences failed for a reason the user can't act on. */
+export const EDITOR_PREFERENCES_SAVE_FAILED = "Couldn't save your editor preferences. Please try again.";

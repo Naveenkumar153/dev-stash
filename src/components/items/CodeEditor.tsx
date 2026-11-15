@@ -46,7 +46,8 @@ export function CodeEditor({
   return (
     <div
       className={cn(
-        "rounded-lg border transition-colors",
+        // overflow-hidden clips an opaque editor theme to the rounded corners.
+        "overflow-hidden rounded-lg border transition-colors",
         // Monaco's scrollbar sliders, rounded to match the app.
         "[&_.monaco-scrollable-element>.scrollbar>.slider]:rounded-full",
         readOnly

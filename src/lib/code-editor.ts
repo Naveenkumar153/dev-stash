@@ -4,9 +4,18 @@ export const PLAIN_TEXT_LANGUAGE = "plaintext";
 /** The editor grows with its content up to this height, then scrolls. */
 export const CODE_EDITOR_MAX_HEIGHT = 400;
 
-/** Line height and vertical padding, in px, shared by the editor options and its height estimate. */
-export const CODE_EDITOR_LINE_HEIGHT = 20;
+/** Vertical padding, in px, shared by the editor options and its height estimate. */
 export const CODE_EDITOR_PADDING = 12;
+
+/** The line height at the editor's original 13px font, which the ratio below reproduces. */
+export const CODE_EDITOR_LINE_HEIGHT = 20;
+
+const LINE_HEIGHT_RATIO = CODE_EDITOR_LINE_HEIGHT / 13;
+
+/** Line height in px for a font size: about 1.54x, so larger fonts don't clip or crowd. */
+export function getEditorLineHeight(fontSize: number) {
+  return Math.round(fontSize * LINE_HEIGHT_RATIO);
+}
 
 /**
  * Monaco language ids for common ways of writing a language in an item's
@@ -73,8 +82,12 @@ export function clampEditorHeight(contentHeight: number, minHeight = 0) {
  * The editor's height for `value` before Monaco has measured it, from the line
  * count, so the box starts close to its final size.
  */
-export function estimateEditorHeight(value: string, minHeight = 0) {
+export function estimateEditorHeight(
+  value: string,
+  minHeight = 0,
+  lineHeight = CODE_EDITOR_LINE_HEIGHT,
+) {
   const lines = value.split("\n").length;
 
-  return clampEditorHeight(lines * CODE_EDITOR_LINE_HEIGHT + CODE_EDITOR_PADDING * 2, minHeight);
+  return clampEditorHeight(lines * lineHeight + CODE_EDITOR_PADDING * 2, minHeight);
 }

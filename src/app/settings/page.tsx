@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 
+import { EditorPreferencesForm } from "@/components/settings/EditorPreferencesForm";
 import { ChangePasswordForm } from "@/components/profile/ChangePasswordForm";
 import { DeleteAccountDialog } from "@/components/profile/DeleteAccountDialog";
 import {
@@ -13,6 +14,7 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { SIGN_IN_PATH } from "@/lib/auth-redirect";
+import { getEditorPreferences } from "@/lib/db/editor-preferences";
 import { getProfileUser } from "@/lib/db/profile";
 
 export const metadata: Metadata = {
@@ -22,7 +24,7 @@ export const metadata: Metadata = {
 const SIGN_IN_TO_SETTINGS = `${SIGN_IN_PATH}?callbackUrl=%2Fsettings`;
 
 export default async function SettingsPage() {
-  const user = await getProfileUser();
+  const [user, editorPreferences] = await Promise.all([getProfileUser(), getEditorPreferences()]);
 
   // The proxy already redirects signed-out requests; this also catches a
   // still-valid session whose user row has been deleted.
@@ -41,6 +43,19 @@ export default async function SettingsPage() {
       </Link>
 
       <h1 className="font-heading text-3xl font-semibold">Settings</h1>
+
+      <Card>
+        <CardHeader>
+          <CardTitle>Editor preferences</CardTitle>
+          <CardDescription>
+            How code looks in the item drawer and when you create or edit an item. Changes save
+            automatically.
+          </CardDescription>
+        </CardHeader>
+        <CardContent>
+          <EditorPreferencesForm initialPreferences={editorPreferences} />
+        </CardContent>
+      </Card>
 
       {user.hasPassword && (
         <Card>

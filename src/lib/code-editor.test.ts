@@ -1,9 +1,11 @@
 import { describe, expect, it } from "vitest";
 
 import {
+  CODE_EDITOR_LINE_HEIGHT,
   CODE_EDITOR_MAX_HEIGHT,
   clampEditorHeight,
   estimateEditorHeight,
+  getEditorLineHeight,
   PLAIN_TEXT_LANGUAGE,
   toMonacoLanguage,
 } from "@/lib/code-editor";
@@ -70,5 +72,24 @@ describe("estimateEditorHeight", () => {
   it("caps long content and respects the floor", () => {
     expect(estimateEditorHeight("x\n".repeat(100))).toBe(CODE_EDITOR_MAX_HEIGHT);
     expect(estimateEditorHeight("", 160)).toBe(160);
+  });
+
+  it("uses the line height it's given, for a larger font", () => {
+    expect(estimateEditorHeight("a\nb\nc", 0, 28)).toBe(108);
+  });
+});
+
+describe("getEditorLineHeight", () => {
+  it("keeps the original 20px line height at the default 13px font", () => {
+    expect(getEditorLineHeight(13)).toBe(CODE_EDITOR_LINE_HEIGHT);
+  });
+
+  it.each([
+    [12, 18],
+    [14, 22],
+    [16, 25],
+    [18, 28],
+  ])("scales %spx text to a %spx line", (fontSize, lineHeight) => {
+    expect(getEditorLineHeight(fontSize)).toBe(lineHeight);
   });
 });
