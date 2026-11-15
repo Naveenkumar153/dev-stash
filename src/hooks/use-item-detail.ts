@@ -50,5 +50,19 @@ export function useItemDetail() {
     setDetail({ status: "ready", item });
   }, []);
 
-  return { detail, load, replace };
+  /**
+   * Merges a saved field change, such as a favorite or pin toggle, into the
+   * item on show. It reads the latest state rather than a copy taken at click
+   * time, so two toggles saving close together can't undo each other, and does
+   * nothing once another item is loading or on show.
+   */
+  const patch = useCallback((id: string, changes: Partial<ItemDetail>) => {
+    setDetail((current) =>
+      current.status === "ready" && current.item.id === id
+        ? { status: "ready", item: { ...current.item, ...changes } }
+        : current,
+    );
+  }, []);
+
+  return { detail, load, replace, patch };
 }

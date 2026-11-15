@@ -22,6 +22,8 @@ interface ItemDrawerProps {
   detail: ItemDetailState;
   /** Takes the item a save returned, so the drawer shows it without a refetch. */
   onItemSaved: (item: ItemDetail) => void;
+  /** Merges a saved toggle (favorite, pin) into the item on show. */
+  onItemPatched: (id: string, changes: Partial<ItemDetail>) => void;
   /** Runs after the open item has been deleted. */
   onItemDeleted: () => void;
 }
@@ -37,6 +39,7 @@ export function ItemDrawer({
   summary,
   detail,
   onItemSaved,
+  onItemPatched,
   onItemDeleted,
 }: ItemDrawerProps) {
   return (
@@ -47,6 +50,7 @@ export function ItemDrawer({
             summary={summary}
             detail={detail}
             onItemSaved={onItemSaved}
+            onItemPatched={onItemPatched}
             onItemDeleted={onItemDeleted}
           />
         </SheetContent>
@@ -59,6 +63,7 @@ interface ItemDrawerPanelProps {
   summary: ItemDrawerSummary;
   detail: ItemDetailState;
   onItemSaved: (item: ItemDetail) => void;
+  onItemPatched: (id: string, changes: Partial<ItemDetail>) => void;
   onItemDeleted: () => void;
 }
 
@@ -67,7 +72,13 @@ interface ItemDrawerPanelProps {
  * unmounts once the sheet has closed, so edit mode and any unsaved changes
  * never carry over to the next item opened.
  */
-function ItemDrawerPanel({ summary, detail, onItemSaved, onItemDeleted }: ItemDrawerPanelProps) {
+function ItemDrawerPanel({
+  summary,
+  detail,
+  onItemSaved,
+  onItemPatched,
+  onItemDeleted,
+}: ItemDrawerPanelProps) {
   const [editing, setEditing] = useState(false);
   // Leaving edit mode unmounts the focused Save or Cancel button, so focus goes
   // back to the Edit button the user started from rather than the popup itself.
@@ -103,8 +114,9 @@ function ItemDrawerPanel({ summary, detail, onItemSaved, onItemDeleted }: ItemDr
             canDelete={item !== null}
             onDeleted={onItemDeleted}
             onFavoriteSaved={
-              item ? (isFavorite) => onItemSaved({ ...item, isFavorite }) : undefined
+              item ? (isFavorite) => onItemPatched(item.id, { isFavorite }) : undefined
             }
+            onPinSaved={item ? (isPinned) => onItemPatched(item.id, { isPinned }) : undefined}
             isFavorite={current.isFavorite}
             isPinned={current.isPinned}
             copyText={item ? getItemCopyText(item) : null}

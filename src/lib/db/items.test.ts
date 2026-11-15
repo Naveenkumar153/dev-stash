@@ -12,6 +12,7 @@ import {
   getItemsByType,
   getSearchItems,
   setItemFavorite,
+  setItemPinned,
   updateItem,
 } from "@/lib/db/items";
 import { getItemTypeBySlug } from "@/lib/db/item-types";
@@ -558,7 +559,7 @@ describe("getItemsByType", () => {
     vi.mocked(getItemTypeBySlug).mockResolvedValue({ id: "type-snippet", name: "snippet" } as never);
   });
 
-  it("loads only the requested page of the type, newest first, with the type's total", async () => {
+  it("loads only the requested page of the type, pinned first then newest, with the type's total", async () => {
     vi.mocked(getCurrentUserId).mockResolvedValue("user-1");
     vi.mocked(prisma.item.findMany).mockResolvedValue([cardRow] as never);
     vi.mocked(prisma.item.count).mockResolvedValue(43);
@@ -569,7 +570,7 @@ describe("getItemsByType", () => {
     expect(prisma.item.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where,
-        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        orderBy: [{ isPinned: "desc" }, { createdAt: "desc" }, { id: "desc" }],
         skip: 42,
         take: 21,
       }),
@@ -603,7 +604,7 @@ describe("getItemsByType", () => {
 describe("getCollectionItems", () => {
   const COLLECTION_ID = "cmtg169y00003zzx5wxanksok";
 
-  it("loads only the requested page of the collection's items, newest first, with the total", async () => {
+  it("loads only the requested page of the collection's items, pinned first then newest, with the total", async () => {
     vi.mocked(getCurrentUserId).mockResolvedValue("user-1");
     vi.mocked(prisma.item.findMany).mockResolvedValue([cardRow] as never);
     vi.mocked(prisma.item.count).mockResolvedValue(22);
@@ -614,7 +615,7 @@ describe("getCollectionItems", () => {
     expect(prisma.item.findMany).toHaveBeenCalledWith(
       expect.objectContaining({
         where,
-        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        orderBy: [{ isPinned: "desc" }, { createdAt: "desc" }, { id: "desc" }],
         skip: 21,
         take: 21,
       }),
@@ -774,5 +775,35 @@ describe("setItemFavorite", () => {
     vi.mocked(prisma.item.update).mockRejectedValue(new Error("connection lost"));
 
     await expect(setItemFavorite("user-1", ITEM_ID, true)).rejects.toThrow("connection lost");
+  });
+});
+
+describe("setItemPinned", () => {
+  it("updates only the pinned flag, scoped to the user, in one statement", async () => {
+    vi.mocked(prisma.item.update).mockResolvedValue({ id: ITEM_ID } as never);
+
+    expect(await setItemPinned("user-1", ITEM_ID, true)).toBe(true);
+    expect(prisma.item.update).toHaveBeenCalledWith({
+      where: { id: ITEM_ID, userId: "user-1" },
+      data: { isPinned: true },
+      select: { id: true },
+    });
+  });
+
+  it("returns false when there is no such item for the user", async () => {
+    vi.mocked(prisma.item.update).mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError("Record not found", {
+        code: "P2025",
+        clientVersion: "7",
+      }),
+    );
+
+    expect(await setItemPinned("user-1", ITEM_ID, false)).toBe(false);
+  });
+
+  it("rethrows other database errors", async () => {
+    vi.mocked(prisma.item.update).mockRejectedValue(new Error("connection lost"));
+
+    await expect(setItemPinned("user-1", ITEM_ID, true)).rejects.toThrow("connection lost");
   });
 });

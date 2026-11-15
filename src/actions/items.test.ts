@@ -2,13 +2,20 @@ import { refresh } from "next/cache";
 import type { Session } from "next-auth";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createItem, deleteItem, setItemFavorite, updateItem } from "@/actions/items";
+import {
+  createItem,
+  deleteItem,
+  setItemFavorite,
+  toggleItemPin,
+  updateItem,
+} from "@/actions/items";
 import { auth } from "@/auth";
 import { ownsCollections } from "@/lib/db/collections";
 import {
   createItem as createItemRecord,
   deleteItem as deleteItemRecord,
   setItemFavorite as setItemFavoriteRecord,
+  setItemPinned,
   updateItem as updateItemRecord,
 } from "@/lib/db/items";
 import { deleteFile } from "@/lib/r2";
@@ -23,6 +30,7 @@ vi.mock("@/lib/db/items", () => ({
   updateItem: vi.fn(),
   deleteItem: vi.fn(),
   setItemFavorite: vi.fn(),
+  setItemPinned: vi.fn(),
 }));
 vi.mock("@/lib/r2", () => ({ deleteFile: vi.fn() }));
 vi.mock("@/lib/db/collections", () => ({ ownsCollections: vi.fn() }));
@@ -456,6 +464,78 @@ describe("setItemFavorite", () => {
     vi.mocked(setItemFavoriteRecord).mockRejectedValue(new Error("connection lost"));
 
     expect(await setItemFavorite(ITEM_ID, true)).toEqual({
+      success: false,
+      data: null,
+      error: FAILED,
+    });
+    expect(refresh).not.toHaveBeenCalled();
+  });
+});
+
+describe("toggleItemPin", () => {
+  const FAILED = "Couldn't update the pin. Please try again.";
+
+  beforeEach(() => {
+    signInAs("user-1");
+    vi.mocked(setItemPinned).mockResolvedValue(true);
+  });
+
+  it.each([true, false])("saves isPinned = %s on the signed-in user's item", async (isPinned) => {
+    expect(await toggleItemPin(ITEM_ID, isPinned)).toEqual({
+      success: true,
+      data: { id: ITEM_ID, isPinned },
+      error: null,
+    });
+    expect(setItemPinned).toHaveBeenCalledWith("user-1", ITEM_ID, isPinned);
+    // The dashboard's Pinned section and the lists re-render in the same response.
+    expect(refresh).toHaveBeenCalledOnce();
+  });
+
+  it("refuses when signed out, without a query", async () => {
+    mockAuth.mockResolvedValue(null);
+
+    expect(await toggleItemPin(ITEM_ID, true)).toEqual({
+      success: false,
+      data: null,
+      error: "Your session has expired. Sign in again.",
+    });
+    expect(setItemPinned).not.toHaveBeenCalled();
+  });
+
+  it("treats an id that isn't a cuid as not found, without a query", async () => {
+    expect(await toggleItemPin("../etc", true)).toEqual({
+      success: false,
+      data: null,
+      error: NOT_FOUND,
+    });
+    expect(setItemPinned).not.toHaveBeenCalled();
+  });
+
+  it("rejects a state that isn't a boolean, without a query", async () => {
+    expect(await toggleItemPin(ITEM_ID, "true" as unknown as boolean)).toEqual({
+      success: false,
+      data: null,
+      error: FAILED,
+    });
+    expect(setItemPinned).not.toHaveBeenCalled();
+  });
+
+  it("reports a missing or someone else's item as not found, without refreshing", async () => {
+    vi.mocked(setItemPinned).mockResolvedValue(false);
+
+    expect(await toggleItemPin(ITEM_ID, true)).toEqual({
+      success: false,
+      data: null,
+      error: NOT_FOUND,
+    });
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it("returns a generic error when the write fails", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(setItemPinned).mockRejectedValue(new Error("connection lost"));
+
+    expect(await toggleItemPin(ITEM_ID, true)).toEqual({
       success: false,
       data: null,
       error: FAILED,

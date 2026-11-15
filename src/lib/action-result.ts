@@ -57,3 +57,6 @@ export const EDITOR_PREFERENCES_SAVE_FAILED = "Couldn't save your editor prefere
 
 /** Saving a favorite / unfavorite failed for a reason the user can't act on. */
 export const FAVORITE_UPDATE_FAILED = "Couldn't update favorites. Please try again.";
+
+/** Pinning / unpinning an item failed for a reason the user can't act on. */
+export const PIN_UPDATE_FAILED = "Couldn't update the pin. Please try again.";

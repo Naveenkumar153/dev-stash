@@ -34,7 +34,7 @@ export function ItemDrawerProvider({
   const [open, setOpen] = useState(false);
   // Kept after closing, so the drawer still has content while it animates out.
   const [summary, setSummary] = useState<ItemDrawerSummary | null>(null);
-  const { detail, load, replace } = useItemDetail();
+  const { detail, load, replace, patch } = useItemDetail();
 
   const openItem = useCallback(
     (item: ItemDrawerSummary) => {
@@ -59,6 +59,7 @@ export function ItemDrawerProvider({
         summary={summary}
         detail={detail}
         onItemSaved={replace}
+        onItemPatched={patch}
         onItemDeleted={closeDrawer}
       />
     </ItemDrawerContext>

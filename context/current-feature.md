@@ -1,16 +1,42 @@
-# Current Feature
+# Current Feature: Pinned Items
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- A `toggleItemPin` server action that sets an item's pinned state for the signed-in user and returns `{ success, data, error }`
+- The item drawer's Pin button (currently `disabled`) becomes clickable once the item's detail has loaded
+- Optimistic UI: the Pin button shows the new state at once and rolls back if the save fails
+- Toast on success and on error
+- Pinned items sort to the top of item listings
+- Pinned items appear in the dashboard's Pinned section (already reads `isPinned` through `getPinnedItems()`)
+- Follows the Favorite button pattern (`useFavoriteToggle()`, `FavoriteToggle`, `setItemFavorite`)
+- Items only, not collections
+- The Pin icon on `ItemCard` stays a static indicator (no toggle on cards)
+- Unit tests for the action and query, covering success, signed out, malformed id, invalid state, not found and a failed write
 
 ## Notes
 
-<!-- Any extra notes -->
+Spec: `context/features/pinned-spec.md`.
+
+What exists today:
+
+- `Item.isPinned` (`Boolean @default(false)`) and the index `@@index([userId, isPinned, createdAt desc, id desc])` already exist, so the toggle needs no migration
+- `src/components/items/ItemDrawerActions.tsx` renders Pin as a `disabled` ghost button with `aria-pressed={isPinned}` and a filled icon when pinned; Favorite beside it uses `FavoriteToggle` once `onFavoriteSaved` is passed
+- `getPinnedItems()` in `src/lib/db/items.ts` feeds the dashboard's Pinned section (capped at 10, newest first); the section hides when nothing is pinned
+- Favorite pattern to mirror: `setItemFavorite(itemId, isFavorite)` in `src/actions/items.ts` takes the wanted state (not a flip), checks `getSessionUserId()`, rejects a non-cuid id via `itemIdSchema`, validates with `isFavoriteSchema`, writes through a single `update` on `id` + `userId` (P2025 → false), and calls `refresh()` from `next/cache`; `useFavoriteToggle()` uses `useOptimistic` in a transition, ignores clicks while pending, toasts, and passes the saved state to the drawer's `onSaved` → `replace()`
+- List queries order by `NEWEST_FIRST` (`createdAt desc, id desc`); `getItemPage()` is shared by `/items/[type]` and `/collections/[id]`
+
+Defaults proposed at load (confirm or change at start):
+
+- Name: the spec's `toggleItemPin`, but taking the wanted state (`toggleItemPin(itemId, isPinned)`) like `setItemFavorite`, so a double click or two tabs can't invert each other
+- Sort pinned first on the paginated lists that share `getItemPage()` (`/items/[type]` and `/collections/[id]`) by prefixing `{ isPinned: "desc" }` to their order; leave the dashboard's Recent list (pinned items have their own section above it), the files list, `/favorites` and the search palette in their current order
+- No migration: the type-list index `[userId, itemTypeId, createdAt desc, id desc]` won't cover the new leading `isPinned` sort, which is fine at 21 rows per page; an index-only migration can follow if needed
+- Extract the shared optimistic-toggle logic from `useFavoriteToggle()` into a generic hook used by both favorite and pin, instead of copying ~40 lines into a `usePinToggle()`
+- Toast copy: "Item pinned" / "Item unpinned"; error copy a new `PIN_UPDATE_FAILED` in `src/lib/action-result.ts`
+- Writes check the session user while reads scope through `getCurrentUserId()`, like edit, delete and favorite, so only the demo account can pin
 
 ## History
 

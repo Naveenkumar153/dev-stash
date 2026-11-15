@@ -94,3 +94,10 @@ export interface DeleteItemResult {
   data: { id: string } | null;
   error: string | null;
 }
+
+/** Result of `toggleItemPin()`: the saved state. */
+export interface ToggleItemPinResult {
+  success: boolean;
+  data: { id: string; isPinned: boolean } | null;
+  error: string | null;
+}

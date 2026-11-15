@@ -164,6 +164,30 @@ export async function setItemFavorite(
   }
 }
 
+/**
+ * Sets whether one of `userId`'s items is pinned, in one scoped statement.
+ * False when there is no such item or it's someone else's.
+ */
+export async function setItemPinned(
+  userId: string,
+  itemId: string,
+  isPinned: boolean,
+): Promise<boolean> {
+  try {
+    await prisma.item.update({
+      where: { id: itemId, userId },
+      data: { isPinned },
+      select: { id: true },
+    });
+    return true;
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
+      return false;
+    }
+    throw error;
+  }
+}
+
 /** The latest items, newest first. */
 export async function getRecentItems(
   limit = DASHBOARD_RECENT_ITEMS_LIMIT,
@@ -216,8 +240,9 @@ async function getTypeListScope(slug: string) {
 }
 
 /**
- * One page of the items matching `where`, newest first, as cards, with the
- * count of every match. The page and the count go out together.
+ * One page of the items matching `where`, pinned ones first and newest first
+ * within each, as cards, with the count of every match. The page and the
+ * count go out together.
  */
 async function getItemPage(
   where: Prisma.ItemWhereInput,
@@ -226,7 +251,7 @@ async function getItemPage(
   const [rows, total] = await Promise.all([
     prisma.item.findMany({
       where,
-      orderBy: [...NEWEST_FIRST],
+      orderBy: [{ isPinned: "desc" }, ...NEWEST_FIRST],
       skip: getPageSkip(page, ITEMS_PER_PAGE),
       take: ITEMS_PER_PAGE,
       select: ITEM_CARD_SELECT,

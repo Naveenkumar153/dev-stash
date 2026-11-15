@@ -4,6 +4,7 @@ import { Copy, Pencil, Pin, Star } from "lucide-react";
 
 import { FavoriteToggle } from "@/components/favorites/FavoriteToggle";
 import { ItemDeleteDialog } from "@/components/items/ItemDeleteDialog";
+import { PinToggle } from "@/components/items/PinToggle";
 import { Button } from "@/components/ui/button";
 import { copyToClipboard } from "@/lib/clipboard";
 import { cn } from "@/lib/utils";
@@ -28,12 +29,14 @@ interface ItemDrawerActionsProps {
    * the full item has loaded, which keeps Favorite disabled like Edit.
    */
   onFavoriteSaved?: (isFavorite: boolean) => void;
+  /** Saves a pin toggle into the drawer's copy of the item, like `onFavoriteSaved`. */
+  onPinSaved?: (isPinned: boolean) => void;
 }
 
 /**
- * The drawer's action bar. Favorite, Copy, Edit and Delete work; pinning comes
- * with its own feature, so until then Pin is disabled rather than doing nothing
- * when clicked, while still showing the item's state.
+ * The drawer's action bar: Favorite, Pin, Copy, Edit and Delete. Favorite and
+ * Pin stay disabled, still showing the item's state, until the full item has
+ * loaded.
  */
 export function ItemDrawerActions({
   itemId,
@@ -41,6 +44,7 @@ export function ItemDrawerActions({
   canDelete,
   onDeleted,
   onFavoriteSaved,
+  onPinSaved,
   isFavorite,
   isPinned,
   copyText,
@@ -77,10 +81,14 @@ export function ItemDrawerActions({
         </Button>
       )}
 
-      <Button variant="ghost" disabled aria-pressed={isPinned}>
-        <Pin aria-hidden className={cn(isPinned && "fill-current")} />
-        Pin
-      </Button>
+      {onPinSaved ? (
+        <PinToggle itemId={itemId} isPinned={isPinned} onSaved={onPinSaved} />
+      ) : (
+        <Button variant="ghost" disabled aria-pressed={isPinned}>
+          <Pin aria-hidden className={cn(isPinned && "fill-current")} />
+          Pin
+        </Button>
+      )}
 
       <Button variant="ghost" disabled={!copyText} onClick={handleCopy}>
         <Copy aria-hidden />

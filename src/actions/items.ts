@@ -7,6 +7,7 @@ import {
   FAVORITE_UPDATE_FAILED,
   ITEM_CREATE_FAILED,
   ITEM_NOT_FOUND,
+  PIN_UPDATE_FAILED,
   SESSION_EXPIRED,
   getFieldErrors,
   type FieldErrors,
@@ -16,12 +17,14 @@ import {
   createItem as createItemRecord,
   deleteItem as deleteItemRecord,
   setItemFavorite as setItemFavoriteRecord,
+  setItemPinned,
   updateItem as updateItemRecord,
 } from "@/lib/db/items";
 import { isFavoriteSchema } from "@/lib/favorite-schemas";
 import {
   createItemSchema,
   URL_REQUIRED,
+  isPinnedSchema,
   itemIdSchema,
   updateItemSchema,
   type CreateItemInput,
@@ -30,7 +33,12 @@ import {
 import { getSessionUserId } from "@/lib/session";
 import { discardStoredFiles } from "@/lib/stored-files";
 import type { SetFavoriteResult } from "@/types/favorites";
-import type { CreateItemResult, DeleteItemResult, UpdateItemResult } from "@/types/items";
+import type {
+  CreateItemResult,
+  DeleteItemResult,
+  ToggleItemPinResult,
+  UpdateItemResult,
+} from "@/types/items";
 
 function failure(error: string, fieldErrors: FieldErrors = {}): UpdateItemResult {
   return { success: false, data: null, error, fieldErrors };
@@ -197,4 +205,46 @@ export async function setItemFavorite(
 
   refresh();
   return { success: true, data: { id: itemId, isFavorite: parsed.data }, error: null };
+}
+
+function pinFailure(error: string): ToggleItemPinResult {
+  return { success: false, data: null, error };
+}
+
+/**
+ * Pins or unpins one of the signed-in user's items. Takes the wanted state
+ * rather than flipping it, so a double click or two tabs can't invert each
+ * other. Scoped to the session's user like `setItemFavorite`; on success the
+ * page and its layout re-render in this response, so the dashboard's Pinned
+ * section and the lists' pinned-first order follow.
+ */
+export async function toggleItemPin(
+  itemId: string,
+  isPinned: boolean,
+): Promise<ToggleItemPinResult> {
+  const userId = await getSessionUserId();
+  if (!userId) {
+    return pinFailure(SESSION_EXPIRED);
+  }
+
+  if (!itemIdSchema.safeParse(itemId).success) {
+    return pinFailure(ITEM_NOT_FOUND);
+  }
+
+  const parsed = isPinnedSchema.safeParse(isPinned);
+  if (!parsed.success) {
+    return pinFailure(PIN_UPDATE_FAILED);
+  }
+
+  try {
+    if (!(await setItemPinned(userId, itemId, parsed.data))) {
+      return pinFailure(ITEM_NOT_FOUND);
+    }
+  } catch (error) {
+    console.error("Updating item pin failed", error);
+    return pinFailure(PIN_UPDATE_FAILED);
+  }
+
+  refresh();
+  return { success: true, data: { id: itemId, isPinned: parsed.data }, error: null };
 }
