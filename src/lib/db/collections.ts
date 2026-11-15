@@ -1,5 +1,6 @@
 import { connection } from "next/server";
 
+import type { CreateCollectionData } from "@/lib/collection-schemas";
 import { getAvailableTypes, type ItemTypeRow } from "@/lib/db/item-types";
 import { getCurrentUserId } from "@/lib/db/user";
 import { compareItemTypeOrder } from "@/lib/item-types";
@@ -213,4 +214,20 @@ export async function getSidebarCollections(
     favorites: favorites.map((collection) => summarize(collection, typeCounts)),
     recent: recent.map((collection) => summarize(collection, typeCounts)),
   };
+}
+
+/**
+ * Creates a collection owned by `userId` and returns it as a card. A new
+ * collection holds no items, so its type breakdown is empty without a query.
+ */
+export async function createCollection(
+  userId: string,
+  data: CreateCollectionData,
+): Promise<CollectionSummary> {
+  const collection = await prisma.collection.create({
+    data: { userId, name: data.name, description: data.description },
+    select: COLLECTION_SUMMARY_SELECT,
+  });
+
+  return summarize(collection, new Map());
 }

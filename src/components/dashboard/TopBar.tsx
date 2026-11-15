@@ -1,13 +1,13 @@
-import { FolderPlus, Search } from "lucide-react";
+import { Search } from "lucide-react";
 
+import { NewCollectionDialog } from "@/components/collections/NewCollectionDialog";
 import { SidebarToggle } from "@/components/dashboard/SidebarToggle";
 import { NewItemDialog } from "@/components/items/NewItemDialog";
-import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 
 /**
- * Dashboard top bar. The sidebar toggle and New Item work; the search field and
- * New Collection are display only until their own features.
+ * Dashboard top bar. The sidebar toggle, New Collection and New Item work; the
+ * search field is display only until its own feature.
  */
 export function TopBar() {
   return (
@@ -31,10 +31,7 @@ export function TopBar() {
       </div>
 
       <div className="ml-auto flex shrink-0 items-center gap-2">
-        <Button variant="outline" size="lg" aria-label="New collection">
-          <FolderPlus />
-          <span className="hidden sm:inline">New Collection</span>
-        </Button>
+        <NewCollectionDialog />
         <NewItemDialog />
       </div>
     </header>
