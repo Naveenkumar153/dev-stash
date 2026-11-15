@@ -1,14 +1,33 @@
-# Current Feature
+# Current Feature: Collection Create
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- The top bar's display-only "New Collection" button (`TopBar.tsx`) opens a shadcn `Dialog` (a new `NewCollectionDialog` in `src/components/collections/`), following `NewItemDialog`: icon-only with an `aria-label` on phones, the form mounted with the popup so each open starts blank, and Escape / backdrop / X ignored while the create runs
+- The form has Name (required, Create disabled while empty) and Description (optional textarea), with inline per-field errors (`aria-invalid`, `aria-describedby`) via the shared `FormField` pattern
+- A Zod `createCollectionSchema` in the new `src/lib/collection-schemas.ts`: name trimmed, 1-100 characters; description trimmed, empty saved as null, with a max length
+- A `createCollection(data)` server action in the new `src/actions/collections.ts` that checks the session via `getSessionUserId()`, validates, and returns `{ success, data, error, fieldErrors }` (types in the new `src/types/collections.ts`), with a logged generic message on a thrown error and the shared `SESSION_EXPIRED` copy when signed out
+- A `createCollection(userId, data)` query in `src/lib/db/collections.ts`, always scoped to the given user, returning the created collection's summary
+- On success: toast "Collection created", close the dialog and `router.refresh()`, so the dashboard's collection cards, the Collections stat and the sidebar's Recent list all show the new collection; on failure: toast the error and keep the dialog open with the input intact
+- Unit tests for the action (success, signed out, invalid input, database failure), the schema (trimming, empty description to null, length limits) and the query's user scoping
+- `npm test`, lint, build pass; verified in the browser
 
 ## Notes
+
+- Requirement (inline): "Implement collection create. We need a button in the top bar to create a new collection with a description. We should follow the same patterns as items. Collections should be user-scoped, fetch from the server component via lib/db functions and api routes for any client-side calls. The create button should open a modal with the fields needed. Show a toast on success or failure. Make sure everything is updated with the new collection on save."
+- Proposed defaults, to confirm at start:
+  - **Mutation transport:** a server action, as Item Create does (`createItem` in `src/actions/items.ts`) and as the coding standards prescribe for form submissions. The requirement's "api routes for any client-side calls" is read as client-side *reads* (like the drawer's `GET /api/items/[id]`); creating needs no client-side read, so no new route. Alternative: a `POST /api/collections` route called with `fetch`.
+  - **User scoping:** the write goes to the session user, like item create / edit / delete and folders. Reads (`getRecentCollections()`, `getSidebarCollections()`, `getDashboardStats()`) still scope through `getCurrentUserId()` (the demo user), so only the demo account sees a new collection appear, as with items. Alternative: move the collection reads to the session user in this feature, which would make the dashboard show the demo user's items next to the signed-in user's collections until items follow.
+  - **Fields:** name and description only. `defaultTypeId` and `isFavorite` stay at their defaults; no item picker (adding items to collections is its own feature).
+  - **Duplicate names allowed:** the schema has no uniqueness rule for collections and the spec asks for none (folders' sibling-name check doesn't apply).
+  - **Limits:** name up to 100 characters (matching folder names), description up to 500.
+  - **Free-tier limit of 3 collections not enforced**, per the spec's dev note that every user can access everything during development (Item Create left the 50-item limit unenforced too).
+- No migration: the `Collection` model already has `name`, `description` and `userId`
+- The `/collections` page linked from the sidebar's "View all collections" still doesn't exist and is out of scope
+- Watch for the shadcn CLI importing `cn` from the unrelated `cn` npm package if any new component is added (`textarea` and `dialog` are already installed, so none should be needed)
 
 <!-- Any extra notes -->
 

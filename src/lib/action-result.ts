@@ -32,3 +32,6 @@ export const ITEM_LOAD_FAILED = "Couldn't load this item. Please try again.";
 
 /** Creating an item failed for a reason the user can't act on. */
 export const ITEM_CREATE_FAILED = "Couldn't create this item. Please try again.";
+
+/** Creating a collection failed for a reason the user can't act on. */
+export const COLLECTION_CREATE_FAILED = "Couldn't create this collection. Please try again.";
