@@ -126,15 +126,13 @@ function summarize(
 }
 
 /**
- * Most recently created collections, as cards for the main area. One query:
- * the item types come back with the collections rather than per card.
+ * The current user's collections as cards, newest first, `limit` of them or
+ * all when it's undefined. One query for the rows: the item types come back
+ * with them rather than per card.
  */
-export async function getRecentCollections(
-  limit = RECENT_COLLECTION_LIMIT,
-): Promise<CollectionSummary[]> {
-  // Keeps the dashboard out of the build-time prerender, so cards render from
-  // the database at request time. Session access will imply this once auth
-  // lands.
+async function listCollections(limit?: number): Promise<CollectionSummary[]> {
+  // Keeps the page out of the build-time prerender, so cards render from the
+  // database at request time.
   await connection();
 
   const userId = await getCurrentUserId();
@@ -161,6 +159,48 @@ export async function getRecentCollections(
   );
 
   return collections.map((collection) => summarize(collection, typeCounts));
+}
+
+/** Most recently created collections, as cards for the dashboard. */
+export async function getRecentCollections(
+  limit = RECENT_COLLECTION_LIMIT,
+): Promise<CollectionSummary[]> {
+  return listCollections(limit);
+}
+
+/**
+ * Every collection for /collections, newest first. Not capped, like the item
+ * lists: a cap without "load more" would silently hide collections.
+ */
+export async function getCollections(): Promise<CollectionSummary[]> {
+  return listCollections();
+}
+
+/** What a collection's own page shows above its items. */
+export interface CollectionHeader {
+  id: string;
+  name: string;
+  description: string | null;
+  isFavorite: boolean;
+}
+
+/**
+ * The collection at /collections/[id] when it's the current user's; null for
+ * a missing one or another user's, so the page can 404 either way.
+ */
+export async function getCollection(id: string): Promise<CollectionHeader | null> {
+  await connection();
+
+  const userId = await getCurrentUserId();
+
+  if (!userId) {
+    return null;
+  }
+
+  return prisma.collection.findFirst({
+    where: { id, userId },
+    select: { id: true, name: true, description: true, isFavorite: true },
+  });
 }
 
 export interface SidebarCollections {

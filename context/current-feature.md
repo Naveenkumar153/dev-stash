@@ -1,16 +1,36 @@
-# Current Feature
+# Current Feature: Collection Pages
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- [x] `/collections` lists every collection the user has, newest first, as the existing `CollectionCard`s in the dashboard's grid (1 column, 2 from `sm`, 3 from `xl`), with a header (title + "N collections") and an empty state ("No collections yet.")
+- [x] `/collections/[id]` shows one collection: a header with its name, description (when set), favorite star and "N items", then its items as the existing cards in the `/items/[type]` grid (1 / 2 from `md` / 3 from `xl`), newest first, with an empty state ("No items in this collection yet.")
+- [x] Items of any type show on the collection page: `ItemCard` for every type, as on the dashboard, so file and image items appear as row cards too
+- [x] Clicking an item card on the collection page opens the existing item drawer (already provided by the `(app)` shell)
+- [x] An unknown, malformed (non-cuid) or another user's collection id shows the not-found page, with no query for a malformed id
+- [x] Both pages have page titles (`Collections | DevStash`, `<name> | DevStash`)
+- [x] `/collections/:path*` added to the `src/proxy.ts` matcher, so signed-out visits redirect to `/sign-in` with the callback
+- [x] Linking: the sidebar's "View all collections" and the dashboard's "View all" go to `/collections`; dashboard, sidebar and `/collections` cards go to `/collections/[id]` (check they resolve now that the pages exist)
+- [x] After an item is edited out of a collection, created into one or deleted from the drawer, `router.refresh()` updates the open collection page
+- [x] Unit tests for the new query logic; `npm test`, lint and build pass; verified in the browser
 
 ## Notes
 
-<!-- Any extra notes -->
+- **Links already exist.** `CollectionCard` already links to `/collections/${id}` (stretched link), `SidebarNav` already has `href="/collections"` for "View all collections" and `/collections/${id}` for each collection, and the dashboard's "View all" already points at `/collections`. They 404 today only because the pages don't exist, so this feature is mostly the two pages; no link changes expected.
+- **Routes** go under `src/app/(app)/collections/` so they share the authenticated shell (sidebar, top bar, item drawer provider) with `/dashboard` and `/items/[type]`.
+- **Data** (new in `src/lib/db/collections.ts`, server components fetch directly; no API route needed since nothing client-side reads them):
+  - `getCollections()` - every collection for the user, `NEWEST_FIRST`, `COLLECTION_SUMMARY_SELECT`, through the existing `getTypeCounts()` / `summarize()` so cards get their color and type icons. Shares its body with `getRecentCollections()` (which is the same query with a `take`).
+  - `getCollectionWithItems(id)` (or a collection lookup plus an items query) - the collection's header fields scoped by `id` + `userId`, null when not found, and its items via `ItemCollection` with `ITEM_CARD_SELECT` mapped through the existing `toSummary()`.
+  - Both `await connection()` and are uncapped, like `getItemsByType()` (no paging yet).
+- **Scoping (proposed default):** reads go through `getCurrentUserId()` like the dashboard, sidebar and `/items/[type]`, so the pages show exactly the collections the cards and sidebar link to. Writes elsewhere already check the session user.
+- **Item order (proposed default):** item `createdAt` newest first (`NEWEST_FIRST`), matching every other item list. Alternative: by when the item was added to the collection (`ItemCollection.addedAt`).
+- **Cards (proposed default):** `ItemCard` for every type on the collection page, rather than mixing `ImageCard` thumbnails into the grid, since a collection holds mixed types and the requirement says "use the existing cards".
+- **Header actions (proposed default):** none beyond the top bar's existing New Item / New Collection. No edit, delete or favorite controls for collections - those are separate features.
+- The collection id is validated with `z.cuid()` (an `collectionIdSchema`, or reuse `itemIdSchema`'s pattern) before querying.
+- Out of scope: editing/deleting collections, favoriting, removing an item from a collection from the collection page, paging, filtering/sorting, the free tier's 3-collection limit.
 
 ## History
 

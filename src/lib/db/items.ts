@@ -136,7 +136,7 @@ export interface FileItemList {
  * null when there is no current user, which lists nothing.
  */
 async function getTypeListScope(slug: string) {
-  // See getRecentCollections: keeps the list out of the build-time prerender.
+  // Keeps the list out of the build-time prerender.
   await connection();
 
   const [userId, itemType] = await Promise.all([getCurrentUserId(), getItemTypeBySlug(slug)]);
@@ -167,6 +167,30 @@ export async function getItemsByType(slug: string): Promise<ItemTypeList | null>
     : [];
 
   return { typeName: itemType.name, items: items.map(toSummary) };
+}
+
+/**
+ * Every item in the collection at /collections/[id], newest first, as cards.
+ * Scoped to the current user's items, so another user's collection id lists
+ * nothing. Uncapped, like the type lists.
+ */
+export async function getCollectionItems(collectionId: string): Promise<ItemSummary[]> {
+  // Keeps the list out of the build-time prerender.
+  await connection();
+
+  const userId = await getCurrentUserId();
+
+  if (!userId) {
+    return [];
+  }
+
+  const items = await prisma.item.findMany({
+    where: { userId, collections: { some: { collectionId } } },
+    orderBy: [...NEWEST_FIRST],
+    select: ITEM_CARD_SELECT,
+  });
+
+  return items.map(toSummary);
 }
 
 /**

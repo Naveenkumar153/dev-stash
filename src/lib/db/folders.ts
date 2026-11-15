@@ -14,7 +14,7 @@ const FOLDER_REF_SELECT = { id: true, name: true, parentId: true } as const;
  * folders always match the files they hold.
  */
 export async function getFolders(): Promise<FolderEntry[]> {
-  // See getRecentCollections: keeps the list out of the build-time prerender.
+  // Keeps the list out of the build-time prerender.
   await connection();
 
   const userId = await getCurrentUserId();

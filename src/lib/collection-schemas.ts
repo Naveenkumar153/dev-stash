@@ -5,6 +5,9 @@ import {
   COLLECTION_NAME_MAX_LENGTH,
 } from "@/lib/collections";
 
+/** A collection id from a URL: checked before any query. */
+export const collectionIdSchema = z.cuid();
+
 /** New Collection: a name and an optional description, blank saved as null. */
 export const createCollectionSchema = z.object({
   name: z

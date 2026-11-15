@@ -1,10 +1,22 @@
 import { describe, expect, it, vi } from "vitest";
 
-import { createCollection, getCollectionOptions, ownsCollections } from "@/lib/db/collections";
+import {
+  createCollection,
+  getCollection,
+  getCollectionOptions,
+  getCollections,
+  getRecentCollections,
+  ownsCollections,
+} from "@/lib/db/collections";
+import { getAvailableTypes } from "@/lib/db/item-types";
+import { getCurrentUserId } from "@/lib/db/user";
 import { prisma } from "@/lib/prisma";
 
 vi.mock("@/lib/prisma", () => ({
-  prisma: { collection: { create: vi.fn(), findMany: vi.fn(), count: vi.fn() } },
+  prisma: {
+    collection: { create: vi.fn(), findFirst: vi.fn(), findMany: vi.fn(), count: vi.fn() },
+    itemCollection: { groupBy: vi.fn() },
+  },
 }));
 vi.mock("@/lib/db/user", () => ({ getCurrentUserId: vi.fn() }));
 vi.mock("@/lib/db/item-types", () => ({ getAvailableTypes: vi.fn() }));
@@ -76,5 +88,86 @@ describe("ownsCollections", () => {
   it("is true for no collections, without a query", async () => {
     expect(await ownsCollections("user-1", [])).toBe(true);
     expect(prisma.collection.count).not.toHaveBeenCalled();
+  });
+});
+
+const COLLECTION_ID = "cmtg169y00002zzx5wxanksok";
+
+describe("getCollections", () => {
+  it("lists every one of the current user's collections, newest first, with no cap", async () => {
+    vi.mocked(getCurrentUserId).mockResolvedValue("user-1");
+    vi.mocked(getAvailableTypes).mockResolvedValue([{ id: "type-snippet", name: "snippet" }] as never);
+    vi.mocked(prisma.collection.findMany).mockResolvedValue([
+      { id: "col-1", name: "React", description: null, isFavorite: true, _count: { items: 2 } },
+    ] as never);
+    vi.mocked(prisma.itemCollection.groupBy).mockResolvedValue([
+      { collectionId: "col-1", _count: { _all: 2 } },
+    ] as never);
+
+    const result = await getCollections();
+
+    expect(prisma.collection.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId: "user-1" },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        take: undefined,
+      }),
+    );
+    expect(result).toEqual([
+      {
+        id: "col-1",
+        name: "React",
+        description: null,
+        isFavorite: true,
+        itemCount: 2,
+        dominantTypeName: "snippet",
+        typeNames: ["snippet"],
+      },
+    ]);
+  });
+
+  it("lists nothing, without a query, when there is no current user", async () => {
+    vi.mocked(getCurrentUserId).mockResolvedValue(null);
+
+    expect(await getCollections()).toEqual([]);
+    expect(prisma.collection.findMany).not.toHaveBeenCalled();
+  });
+
+  it("leaves the dashboard's recent list capped", async () => {
+    vi.mocked(getCurrentUserId).mockResolvedValue("user-1");
+    vi.mocked(getAvailableTypes).mockResolvedValue([]);
+    vi.mocked(prisma.collection.findMany).mockResolvedValue([]);
+
+    await getRecentCollections();
+
+    expect(prisma.collection.findMany).toHaveBeenCalledWith(expect.objectContaining({ take: 6 }));
+  });
+});
+
+describe("getCollection", () => {
+  it("looks the collection up by id among the current user's only", async () => {
+    vi.mocked(getCurrentUserId).mockResolvedValue("user-1");
+    const header = { id: COLLECTION_ID, name: "React", description: "Hooks", isFavorite: false };
+    vi.mocked(prisma.collection.findFirst).mockResolvedValue(header as never);
+
+    expect(await getCollection(COLLECTION_ID)).toEqual(header);
+    expect(prisma.collection.findFirst).toHaveBeenCalledWith({
+      where: { id: COLLECTION_ID, userId: "user-1" },
+      select: { id: true, name: true, description: true, isFavorite: true },
+    });
+  });
+
+  it("returns null for a missing or another user's collection", async () => {
+    vi.mocked(getCurrentUserId).mockResolvedValue("user-1");
+    vi.mocked(prisma.collection.findFirst).mockResolvedValue(null);
+
+    expect(await getCollection(COLLECTION_ID)).toBeNull();
+  });
+
+  it("returns null, without a query, when there is no current user", async () => {
+    vi.mocked(getCurrentUserId).mockResolvedValue(null);
+
+    expect(await getCollection(COLLECTION_ID)).toBeNull();
+    expect(prisma.collection.findFirst).not.toHaveBeenCalled();
   });
 });
