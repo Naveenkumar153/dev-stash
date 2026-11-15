@@ -5,6 +5,7 @@ import {
   createFileItem,
   createItem,
   deleteItem,
+  getCollectionItems,
   getFileListItems,
   getItemFile,
   updateItem,
@@ -525,6 +526,47 @@ describe("getFileListItems", () => {
     vi.mocked(getItemTypeBySlug).mockResolvedValue(null);
 
     expect(await getFileListItems()).toBeNull();
+    expect(prisma.item.findMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("getCollectionItems", () => {
+  const COLLECTION_ID = "cmtg169y00003zzx5wxanksok";
+
+  it("lists the current user's items in the collection, newest first, as cards", async () => {
+    vi.mocked(getCurrentUserId).mockResolvedValue("user-1");
+    vi.mocked(prisma.item.findMany).mockResolvedValue([
+      {
+        id: ITEM_ID,
+        title: "useDebounce hook",
+        description: null,
+        isPinned: false,
+        isFavorite: false,
+        fileName: null,
+        createdAt: new Date("2026-11-01T00:00:00.000Z"),
+        itemType: { name: "snippet" },
+        tags: [{ name: "hooks" }, { name: "react" }],
+      },
+    ] as never);
+
+    const items = await getCollectionItems(COLLECTION_ID);
+
+    expect(prisma.item.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId: "user-1", collections: { some: { collectionId: COLLECTION_ID } } },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      }),
+    );
+    expect(items).toEqual([
+      expect.objectContaining({ id: ITEM_ID, typeName: "snippet", tags: ["hooks", "react"] }),
+    ]);
+    expect(items[0]).not.toHaveProperty("itemType");
+  });
+
+  it("lists nothing, without a query, when there is no current user", async () => {
+    vi.mocked(getCurrentUserId).mockResolvedValue(null);
+
+    expect(await getCollectionItems(COLLECTION_ID)).toEqual([]);
     expect(prisma.item.findMany).not.toHaveBeenCalled();
   });
 });
