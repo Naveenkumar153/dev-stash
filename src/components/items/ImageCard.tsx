@@ -7,6 +7,7 @@ import { Card } from "@/components/ui/card";
 import type { ItemSummary } from "@/lib/db/items";
 import { getItemFileUrl, isImageFileName } from "@/lib/file-upload";
 import { formatShortDate } from "@/lib/format";
+import { toDrawerSummary } from "@/lib/item-summary";
 import { getItemTypeStyleByName } from "@/lib/item-types";
 import { cn } from "@/lib/utils";
 
@@ -39,7 +40,7 @@ export function ImageCard({ item }: Readonly<{ item: ItemSummary }>) {
       <div className="flex flex-col gap-3 p-4">
         <div className="flex items-center gap-2">
           <h3 className="flex min-w-0 flex-1 items-center gap-2 font-heading text-base font-medium">
-            <OpenItemButton item={item} className="truncate">
+            <OpenItemButton item={toDrawerSummary(item)} className="truncate">
               {item.title}
             </OpenItemButton>
             {item.isPinned && (

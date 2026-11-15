@@ -15,7 +15,7 @@ import {
   DialogHeader,
   DialogTitle,
 } from "@/components/ui/dialog";
-import { FOLDER_NAME_MAX_LENGTH } from "@/lib/folder-schemas";
+import { FOLDER_NAME_MAX_LENGTH } from "@/lib/folders";
 import type { FolderResult } from "@/types/folders";
 
 interface FolderNameDialogProps {

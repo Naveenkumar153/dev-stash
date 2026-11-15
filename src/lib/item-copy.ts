@@ -1,7 +1,7 @@
 import { CopyTextError } from "@/lib/clipboard";
-import type { ItemDetail, ItemDetailResponse } from "@/types/items";
+import { fetchItemDetail } from "@/lib/item-request";
+import type { ItemDetail } from "@/types/items";
 
-const LOAD_FAILED = "Couldn't load this item. Please try again.";
 const NOTHING_TO_COPY = "This item has nothing to copy.";
 
 /** What copying an item puts on the clipboard: a link's URL, otherwise its text content. */
@@ -15,22 +15,12 @@ export function getItemCopyText(item: ItemDetail) {
  * has nothing to copy, such as a file item.
  */
 export async function fetchItemCopyText(id: string): Promise<string> {
-  let response: Response;
-  let body: ItemDetailResponse;
-
-  try {
-    response = await fetch(`/api/items/${encodeURIComponent(id)}`, { cache: "no-store" });
-    body = (await response.json()) as ItemDetailResponse;
-  } catch {
-    // Offline, or a reply that isn't JSON.
-    throw new CopyTextError(LOAD_FAILED);
+  const result = await fetchItemDetail(id);
+  if (!result.ok) {
+    throw new CopyTextError(result.message);
   }
 
-  if (!response.ok || !body.data) {
-    throw new CopyTextError(body.error ?? LOAD_FAILED);
-  }
-
-  const text = getItemCopyText(body.data);
+  const text = getItemCopyText(result.item);
   if (!text) {
     throw new CopyTextError(NOTHING_TO_COPY);
   }

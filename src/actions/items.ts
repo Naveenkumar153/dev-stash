@@ -1,7 +1,12 @@
 "use server";
 
-import { auth } from "@/auth";
-import { getFieldErrors, type FieldErrors } from "@/lib/auth-schemas";
+import {
+  ITEM_CREATE_FAILED,
+  ITEM_NOT_FOUND,
+  SESSION_EXPIRED,
+  getFieldErrors,
+  type FieldErrors,
+} from "@/lib/action-result";
 import {
   createItem as createItemRecord,
   deleteItem as deleteItemRecord,
@@ -9,16 +14,15 @@ import {
 } from "@/lib/db/items";
 import {
   createItemSchema,
+  URL_REQUIRED,
   itemIdSchema,
   updateItemSchema,
   type CreateItemInput,
   type UpdateItemInput,
 } from "@/lib/item-schemas";
+import { getSessionUserId } from "@/lib/session";
 import { discardStoredFiles } from "@/lib/stored-files";
 import type { CreateItemResult, DeleteItemResult, UpdateItemResult } from "@/types/items";
-
-const NOT_FOUND = "This item doesn't exist or has been deleted.";
-const SESSION_EXPIRED = "Your session has expired. Sign in again.";
 
 function failure(error: string, fieldErrors: FieldErrors = {}): UpdateItemResult {
   return { success: false, data: null, error, fieldErrors };
@@ -30,8 +34,8 @@ function failure(error: string, fieldErrors: FieldErrors = {}): UpdateItemResult
  * doesn't use are dropped by the query.
  */
 export async function createItem(data: CreateItemInput): Promise<CreateItemResult> {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await getSessionUserId();
+  if (!userId) {
     return failure(SESSION_EXPIRED);
   }
 
@@ -41,7 +45,7 @@ export async function createItem(data: CreateItemInput): Promise<CreateItemResul
   }
 
   try {
-    const item = await createItemRecord(session.user.id, parsed.data);
+    const item = await createItemRecord(userId, parsed.data);
     if (!item) {
       return failure("This item type isn't available.");
     }
@@ -49,7 +53,7 @@ export async function createItem(data: CreateItemInput): Promise<CreateItemResul
     return { success: true, data: item, error: null, fieldErrors: {} };
   } catch (error) {
     console.error("Creating item failed", error);
-    return failure("Couldn't create this item. Please try again.");
+    return failure(ITEM_CREATE_FAILED);
   }
 }
 
@@ -63,13 +67,13 @@ export async function updateItem(
   itemId: string,
   data: UpdateItemInput,
 ): Promise<UpdateItemResult> {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await getSessionUserId();
+  if (!userId) {
     return failure(SESSION_EXPIRED);
   }
 
   if (!itemIdSchema.safeParse(itemId).success) {
-    return failure(NOT_FOUND);
+    return failure(ITEM_NOT_FOUND);
   }
 
   const parsed = updateItemSchema.safeParse(data);
@@ -78,12 +82,15 @@ export async function updateItem(
   }
 
   try {
-    const item = await updateItemRecord(itemId, session.user.id, parsed.data);
-    if (!item) {
-      return failure(NOT_FOUND);
+    const outcome = await updateItemRecord(itemId, userId, parsed.data);
+    if (outcome.status === "not-found") {
+      return failure(ITEM_NOT_FOUND);
+    }
+    if (outcome.status === "url-required") {
+      return failure(URL_REQUIRED, { url: URL_REQUIRED });
     }
 
-    return { success: true, data: item, error: null, fieldErrors: {} };
+    return { success: true, data: outcome.item, error: null, fieldErrors: {} };
   } catch (error) {
     console.error("Updating item failed", error);
     return failure("Couldn't save your changes. Please try again.");
@@ -101,25 +108,25 @@ function deleteFailure(error: string): DeleteItemResult {
  * first, so a failure can never leave an item pointing at a missing file.
  */
 export async function deleteItem(itemId: string): Promise<DeleteItemResult> {
-  const session = await auth();
-  if (!session?.user?.id) {
+  const userId = await getSessionUserId();
+  if (!userId) {
     return deleteFailure(SESSION_EXPIRED);
   }
 
   if (!itemIdSchema.safeParse(itemId).success) {
-    return deleteFailure(NOT_FOUND);
+    return deleteFailure(ITEM_NOT_FOUND);
   }
 
   let deleted;
   try {
-    deleted = await deleteItemRecord(itemId, session.user.id);
+    deleted = await deleteItemRecord(itemId, userId);
   } catch (error) {
     console.error("Deleting item failed", error);
     return deleteFailure("Couldn't delete this item. Please try again.");
   }
 
   if (!deleted) {
-    return deleteFailure(NOT_FOUND);
+    return deleteFailure(ITEM_NOT_FOUND);
   }
 
   // The row is already gone, so a failure here only leaves an unreachable file.

@@ -4,8 +4,9 @@
  * Dry run (counts only):  npm run db:reset-users
  * Delete for real:        npm run db:reset-users -- --confirm
  *
- * Removes each other user's items, collections, custom item types, accounts,
- * sessions and verification tokens, plus any tag left with no items. The demo
+ * Removes each other user's items, folders, collections, custom item types,
+ * accounts, sessions, verification and password-reset tokens, plus any tag
+ * left with no items, then each user's uploads from R2. The demo
  * user (`demo@devstash.io`) and its rows are untouched, as are system item
  * types. Point this at the development branch only, never production.
  */
@@ -17,6 +18,8 @@ import { readFileSync } from "node:fs";
 
 import { parse } from "dotenv";
 
+import { discardUserFiles } from "@/lib/stored-files";
+
 /**
  * Imported lazily: the client singleton connects as soon as the module is
  * evaluated, so this has to happen after the target has been checked.
@@ -24,6 +27,12 @@ import { parse } from "dotenv";
 async function loadPrisma() {
   const { prisma } = await import("@/lib/prisma");
   return prisma;
+}
+
+/** Imported lazily for the same reason: the module loads the Prisma client. */
+async function loadResetIdentifier() {
+  const { resetIdentifier } = await import("@/lib/password-reset");
+  return resetIdentifier;
 }
 
 type Db = Awaited<ReturnType<typeof loadPrisma>>;
@@ -96,23 +105,30 @@ async function main(): Promise<void> {
     const userIds = users.map((user) => user.id);
     const emails = users.map((user) => user.email);
     const owned = { userId: { in: userIds } };
+    // Verification tokens use the bare email; reset tokens a prefixed one.
+    const resetIdentifier = await loadResetIdentifier();
+    const tokenIdentifiers = { in: emails.flatMap((email) => [email, resetIdentifier(email)]) };
 
-    const [items, collections, itemTypes, accounts, sessions, tokens] = await Promise.all([
-      db.item.count({ where: owned }),
-      db.collection.count({ where: owned }),
-      db.itemType.count({ where: owned }),
-      db.account.count({ where: owned }),
-      db.session.count({ where: owned }),
-      db.verificationToken.count({ where: { identifier: { in: emails } } }),
-    ]);
+    const [items, files, folders, collections, itemTypes, accounts, sessions, tokens] =
+      await Promise.all([
+        db.item.count({ where: owned }),
+        db.item.count({ where: { ...owned, fileUrl: { not: null } } }),
+        db.folder.count({ where: owned }),
+        db.collection.count({ where: owned }),
+        db.itemType.count({ where: owned }),
+        db.account.count({ where: owned }),
+        db.session.count({ where: owned }),
+        db.verificationToken.count({ where: { identifier: tokenIdentifiers } }),
+      ]);
 
     console.log(`\nUsers to delete (${users.length}):`);
     for (const email of emails) {
       console.log(`  - ${email}`);
     }
     console.log(
-      `\nWith ${items} items, ${collections} collections, ${itemTypes} custom item types, ` +
-        `${accounts} accounts, ${sessions} sessions and ${tokens} verification tokens.`,
+      `\nWith ${items} items (${files} with a stored file), ${folders} folders, ` +
+        `${collections} collections, ${itemTypes} custom item types, ${accounts} accounts, ` +
+        `${sessions} sessions and ${tokens} verification and reset tokens.`,
     );
 
     if (!confirmed) {
@@ -125,16 +141,23 @@ async function main(): Promise<void> {
     // type while its items still exist would be rejected.
     const [, deletedTokens, deletedUsers, deletedTags] = await db.$transaction([
       db.item.deleteMany({ where: owned }),
-      db.verificationToken.deleteMany({ where: { identifier: { in: emails } } }),
-      // Cascades to collections, their join rows, custom types, accounts and sessions.
+      db.verificationToken.deleteMany({ where: { identifier: tokenIdentifiers } }),
+      // Cascades to folders, collections, their join rows, custom types,
+      // accounts and sessions.
       db.user.deleteMany({ where: { id: { in: userIds } } }),
       // Tags are global, so only the ones no remaining item uses go.
       db.tag.deleteMany({ where: { items: { none: {} } } }),
     ]);
 
+    // R2 isn't part of the transaction, so the uploads go once their rows are
+    // gone. Best effort: a failure is logged per file and doesn't stop the rest.
+    for (const userId of userIds) {
+      await discardUserFiles(userId);
+    }
+
     console.log(
-      `\n✓ Deleted ${deletedUsers.count} users, ${deletedTokens.count} verification tokens ` +
-        `and ${deletedTags.count} orphaned tags. ${DEMO_EMAIL} kept.`,
+      `\n✓ Deleted ${deletedUsers.count} users, ${deletedTokens.count} verification and reset ` +
+        `tokens, ${deletedTags.count} orphaned tags and their stored files. ${DEMO_EMAIL} kept.`,
     );
   } finally {
     await db.$disconnect();

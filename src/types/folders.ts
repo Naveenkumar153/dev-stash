@@ -1,4 +1,4 @@
-import type { FieldErrors } from "@/lib/auth-schemas";
+import type { FieldErrors } from "@/lib/action-result";
 
 /** A folder as the folder actions return it. */
 export interface FolderRef {

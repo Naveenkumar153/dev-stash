@@ -7,7 +7,7 @@ import { changePassword } from "@/actions/profile";
 import { FormField } from "@/components/auth/FormField";
 import { FormMessage } from "@/components/auth/FormMessage";
 import { Button } from "@/components/ui/button";
-import type { FieldErrors } from "@/lib/auth-schemas";
+import type { FieldErrors } from "@/lib/action-result";
 
 export function ChangePasswordForm() {
   const [pending, startTransition] = useTransition();

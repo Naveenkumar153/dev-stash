@@ -13,7 +13,7 @@ import {
   type ItemFormValues,
 } from "@/components/items/ItemFormFields";
 import { Button } from "@/components/ui/button";
-import type { FieldErrors } from "@/lib/auth-schemas";
+import type { FieldErrors } from "@/lib/action-result";
 import { getContentEditorKind, getEditableItemFields } from "@/lib/item-types";
 import type { ItemDetail } from "@/types/items";
 

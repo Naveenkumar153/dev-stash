@@ -1,11 +1,11 @@
 "use client";
 
 import { useItemDrawer } from "@/components/items/ItemDrawerProvider";
-import type { ItemSummary } from "@/lib/db/items";
 import { cn } from "@/lib/utils";
+import type { ItemDrawerSummary } from "@/types/items";
 
 interface OpenItemButtonProps {
-  item: ItemSummary;
+  item: ItemDrawerSummary;
   className?: string;
   children: React.ReactNode;
 }

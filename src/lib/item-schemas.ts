@@ -1,7 +1,10 @@
 import { z } from "zod";
 
 import { folderIdSchema } from "@/lib/folder-schemas";
-import { FILE_ITEM_TYPES, NON_FILE_ITEM_TYPES, getEditableItemFields } from "@/lib/item-types";
+import { FILE_ITEM_TYPES, NON_FILE_ITEM_TYPES, requiresUrl } from "@/lib/item-types";
+
+/** A link saved, or edited, without its URL. */
+export const URL_REQUIRED = "URL is required";
 
 /** Item ids are Prisma cuids, so anything else can't match a row. */
 export const itemIdSchema = z.cuid();
@@ -65,8 +68,8 @@ export const createItemSchema = updateItemSchema
   .extend({
     typeName: z.enum(NON_FILE_ITEM_TYPES, { error: "Choose an item type" }),
   })
-  .refine((data) => !getEditableItemFields(data.typeName).url || data.url !== null, {
-    message: "URL is required",
+  .refine((data) => !requiresUrl(data.typeName) || data.url !== null, {
+    message: URL_REQUIRED,
     path: ["url"],
   });
 
@@ -97,16 +100,3 @@ export type CreateFileItemInput = z.input<typeof createFileItemSchema>;
 
 /** The validated, normalized fields the file-item query writes. */
 export type CreateFileItemData = z.output<typeof createFileItemSchema>;
-
-/**
- * The edit form's comma-separated tags as names: trimmed, blanks dropped and
- * each kept once, in the order typed. "react, hooks, , react" -> ["react", "hooks"]
- */
-export function parseTagInput(input: string): string[] {
-  const names = input
-    .split(",")
-    .map((name) => name.trim())
-    .filter(Boolean);
-
-  return [...new Set(names)];
-}

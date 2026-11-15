@@ -219,6 +219,14 @@ export function getEditableItemFields(name: string): EditableItemFields {
   };
 }
 
+/**
+ * Whether an item of this type can't be saved without a URL, e.g. a link.
+ * Creating and editing share it, so a link can't lose its URL on either path.
+ */
+export function requiresUrl(name: string): boolean {
+  return URL_TYPE_NAMES.has(name.toLowerCase());
+}
+
 /** "snippet" -> "Snippet". Type names are stored lowercase in the database. */
 export function getItemTypeLabel(name: string) {
   return name.charAt(0).toUpperCase() + name.slice(1);

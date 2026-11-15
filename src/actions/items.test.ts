@@ -62,7 +62,7 @@ const saved: ItemDetail = {
 describe("updateItem", () => {
   beforeEach(() => {
     signInAs("user-1");
-    vi.mocked(updateItemRecord).mockResolvedValue(saved);
+    vi.mocked(updateItemRecord).mockResolvedValue({ status: "saved", item: saved });
   });
 
   it("saves the normalized payload for the signed-in user and returns the item", async () => {
@@ -112,13 +112,24 @@ describe("updateItem", () => {
   });
 
   it("reports someone else's item, or a missing one, as not found", async () => {
-    vi.mocked(updateItemRecord).mockResolvedValue(null);
+    vi.mocked(updateItemRecord).mockResolvedValue({ status: "not-found" });
 
     expect(await updateItem(ITEM_ID, input)).toEqual({
       success: false,
       data: null,
       error: NOT_FOUND,
       fieldErrors: {},
+    });
+  });
+
+  it("shows a link losing its URL as an error on the URL field", async () => {
+    vi.mocked(updateItemRecord).mockResolvedValue({ status: "url-required" });
+
+    expect(await updateItem(ITEM_ID, { ...input, url: "" })).toEqual({
+      success: false,
+      data: null,
+      error: "URL is required",
+      fieldErrors: { url: "URL is required" },
     });
   });
 

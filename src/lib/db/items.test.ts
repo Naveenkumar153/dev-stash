@@ -5,10 +5,11 @@ import {
   createFileItem,
   createItem,
   deleteItem,
+  getFileListItems,
   getItemFile,
-  getUserFileKeys,
   updateItem,
 } from "@/lib/db/items";
+import { getItemTypeBySlug } from "@/lib/db/item-types";
 import { getCurrentUserId } from "@/lib/db/user";
 import type { CreateFileItemData, CreateItemData, UpdateItemData } from "@/lib/item-schemas";
 import { prisma } from "@/lib/prisma";
@@ -23,6 +24,8 @@ vi.mock("@/lib/prisma", () => ({
 // here use neither module, and mocking them keeps the session out of the test.
 vi.mock("@/lib/db/user", () => ({ getCurrentUserId: vi.fn() }));
 vi.mock("@/lib/db/item-types", () => ({ getAvailableTypes: vi.fn(), getItemTypeBySlug: vi.fn() }));
+// The list queries wait for a request so they stay out of the build-time prerender.
+vi.mock("next/server", () => ({ connection: vi.fn() }));
 
 const ITEM_ID = "cmtg169y00002zzx5wxanksok";
 
@@ -74,10 +77,10 @@ describe("updateItem", () => {
     vi.mocked(prisma.item.update).mockResolvedValue(savedRow as never);
   });
 
-  it("returns null without writing when the item isn't the user's", async () => {
+  it("reports not-found without writing when the item isn't the user's", async () => {
     vi.mocked(prisma.item.findFirst).mockResolvedValue(null);
 
-    expect(await updateItem(ITEM_ID, "user-1", data)).toBeNull();
+    expect(await updateItem(ITEM_ID, "user-1", data)).toEqual({ status: "not-found" });
     expect(prisma.item.findFirst).toHaveBeenCalledWith({
       where: { id: ITEM_ID, userId: "user-1" },
       select: { itemType: { select: { name: true } } },
@@ -156,28 +159,48 @@ describe("updateItem", () => {
     expect(writtenData()?.tags).toEqual({ set: [], connectOrCreate: [] });
   });
 
+  it("refuses to clear a link's URL, without writing", async () => {
+    ownItemOfType("link");
+
+    expect(await updateItem(ITEM_ID, "user-1", { ...data, url: null })).toEqual({
+      status: "url-required",
+    });
+    expect(prisma.item.update).not.toHaveBeenCalled();
+  });
+
+  it("saves a type that doesn't need a URL without one", async () => {
+    ownItemOfType("snippet");
+
+    expect(await updateItem(ITEM_ID, "user-1", { ...data, url: null })).toMatchObject({
+      status: "saved",
+    });
+  });
+
   it("returns the saved item as the drawer shows it", async () => {
     ownItemOfType("snippet");
 
     expect(await updateItem(ITEM_ID, "user-1", data)).toEqual({
-      id: ITEM_ID,
-      title: "useDebounce hook",
-      description: "Delays a changing value",
-      contentType: "text",
-      content: "export function useDebounce() {}",
-      url: null,
-      language: "typescript",
-      isPinned: true,
-      isFavorite: false,
-      typeName: "snippet",
-      tags: ["hooks", "react"],
-      collections: [{ id: "col-1", name: "React Patterns" }],
-      createdAt: "2026-08-30T10:00:00.000Z",
-      updatedAt: "2026-11-10T12:30:00.000Z",
+      status: "saved",
+      item: {
+        id: ITEM_ID,
+        title: "useDebounce hook",
+        description: "Delays a changing value",
+        contentType: "text",
+        content: "export function useDebounce() {}",
+        url: null,
+        language: "typescript",
+        isPinned: true,
+        isFavorite: false,
+        typeName: "snippet",
+        tags: ["hooks", "react"],
+        collections: [{ id: "col-1", name: "React Patterns" }],
+        createdAt: "2026-08-30T10:00:00.000Z",
+        updatedAt: "2026-11-10T12:30:00.000Z",
+      },
     });
   });
 
-  it("returns null when the item is deleted between the lookup and the write", async () => {
+  it("reports not-found when the item is deleted between the lookup and the write", async () => {
     ownItemOfType("snippet");
     vi.mocked(prisma.item.update).mockRejectedValue(
       new Prisma.PrismaClientKnownRequestError("Record to update not found.", {
@@ -186,7 +209,7 @@ describe("updateItem", () => {
       }),
     );
 
-    expect(await updateItem(ITEM_ID, "user-1", data)).toBeNull();
+    expect(await updateItem(ITEM_ID, "user-1", data)).toEqual({ status: "not-found" });
   });
 
   it("rethrows any other database error", async () => {
@@ -429,17 +452,58 @@ describe("getItemFile", () => {
   });
 });
 
-describe("getUserFileKeys", () => {
-  it("lists the storage key of every one of the user's file items", async () => {
-    vi.mocked(prisma.item.findMany).mockResolvedValue([
-      { fileUrl: "user-1/a-diagram.png" },
-      { fileUrl: "user-1/b-notes.md" },
-    ] as never);
+describe("getFileListItems", () => {
+  const fileType = { id: "type-file", name: "file" };
 
-    expect(await getUserFileKeys("user-1")).toEqual(["user-1/a-diagram.png", "user-1/b-notes.md"]);
-    expect(prisma.item.findMany).toHaveBeenCalledWith({
-      where: { userId: "user-1", fileUrl: { not: null } },
-      select: { fileUrl: true },
+  it("lists the current user's files with the row fields only, named by their type", async () => {
+    vi.mocked(getCurrentUserId).mockResolvedValue("user-1");
+    vi.mocked(getItemTypeBySlug).mockResolvedValue(fileType as never);
+    const row = {
+      id: ITEM_ID,
+      title: "Release notes",
+      isPinned: false,
+      isFavorite: true,
+      fileName: "notes.pdf",
+      fileSize: 2048,
+      folderId: "folder-1",
+      createdAt: new Date("2026-11-01T00:00:00.000Z"),
+    };
+    vi.mocked(prisma.item.findMany).mockResolvedValue([row] as never);
+
+    expect(await getFileListItems()).toEqual({
+      typeName: "file",
+      items: [{ ...row, typeName: "file" }],
     });
+    expect(getItemTypeBySlug).toHaveBeenCalledWith("files");
+    expect(prisma.item.findMany).toHaveBeenCalledWith({
+      where: { userId: "user-1", itemTypeId: "type-file" },
+      orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      select: {
+        id: true,
+        title: true,
+        isPinned: true,
+        isFavorite: true,
+        fileName: true,
+        fileSize: true,
+        folderId: true,
+        createdAt: true,
+      },
+    });
+  });
+
+  it("lists nothing, without a query, when there's no current user", async () => {
+    vi.mocked(getCurrentUserId).mockResolvedValue(null);
+    vi.mocked(getItemTypeBySlug).mockResolvedValue(fileType as never);
+
+    expect(await getFileListItems()).toEqual({ typeName: "file", items: [] });
+    expect(prisma.item.findMany).not.toHaveBeenCalled();
+  });
+
+  it("returns null when the file type isn't in the database, so the page can 404", async () => {
+    vi.mocked(getCurrentUserId).mockResolvedValue("user-1");
+    vi.mocked(getItemTypeBySlug).mockResolvedValue(null);
+
+    expect(await getFileListItems()).toBeNull();
+    expect(prisma.item.findMany).not.toHaveBeenCalled();
   });
 });

@@ -2,9 +2,8 @@
 
 import { useCallback, useEffect, useRef, useState } from "react";
 
-import type { ItemDetail, ItemDetailResponse } from "@/types/items";
-
-const LOAD_FAILED = "Couldn't load this item. Please try again.";
+import { fetchItemDetail } from "@/lib/item-request";
+import type { ItemDetail } from "@/types/items";
 
 export type ItemDetailState =
   | { status: "idle" }
@@ -29,27 +28,17 @@ export function useItemDetail() {
     controllerRef.current = controller;
     setDetail({ status: "loading" });
 
-    try {
-      const response = await fetch(`/api/items/${encodeURIComponent(id)}`, {
-        cache: "no-store",
-        signal: controller.signal,
-      });
-      const body = (await response.json()) as ItemDetailResponse;
-      if (controller.signal.aborted) {
-        return;
-      }
-
-      setDetail(
-        response.ok && body.data
-          ? { status: "ready", item: body.data }
-          : { status: "error", message: body.error ?? LOAD_FAILED },
-      );
-    } catch {
-      // Aborted on purpose: a newer load owns the state now.
-      if (!controller.signal.aborted) {
-        setDetail({ status: "error", message: LOAD_FAILED });
-      }
+    const result = await fetchItemDetail(id, { signal: controller.signal });
+    // Aborted on purpose: a newer load, or a replace, owns the state now.
+    if (controller.signal.aborted) {
+      return;
     }
+
+    setDetail(
+      result.ok
+        ? { status: "ready", item: result.item }
+        : { status: "error", message: result.message },
+    );
   }, []);
 
   /**

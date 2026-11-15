@@ -1,10 +1,7 @@
 import { z } from "zod";
 
-export const FOLDER_NAME_MAX_LENGTH = 100;
-
-export const FOLDER_NOT_FOUND = "This folder doesn't exist or has been deleted.";
-
-export const FILE_NOT_FOUND = "This file doesn't exist or has been deleted.";
+import { FILE_NOT_FOUND, FOLDER_NOT_FOUND } from "@/lib/action-result";
+import { FOLDER_NAME_MAX_LENGTH } from "@/lib/folders";
 
 /**
  * Folder ids are Prisma cuids, so anything else can't match a row and fails

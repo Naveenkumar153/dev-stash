@@ -17,21 +17,30 @@ import { UserAvatar } from "@/components/user/UserAvatar";
 import { SIGN_IN_PATH } from "@/lib/auth-redirect";
 import { getProfileStats, getProfileUser } from "@/lib/db/profile";
 import { formatLongDate } from "@/lib/format";
+import { getSessionUserId } from "@/lib/session";
 
 export const metadata: Metadata = {
   title: "Profile | DevStash",
 };
 
+const SIGN_IN_TO_PROFILE = `${SIGN_IN_PATH}?callbackUrl=%2Fprofile`;
+
 export default async function ProfilePage() {
-  const user = await getProfileUser();
+  // The stats only need the session's id, so they load alongside the user row
+  // instead of after it.
+  const userId = await getSessionUserId();
+  if (!userId) {
+    redirect(SIGN_IN_TO_PROFILE);
+  }
+
+  const [user, stats] = await Promise.all([getProfileUser(), getProfileStats(userId)]);
 
   // The proxy already redirects signed-out requests; this also catches a
   // still-valid session whose user row has been deleted.
   if (!user) {
-    redirect(`${SIGN_IN_PATH}?callbackUrl=%2Fprofile`);
+    redirect(SIGN_IN_TO_PROFILE);
   }
 
-  const stats = await getProfileStats(user.id);
   const displayName = user.name ?? user.email;
 
   return (
