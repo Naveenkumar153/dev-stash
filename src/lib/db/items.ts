@@ -10,12 +10,17 @@ import {
   getItemTypeSlug,
   requiresUrl,
 } from "@/lib/item-types";
+import {
+  DASHBOARD_RECENT_ITEMS_LIMIT,
+  getPageSkip,
+  ITEMS_PER_PAGE,
+  type Page,
+} from "@/lib/pagination";
 import { prisma } from "@/lib/prisma";
 import { getItemPreview } from "@/lib/search";
 import type { FileListItem, ItemDetail, ItemDrawerSummary } from "@/types/items";
 import type { SearchItem } from "@/types/search";
 
-const RECENT_ITEM_LIMIT = 10;
 const PINNED_ITEM_LIMIT = 10;
 
 export interface ItemSummary extends ItemDrawerSummary {
@@ -100,7 +105,7 @@ export async function getPinnedItems(
 
 /** The latest items, newest first. */
 export async function getRecentItems(
-  limit = RECENT_ITEM_LIMIT,
+  limit = DASHBOARD_RECENT_ITEMS_LIMIT,
 ): Promise<ItemSummary[]> {
   await connection();
 
@@ -123,7 +128,10 @@ export async function getRecentItems(
 export interface ItemTypeList {
   /** Item type name, e.g. "snippet" - drives the heading, icon and colors. */
   typeName: string;
+  /** The requested page of the type's items. */
   items: ItemSummary[];
+  /** Every item of the type, for the header count and the page links. */
+  total: number;
 }
 
 export interface FileItemList {
@@ -147,52 +155,68 @@ async function getTypeListScope(slug: string) {
 }
 
 /**
- * Every item of the type whose list lives at `/items/${slug}`, newest first.
- * Null when no available type has that slug, so the route can 404.
- *
- * Not capped: a cap without "load more" would silently hide items. That
- * holds while lists stay small; paging is a feature of its own.
+ * One page of the items matching `where`, newest first, as cards, with the
+ * count of every match. The page and the count go out together.
  */
-export async function getItemsByType(slug: string): Promise<ItemTypeList | null> {
+async function getItemPage(
+  where: Prisma.ItemWhereInput,
+  page: number,
+): Promise<Page<ItemSummary>> {
+  const [rows, total] = await Promise.all([
+    prisma.item.findMany({
+      where,
+      orderBy: [...NEWEST_FIRST],
+      skip: getPageSkip(page, ITEMS_PER_PAGE),
+      take: ITEMS_PER_PAGE,
+      select: ITEM_CARD_SELECT,
+    }),
+    prisma.item.count({ where }),
+  ]);
+
+  return { rows: rows.map(toSummary), total };
+}
+
+/**
+ * Page `page` (1-based) of the items of the type whose list lives at
+ * `/items/${slug}`, newest first, plus how many there are in all. Null when
+ * no available type has that slug, so the route can 404.
+ */
+export async function getItemsByType(
+  slug: string,
+  page: number,
+): Promise<ItemTypeList | null> {
   const scope = await getTypeListScope(slug);
   if (!scope) {
     return null;
   }
 
   const { userId, itemType } = scope;
-  const items = userId
-    ? await prisma.item.findMany({
-        where: { userId, itemTypeId: itemType.id },
-        orderBy: [...NEWEST_FIRST],
-        select: ITEM_CARD_SELECT,
-      })
-    : [];
+  const { rows, total } = userId
+    ? await getItemPage({ userId, itemTypeId: itemType.id }, page)
+    : { rows: [], total: 0 };
 
-  return { typeName: itemType.name, items: items.map(toSummary) };
+  return { typeName: itemType.name, items: rows, total };
 }
 
 /**
- * Every item in the collection at /collections/[id], newest first, as cards.
- * Scoped to the current user's items, so another user's collection id lists
- * nothing. Uncapped, like the type lists.
+ * Page `page` (1-based) of the items in the collection at /collections/[id],
+ * newest first, as cards, plus how many there are in all. Scoped to the
+ * current user's items, so another user's collection id lists nothing.
  */
-export async function getCollectionItems(collectionId: string): Promise<ItemSummary[]> {
+export async function getCollectionItems(
+  collectionId: string,
+  page: number,
+): Promise<Page<ItemSummary>> {
   // Keeps the list out of the build-time prerender.
   await connection();
 
   const userId = await getCurrentUserId();
 
   if (!userId) {
-    return [];
+    return { rows: [], total: 0 };
   }
 
-  const items = await prisma.item.findMany({
-    where: { userId, collections: { some: { collectionId } } },
-    orderBy: [...NEWEST_FIRST],
-    select: ITEM_CARD_SELECT,
-  });
-
-  return items.map(toSummary);
+  return getItemPage({ userId, collections: { some: { collectionId } } }, page);
 }
 
 /**

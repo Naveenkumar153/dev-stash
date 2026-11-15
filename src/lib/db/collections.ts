@@ -5,10 +5,15 @@ import type { CreateCollectionData, UpdateCollectionData } from "@/lib/collectio
 import { getAvailableTypes, type ItemTypeRow } from "@/lib/db/item-types";
 import { getCurrentUserId } from "@/lib/db/user";
 import { compareItemTypeOrder } from "@/lib/item-types";
+import {
+  COLLECTIONS_PER_PAGE,
+  DASHBOARD_COLLECTIONS_LIMIT,
+  getPageSkip,
+  type Page,
+} from "@/lib/pagination";
 import { prisma } from "@/lib/prisma";
 import type { CollectionOption } from "@/types/collections";
 
-const RECENT_COLLECTION_LIMIT = 6;
 const SIDEBAR_COLLECTION_LIMIT = 5;
 
 /** Newest first. createdAt ties break on id so the order is stable. */
@@ -126,12 +131,20 @@ function summarize(
   };
 }
 
+/** Which slice of the newest-first list to load; all of it when both are unset. */
+interface CollectionSlice {
+  skip?: number;
+  take?: number;
+}
+
 /**
- * The current user's collections as cards, newest first, `limit` of them or
- * all when it's undefined. One query for the rows: the item types come back
- * with them rather than per card.
+ * The current user's collections as cards, newest first, the `slice` of them
+ * asked for. One query for the rows: the item types come back with them
+ * rather than per card.
  */
-async function listCollections(limit?: number): Promise<CollectionSummary[]> {
+async function listCollections({ skip, take }: CollectionSlice = {}): Promise<
+  CollectionSummary[]
+> {
   // Keeps the page out of the build-time prerender, so cards render from the
   // database at request time.
   await connection();
@@ -148,7 +161,8 @@ async function listCollections(limit?: number): Promise<CollectionSummary[]> {
     prisma.collection.findMany({
       where: { userId },
       orderBy: [...NEWEST_FIRST],
-      take: limit,
+      skip,
+      take,
       select: COLLECTION_SUMMARY_SELECT,
     }),
     getAvailableTypes(userId),
@@ -164,17 +178,42 @@ async function listCollections(limit?: number): Promise<CollectionSummary[]> {
 
 /** Most recently created collections, as cards for the dashboard. */
 export async function getRecentCollections(
-  limit = RECENT_COLLECTION_LIMIT,
+  limit = DASHBOARD_COLLECTIONS_LIMIT,
 ): Promise<CollectionSummary[]> {
-  return listCollections(limit);
+  return listCollections({ take: limit });
 }
 
 /**
- * Every collection for /collections, newest first. Not capped, like the item
- * lists: a cap without "load more" would silently hide collections.
+ * Every collection, newest first, for the command palette, which filters
+ * them in the browser.
  */
 export async function getCollections(): Promise<CollectionSummary[]> {
   return listCollections();
+}
+
+/** How many collections the current user has; 0 without a user. */
+async function countCollections(): Promise<number> {
+  await connection();
+
+  const userId = await getCurrentUserId();
+
+  return userId ? prisma.collection.count({ where: { userId } }) : 0;
+}
+
+/**
+ * Page `page` (1-based) of the collections for /collections, newest first,
+ * plus how many there are in all. The page and the count go out together.
+ */
+export async function getCollectionPage(page: number): Promise<Page<CollectionSummary>> {
+  const [rows, total] = await Promise.all([
+    listCollections({
+      skip: getPageSkip(page, COLLECTIONS_PER_PAGE),
+      take: COLLECTIONS_PER_PAGE,
+    }),
+    countCollections(),
+  ]);
+
+  return { rows, total };
 }
 
 /** What a collection's own page shows above its items, and what its menus edit. */

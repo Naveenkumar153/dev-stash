@@ -1,16 +1,28 @@
-# Current Feature
+# Current Feature: Pagination
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- `/items/[type]` and `/collections/[id]` show one page of items at a time, with numbered page links plus Previous / Next at the bottom of the list
+- Previous is disabled (greyed out, not a link) on page 1 and Next on the last page
+- Constants: `ITEMS_PER_PAGE = 21`, `COLLECTIONS_PER_PAGE = 21`, `DASHBOARD_COLLECTIONS_LIMIT = 6`, `DASHBOARD_RECENT_ITEMS_LIMIT = 10`
+- Each page fetches only its own rows (`skip` / `take` plus a `count` for the page total), never the whole list
+- Unit tests for any new paging utility and changed queries; `npm test`, lint and build pass
 
 ## Notes
 
-<!-- Any extra notes -->
+- Spec: `context/features/pagination-spec.md`
+- Current state: `getItemsByType()`, `getFileListItems()` and `getCollectionItems()` in `src/lib/db/items.ts` and `getCollections()` (via `listCollections()`) in `src/lib/db/collections.ts` are uncapped; their comments already say paging is "a feature of its own". The dashboard caps live as private `RECENT_COLLECTION_LIMIT = 6` (`collections.ts`) and `RECENT_ITEM_LIMIT = 10` (`items.ts`) - these become the spec's `DASHBOARD_*` constants, same values
+- Lists are ordered `NEWEST_FIRST` (`createdAt desc, id desc`), a stable order, so offset paging is consistent; the composite `[userId, itemTypeId, createdAt desc, id desc]` index from Code Scan Fixes already covers the type lists
+- Page number likely in `?page=` (1-based); a malformed, zero or past-the-end page needs a defined behavior (clamp vs. 404). Header counts ("N items") must come from the `count`, not the page's length
+- `COLLECTIONS_PER_PAGE` implies paging `/collections` too, though the spec's page list names only `/items/[type]` and `/collections/[id]` - to confirm at start
+- `/items/files` is a special case: `FileList` filters (Type / Uploaded) and sorts in the browser over every file, shows folders, and with a filter on searches across all folders. Server-side paging breaks those unless filtering and sorting move to the server - to decide at start (e.g. leave the files page out of scope)
+- The image gallery (`ImageCard`) uses the same grid and pages like the other types
+- shadcn has a `pagination` component (not installed yet); the CLI has imported `cn` from the unrelated `cn` package on every add so far, so repoint it at `@/lib/utils` and remove the package
+- Out of scope: infinite scroll / load more, per-page size picker, paging the search palette or sidebar
 
 ## History
 

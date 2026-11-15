@@ -1,11 +1,12 @@
 import type { Metadata } from "next";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 
 import { ItemCard } from "@/components/dashboard/ItemCard";
 import { FileList } from "@/components/items/FileList";
 import { ImageCard } from "@/components/items/ImageCard";
 import { NewFolderButton } from "@/components/items/NewFolderButton";
 import { NewItemDialog } from "@/components/items/NewItemDialog";
+import { ListPagination } from "@/components/pagination/ListPagination";
 import { getFolders } from "@/lib/db/folders";
 import { getItemTypeBySlug } from "@/lib/db/item-types";
 import { getFileListItems, getItemsByType } from "@/lib/db/items";
@@ -13,11 +14,18 @@ import { folderIdSchema } from "@/lib/folder-schemas";
 import type { FolderEntry } from "@/lib/folders";
 import { formatCount } from "@/lib/format";
 import {
+  getItemTypeHref,
   getItemTypePlural,
   getItemTypeSlug,
   getItemTypeStyleByName,
   isCreatableItemType,
 } from "@/lib/item-types";
+import {
+  getPageHref,
+  getTotalPages,
+  ITEMS_PER_PAGE,
+  parsePageParam,
+} from "@/lib/pagination";
 import { cn } from "@/lib/utils";
 
 export async function generateMetadata({
@@ -55,9 +63,17 @@ export default async function ItemTypePage({
 }: PageProps<"/items/[type]">) {
   const [{ type: slug }, query] = await Promise.all([params, searchParams]);
   const isFilesPage = slug === getItemTypeSlug("file");
+  // The files page isn't paged: its filters, sorting and folders work over
+  // every file in the browser. Every other type loads one page of cards.
+  const page = isFilesPage ? 1 : parsePageParam(query.page);
+
+  if (page === null) {
+    redirect(`/items/${encodeURIComponent(slug)}`);
+  }
+
   // Files get their own, lighter rows; every other type loads its cards.
   const [cards, files, folders] = await Promise.all([
-    isFilesPage ? null : getItemsByType(slug),
+    isFilesPage ? null : getItemsByType(slug, page),
     isFilesPage ? getFileListItems() : null,
     isFilesPage ? getFolders() : [],
   ]);
@@ -68,6 +84,13 @@ export default async function ItemTypePage({
   }
 
   const { typeName } = list;
+  const pathname = getItemTypeHref(typeName);
+  const totalPages = cards ? getTotalPages(cards.total, ITEMS_PER_PAGE) : 1;
+
+  // Past the last page - a deleted item can leave it empty - show the last.
+  if (page > totalPages) {
+    redirect(getPageHref(pathname, totalPages));
+  }
   // Folders exist only on the files page; other types ignore the parameter.
   const openFolder = isFilesPage ? resolveOpenFolder(query.folder, folders) : null;
 
@@ -80,7 +103,7 @@ export default async function ItemTypePage({
   const Card = typeName === "image" ? ImageCard : ItemCard;
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-8">
+    <div className="mx-auto flex min-h-full w-full max-w-7xl flex-col gap-8">
       <header className="flex items-center gap-4">
         <span
           className={cn(
@@ -93,7 +116,7 @@ export default async function ItemTypePage({
         <div className="min-w-0 flex-1">
           <h1 className="font-heading text-3xl font-semibold">{plural}</h1>
           <p className="mt-1 text-muted-foreground">
-            {formatCount(list.items.length, "item")}
+            {formatCount(cards ? cards.total : list.items.length, "item")}
           </p>
         </div>
         {isFilesPage && (
@@ -104,7 +127,7 @@ export default async function ItemTypePage({
         )}
       </header>
 
-      <section aria-labelledby="item-list-heading">
+      <section aria-labelledby="item-list-heading" className="flex flex-1 flex-col">
         {/* Keeps the outline h1 > h2 > h3 (card titles), like the dashboard. */}
         <h2 id="item-list-heading" className="sr-only">
           {plural}
@@ -120,10 +143,18 @@ export default async function ItemTypePage({
             No {plural.toLowerCase()} yet.
           </p>
         ) : (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {cards.items.map((item) => (
-              <Card key={item.id} item={item} />
-            ))}
+          <div className="flex flex-1 flex-col gap-8">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {cards.items.map((item) => (
+                <Card key={item.id} item={item} />
+              ))}
+            </div>
+            <ListPagination
+              pathname={pathname}
+              page={page}
+              totalPages={totalPages}
+              label={`${plural} pages`}
+            />
           </div>
         )}
       </section>

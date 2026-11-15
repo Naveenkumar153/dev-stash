@@ -6,6 +6,7 @@ import {
   deleteCollection,
   getCollection,
   getCollectionOptions,
+  getCollectionPage,
   getCollections,
   getRecentCollections,
   ownsCollections,
@@ -104,7 +105,7 @@ describe("ownsCollections", () => {
 const COLLECTION_ID = "cmtg169y00002zzx5wxanksok";
 
 describe("getCollections", () => {
-  it("lists every one of the current user's collections, newest first, with no cap", async () => {
+  it("lists every one of the current user's collections, newest first, with no cap, for the palette", async () => {
     vi.mocked(getCurrentUserId).mockResolvedValue("user-1");
     vi.mocked(getAvailableTypes).mockResolvedValue([{ id: "type-snippet", name: "snippet" }] as never);
     vi.mocked(prisma.collection.findMany).mockResolvedValue([
@@ -151,6 +152,39 @@ describe("getCollections", () => {
     await getRecentCollections();
 
     expect(prisma.collection.findMany).toHaveBeenCalledWith(expect.objectContaining({ take: 6 }));
+  });
+});
+
+describe("getCollectionPage", () => {
+  it("loads only the requested page, newest first, with the user's total", async () => {
+    vi.mocked(getCurrentUserId).mockResolvedValue("user-1");
+    vi.mocked(getAvailableTypes).mockResolvedValue([]);
+    vi.mocked(prisma.collection.findMany).mockResolvedValue([
+      { id: "col-1", name: "React", description: null, isFavorite: false, _count: { items: 0 } },
+    ] as never);
+    vi.mocked(prisma.collection.count).mockResolvedValue(30);
+
+    const { rows, total } = await getCollectionPage(2);
+
+    expect(prisma.collection.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId: "user-1" },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+        skip: 21,
+        take: 21,
+      }),
+    );
+    expect(prisma.collection.count).toHaveBeenCalledWith({ where: { userId: "user-1" } });
+    expect(total).toBe(30);
+    expect(rows).toEqual([expect.objectContaining({ id: "col-1", itemCount: 0 })]);
+  });
+
+  it("lists nothing, without a query, when there is no current user", async () => {
+    vi.mocked(getCurrentUserId).mockResolvedValue(null);
+
+    expect(await getCollectionPage(1)).toEqual({ rows: [], total: 0 });
+    expect(prisma.collection.findMany).not.toHaveBeenCalled();
+    expect(prisma.collection.count).not.toHaveBeenCalled();
   });
 });
 

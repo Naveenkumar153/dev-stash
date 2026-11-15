@@ -1,15 +1,22 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { notFound } from "next/navigation";
+import { notFound, redirect } from "next/navigation";
 import { cache } from "react";
 import { ChevronLeft, FolderOpen } from "lucide-react";
 
 import { CollectionActions } from "@/components/collections/CollectionActions";
 import { ItemCard } from "@/components/dashboard/ItemCard";
+import { ListPagination } from "@/components/pagination/ListPagination";
 import { collectionIdSchema } from "@/lib/collection-schemas";
 import { getCollection } from "@/lib/db/collections";
 import { getCollectionItems } from "@/lib/db/items";
 import { formatCount } from "@/lib/format";
+import {
+  getPageHref,
+  getTotalPages,
+  ITEMS_PER_PAGE,
+  parsePageParam,
+} from "@/lib/pagination";
 
 /**
  * The collection when `id` is a well-formed id of one of the user's; null
@@ -29,19 +36,35 @@ export async function generateMetadata({
   return { title: `${collection?.name ?? "Collection"} | DevStash` };
 }
 
-/** One collection's items, as the same cards the other lists use. */
-export default async function CollectionPage({ params }: PageProps<"/collections/[id]">) {
-  const { id } = await params;
+/** One collection's items, a page at a time, as the cards the other lists use. */
+export default async function CollectionPage({
+  params,
+  searchParams,
+}: PageProps<"/collections/[id]">) {
+  const [{ id }, query] = await Promise.all([params, searchParams]);
+  const pathname = `/collections/${encodeURIComponent(id)}`;
+  const page = parsePageParam(query.page);
+
+  if (page === null) {
+    redirect(pathname);
+  }
+
   const collection = await findCollection(id);
 
   if (!collection) {
     notFound();
   }
 
-  const items = await getCollectionItems(collection.id);
+  const { rows: items, total } = await getCollectionItems(collection.id, page);
+  const totalPages = getTotalPages(total, ITEMS_PER_PAGE);
+
+  // Past the last page - a deleted item can leave it empty - show the last.
+  if (page > totalPages) {
+    redirect(getPageHref(pathname, totalPages));
+  }
 
   return (
-    <div className="mx-auto flex w-full max-w-7xl flex-col gap-8">
+    <div className="mx-auto flex min-h-full w-full max-w-7xl flex-col gap-8">
       <div className="flex flex-col gap-4">
         <Link
           href="/collections"
@@ -60,7 +83,7 @@ export default async function CollectionPage({ params }: PageProps<"/collections
             <h1 className="font-heading text-3xl font-semibold wrap-anywhere">
               {collection.name}
             </h1>
-            <p className="mt-1 text-muted-foreground">{formatCount(items.length, "item")}</p>
+            <p className="mt-1 text-muted-foreground">{formatCount(total, "item")}</p>
             {collection.description && (
               <p className="mt-3 max-w-prose text-sm text-muted-foreground">
                 {collection.description}
@@ -71,7 +94,7 @@ export default async function CollectionPage({ params }: PageProps<"/collections
         </header>
       </div>
 
-      <section aria-labelledby="collection-items-heading">
+      <section aria-labelledby="collection-items-heading" className="flex flex-1 flex-col">
         {/* Keeps the outline h1 > h2 > h3 (card titles), like the dashboard. */}
         <h2 id="collection-items-heading" className="sr-only">
           Items
@@ -80,10 +103,18 @@ export default async function CollectionPage({ params }: PageProps<"/collections
         {items.length === 0 ? (
           <p className="text-sm text-muted-foreground">No items in this collection yet.</p>
         ) : (
-          <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {items.map((item) => (
-              <ItemCard key={item.id} item={item} />
-            ))}
+          <div className="flex flex-1 flex-col gap-8">
+            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+              {items.map((item) => (
+                <ItemCard key={item.id} item={item} />
+              ))}
+            </div>
+            <ListPagination
+              pathname={pathname}
+              page={page}
+              totalPages={totalPages}
+              label={`${collection.name} pages`}
+            />
           </div>
         )}
       </section>
