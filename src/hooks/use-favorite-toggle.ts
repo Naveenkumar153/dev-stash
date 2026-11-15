@@ -8,8 +8,8 @@ import type { SetFavoriteResult } from "@/types/favorites";
 
 /**
  * Favorite state for a toggle. A click shows the new state at once; the save
- * runs in a transition, and if it fails the state falls back to the saved one
- * with an error toast. The actions re-render the page on success, so the prop
+ * runs in a transition and toasts the saved state; if it fails the state falls
+ * back to the saved one with an error toast. The actions re-render the page on success, so the prop
  * catches up with what was shown. Clicks during a save are ignored.
  */
 export function useFavoriteToggle(
@@ -45,6 +45,7 @@ export function useFavoriteToggle(
       }
 
       const saved = result.data.isFavorite;
+      toast.success(saved ? "Added to favorites" : "Removed from favorites");
       if (onSaved) {
         // Updates after an await need their own transition to join this one.
         startTransition(() => onSaved(saved));

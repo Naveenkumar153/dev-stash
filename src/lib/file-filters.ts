@@ -1,4 +1,12 @@
 import { getFileExtension } from "@/lib/file-upload";
+import {
+  describeSortOrder,
+  getNaturalSort,
+  nameCollator,
+  type Sort,
+  type SortDirection,
+  type SortFieldOption,
+} from "@/lib/sort";
 
 /** The /items/files type filter: "all", or a category of file extensions. */
 export const FILE_TYPE_FILTERS = [
@@ -88,46 +96,24 @@ export const FILE_SORT_FIELDS = [
   { value: "uploaded", label: "Uploaded", defaultDirection: "desc", asc: "Oldest first", desc: "Newest first" },
   { value: "name", label: "Name", defaultDirection: "asc", asc: "A to Z", desc: "Z to A" },
   { value: "size", label: "Size", defaultDirection: "desc", asc: "Smallest first", desc: "Largest first" },
-] as const satisfies readonly {
-  value: string;
-  label: string;
-  defaultDirection: SortDirection;
-  asc: string;
-  desc: string;
-}[];
+] as const satisfies readonly SortFieldOption<string>[];
 
 export type FileSortField = (typeof FILE_SORT_FIELDS)[number]["value"];
 
-export type SortDirection = "asc" | "desc";
-
-export interface FileSort {
-  field: FileSortField;
-  direction: SortDirection;
-}
+export type FileSort = Sort<FileSortField>;
 
 /** Newest first, the order the list had before it could be sorted. */
 export const DEFAULT_FILE_SORT: FileSort = { field: "uploaded", direction: "desc" };
 
-function getSortField(field: FileSortField) {
-  return FILE_SORT_FIELDS.find((option) => option.value === field)!;
-}
-
 /** A sort field at its natural direction. */
 export function getDefaultSort(field: FileSortField): FileSort {
-  return { field, direction: getSortField(field).defaultDirection };
+  return getNaturalSort(FILE_SORT_FIELDS, field);
 }
 
 /** The order a sort puts the list in, in words: "Newest first", "A to Z". */
-export function getSortOrderLabel({ field, direction }: FileSort): string {
-  return getSortField(field)[direction];
+export function getSortOrderLabel(sort: FileSort): string {
+  return describeSortOrder(FILE_SORT_FIELDS, sort);
 }
-
-/**
- * A fixed locale rather than the runtime's, so the server render and the
- * browser put names in the same order. Numeric, so "File 2" comes before
- * "File 10"; base sensitivity, so case and accents don't split names apart.
- */
-const nameCollator = new Intl.Collator("en", { numeric: true, sensitivity: "base" });
 
 type Comparison = (a: SortableEntry, b: SortableEntry) => number;
 

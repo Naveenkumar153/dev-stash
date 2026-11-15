@@ -1,11 +1,7 @@
 import type { Metadata } from "next";
 import { Star } from "lucide-react";
 
-import {
-  FavoriteCollectionRow,
-  FavoriteItemRow,
-  FavoritesSection,
-} from "@/components/favorites/FavoriteRows";
+import { FavoritesList } from "@/components/favorites/FavoritesList";
 import { getFavoriteCollections } from "@/lib/db/collections";
 import { getFavoriteItems } from "@/lib/db/items";
 import { formatCount } from "@/lib/format";
@@ -14,7 +10,7 @@ export const metadata: Metadata = { title: "Favorites | DevStash" };
 
 /**
  * Every favorited item and collection as a compact list, most recently
- * favorited first. Items open in the drawer; collections link to their page.
+ * favorited first until another sort is picked. Items open in the drawer; collections link to their page.
  */
 export default async function FavoritesPage() {
   const [items, collections] = await Promise.all([getFavoriteItems(), getFavoriteCollections()]);
@@ -37,29 +33,7 @@ export default async function FavoritesPage() {
           No favorites yet. Star an item or a collection to see it here.
         </p>
       ) : (
-        <div className="flex flex-col gap-6 font-mono text-sm">
-          <FavoritesSection
-            id="favorite-items-heading"
-            title="Items"
-            count={items.length}
-            emptyMessage="No favorite items."
-          >
-            {items.map((item) => (
-              <FavoriteItemRow key={item.id} item={item} />
-            ))}
-          </FavoritesSection>
-
-          <FavoritesSection
-            id="favorite-collections-heading"
-            title="Collections"
-            count={collections.length}
-            emptyMessage="No favorite collections."
-          >
-            {collections.map((collection) => (
-              <FavoriteCollectionRow key={collection.id} collection={collection} />
-            ))}
-          </FavoritesSection>
-        </div>
+        <FavoritesList items={items} collections={collections} />
       )}
     </div>
   );

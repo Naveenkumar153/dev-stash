@@ -1,16 +1,29 @@
-# Current Feature
+# Current Feature: Favorites Sorting & Toggle Toasts
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- `/favorites` gets a client-side Sort control: **Date**, **Name** and **Type**, re-ordering the rows in the browser with no new request
+- Sorting applies to both the Items and the Collections sections
+- Default stays Date, newest first (today's server order), so the page looks unchanged until a sort is picked
+- Clicking any favorite toggle (item cards, image cards, collection cards, the card menu's Favorite / Unfavorite, the collection page button, the item drawer) shows a success toast once the save succeeds
+- Failures keep today's error toast and rollback
+- Unit tests for the sort helper; `npm test`, lint and build pass; verified in the browser
 
 ## Notes
 
-<!-- Any extra notes -->
+- Proposed defaults (change before `/feature start` if you want something else):
+  - **Control**: reuse the files page's pattern - a Sort chip (shadcn `select`) plus a direction toggle, like `FileSortControl` - placed under the page header. Picking a field switches to its natural order: Date newest first, Name A to Z, Type in the sidebar's type order (snippet, prompt, command, note, file, image, link; custom types after)
+  - **Type for collections**: collections sort by their dominant type (the one coloring their icon); empty collections go last. Ties within a type fall back to name, then date
+  - **Name**: case-insensitive, numeric-aware (`Intl.Collator`, as in `sortFiles()`)
+  - **State**: kept in component state only, resetting on reload (like the file list's sort), no `?sort=` URL param
+  - **Toast copy**: "Added to favorites" / "Removed from favorites", from `useFavoriteToggle()` so every toggle gets it in one place
+- Sorting lives in a pure helper (e.g. `src/lib/favorites-sort.ts`) so it can be unit tested; the page stays a server component and passes rows to a small client list
+- "Date" is `updatedAt` (no `favoritedAt` column), as on the page today
+- No migration, no new server action or query
 
 ## History
 
