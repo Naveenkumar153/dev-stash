@@ -10,10 +10,39 @@ import {
 const URL_ERROR = "Enter a full URL starting with http:// or https://";
 
 function parse(input: Record<string, unknown>) {
-  return updateItemSchema.safeParse({ title: "useDebounce hook", tags: [], ...input });
+  return updateItemSchema.safeParse({ title: "useDebounce hook", tags: [], collectionIds: [], ...input });
 }
 
 describe("updateItemSchema", () => {
+  describe("collectionIds", () => {
+    const COLLECTION_A = "cmcollectreact0000000001";
+    const COLLECTION_B = "cmcollectdocs00000000002";
+
+    it("keeps each collection once, in the order given", () => {
+      expect(
+        parse({ collectionIds: [COLLECTION_B, COLLECTION_A, COLLECTION_B] }).data?.collectionIds,
+      ).toEqual([COLLECTION_B, COLLECTION_A]);
+    });
+
+    it("accepts no collections", () => {
+      expect(parse({ collectionIds: [] }).data?.collectionIds).toEqual([]);
+    });
+
+    it("requires the list, so an edit can't clear an item's collections by leaving it out", () => {
+      expect(parse({ collectionIds: undefined }).error?.issues[0]).toMatchObject({
+        path: ["collectionIds"],
+        message: "Choose collections from the list",
+      });
+    });
+
+    it("rejects an id that isn't a cuid", () => {
+      expect(parse({ collectionIds: [COLLECTION_A, "1; DROP"] }).error?.issues[0]).toMatchObject({
+        path: ["collectionIds", 1],
+        message: "Choose collections from the list",
+      });
+    });
+  });
+
   it("trims the title", () => {
     expect(parse({ title: "  useDebounce hook  " }).data?.title).toBe("useDebounce hook");
   });
@@ -23,7 +52,7 @@ describe("updateItemSchema", () => {
       path: ["title"],
       message: "Title is required",
     });
-    expect(updateItemSchema.safeParse({ tags: [] }).error?.issues[0]).toMatchObject({
+    expect(updateItemSchema.safeParse({ tags: [], collectionIds: [] }).error?.issues[0]).toMatchObject({
       path: ["title"],
       message: "Title is required",
     });
@@ -98,7 +127,7 @@ describe("updateItemSchema", () => {
 
 describe("createItemSchema", () => {
   function parseNew(input: Record<string, unknown>) {
-    return createItemSchema.safeParse({ title: "New item", tags: [], ...input });
+    return createItemSchema.safeParse({ title: "New item", tags: [], collectionIds: [], ...input });
   }
 
   it.each(["snippet", "prompt", "command", "note"])("creates a %s without a URL", (typeName) => {
@@ -149,7 +178,7 @@ describe("itemIdSchema", () => {
 
 describe("createFileItemSchema", () => {
   function parseFile(input: Record<string, unknown>) {
-    return createFileItemSchema.safeParse({ typeName: "image", title: "Diagram", tags: [], ...input });
+    return createFileItemSchema.safeParse({ typeName: "image", title: "Diagram", tags: [], collectionIds: [], ...input });
   }
 
   it.each(["file", "image"])("accepts the %s type", (typeName) => {
@@ -169,6 +198,7 @@ describe("createFileItemSchema", () => {
       title: "Diagram",
       description: null,
       tags: ["docs"],
+      collectionIds: [],
       folderId: null,
     });
   });

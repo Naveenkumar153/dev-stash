@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { POST } from "@/app/api/items/upload/route";
 import { auth } from "@/auth";
+import { ownsCollections } from "@/lib/db/collections";
 import { findFolder } from "@/lib/db/folders";
 import { createFileItem } from "@/lib/db/items";
 import { deleteFile, putFile } from "@/lib/r2";
@@ -13,6 +14,7 @@ import type { ItemDetail } from "@/types/items";
 vi.mock("@/auth", () => ({ auth: vi.fn() }));
 vi.mock("@/lib/db/items", () => ({ createFileItem: vi.fn() }));
 vi.mock("@/lib/db/folders", () => ({ findFolder: vi.fn() }));
+vi.mock("@/lib/db/collections", () => ({ ownsCollections: vi.fn() }));
 vi.mock("@/lib/r2", () => ({ putFile: vi.fn(), deleteFile: vi.fn() }));
 
 /** `auth` is overloaded (it doubles as middleware), so its mock is typed by hand. */
@@ -76,6 +78,7 @@ describe("POST /api/items/upload", () => {
     mockAuth.mockResolvedValue({ user: { id: "user-1" }, expires: "2099-01-01T00:00:00.000Z" });
     vi.spyOn(crypto, "randomUUID").mockReturnValue(UPLOAD_ID);
     vi.mocked(createFileItem).mockResolvedValue(created);
+    vi.mocked(ownsCollections).mockResolvedValue(true);
   });
 
   it("stores the file in R2 under the user, then creates the item pointing at it", async () => {
@@ -91,7 +94,7 @@ describe("POST /api/items/upload", () => {
 
     expect(createFileItem).toHaveBeenCalledWith(
       "user-1",
-      { typeName: "file", title: "Server config", description: null, tags: ["config", "server"], folderId: null },
+      { typeName: "file", title: "Server config", description: null, tags: ["config", "server"], collectionIds: [], folderId: null },
       { key: KEY, fileName: "config.toml", fileSize: 21 },
     );
     expect(deleteFile).not.toHaveBeenCalled();
@@ -288,6 +291,60 @@ describe("POST /api/items/upload", () => {
       expect(status).toBe(400);
       expect(body.fieldErrors).toEqual({ folderId: "Only files can go in folders" });
       expect(findFolder).not.toHaveBeenCalled();
+      expect(putFile).not.toHaveBeenCalled();
+    });
+  });
+
+  describe("into collections", () => {
+    const COLLECTION_A = "cmcollectreact0000000001";
+    const COLLECTION_B = "cmcollectdocs00000000002";
+    const COLLECTIONS_NOT_FOUND = "One of these collections doesn't exist or has been deleted.";
+
+    it("checks each collection once is the user's, then creates the item in them", async () => {
+      const { status } = await send(
+        uploadRequest({ fields: { collectionIds: [COLLECTION_A, COLLECTION_B, COLLECTION_A] } }),
+      );
+
+      expect(status).toBe(201);
+      expect(ownsCollections).toHaveBeenCalledWith("user-1", [COLLECTION_A, COLLECTION_B]);
+      expect(vi.mocked(createFileItem).mock.calls[0][1]).toMatchObject({
+        collectionIds: [COLLECTION_A, COLLECTION_B],
+      });
+    });
+
+    it("answers a collection that is missing or another user's with a 404, storing nothing", async () => {
+      vi.mocked(ownsCollections).mockResolvedValue(false);
+
+      const { status, body } = await send(uploadRequest({ fields: { collectionIds: COLLECTION_A } }));
+
+      expect(status).toBe(404);
+      expect(body).toEqual({
+        success: false,
+        data: null,
+        error: COLLECTIONS_NOT_FOUND,
+        fieldErrors: { collectionIds: COLLECTIONS_NOT_FOUND },
+      });
+      expect(putFile).not.toHaveBeenCalled();
+      expect(createFileItem).not.toHaveBeenCalled();
+    });
+
+    it("answers a failed collection lookup with a 500, storing nothing", async () => {
+      vi.mocked(ownsCollections).mockRejectedValue(new Error("connection lost"));
+      vi.spyOn(console, "error").mockImplementation(() => {});
+
+      const { status, body } = await send(uploadRequest({ fields: { collectionIds: COLLECTION_A } }));
+
+      expect(status).toBe(500);
+      expect(body.error).toBe(CREATE_FAILED);
+      expect(putFile).not.toHaveBeenCalled();
+    });
+
+    it("refuses a collection id that isn't a cuid with a 400, before any lookup", async () => {
+      const { status, body } = await send(uploadRequest({ fields: { collectionIds: "nope" } }));
+
+      expect(status).toBe(400);
+      expect(body.fieldErrors).toEqual({ collectionIds: "Choose collections from the list" });
+      expect(ownsCollections).not.toHaveBeenCalled();
       expect(putFile).not.toHaveBeenCalled();
     });
   });

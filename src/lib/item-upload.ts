@@ -35,6 +35,9 @@ export async function uploadFileItem(
   for (const tag of input.tags) {
     form.append("tags", tag);
   }
+  for (const collectionId of input.collectionIds) {
+    form.append("collectionIds", collectionId);
+  }
   form.set("file", file);
 
   try {

@@ -1,16 +1,22 @@
 import { useId } from "react";
 
 import { CodeEditor } from "@/components/items/CodeEditor";
+import { CollectionPicker } from "@/components/items/CollectionPicker";
 import { MarkdownEditor } from "@/components/items/MarkdownEditor";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useCollectionOptions, type CollectionOptionsState } from "@/hooks/use-collection-options";
 import type { FieldErrors } from "@/lib/action-result";
 import type { UpdateItemInput } from "@/lib/item-schemas";
 import { parseTagInput } from "@/lib/tags";
 import type { ContentEditorKind, EditableItemFields } from "@/lib/item-types";
+import type { CollectionOption } from "@/types/collections";
 
-/** The form's inputs, as typed. Tags stay one comma-separated string until Save. */
+/**
+ * The form's inputs, as typed. Tags stay one comma-separated string until
+ * Save; collections are kept with their names so the chips can show them.
+ */
 export interface ItemFormValues {
   title: string;
   description: string;
@@ -18,7 +24,17 @@ export interface ItemFormValues {
   language: string;
   url: string;
   tags: string;
+  collections: CollectionOption[];
 }
+
+/** The inputs that hold plain text. */
+type TextFieldName = Exclude<keyof ItemFormValues, "collections">;
+
+/** Sets one input's value; the value's type follows the field. */
+export type ItemFormChange = <K extends keyof ItemFormValues>(
+  name: K,
+  value: ItemFormValues[K],
+) => void;
 
 /** Every input blank, for a new item. */
 export const EMPTY_ITEM_FORM: ItemFormValues = {
@@ -28,17 +44,19 @@ export const EMPTY_ITEM_FORM: ItemFormValues = {
   language: "",
   url: "",
   tags: "",
+  collections: [],
 };
 
 /**
  * The fields to send for an item of a type with these `fields`: title,
- * description and tags always, plus only the type's own fields.
+ * description, tags and collections always, plus only the type's own fields.
  */
 export function toItemInput(values: ItemFormValues, fields: EditableItemFields): UpdateItemInput {
   return {
     title: values.title,
     description: values.description,
     tags: parseTagInput(values.tags),
+    collectionIds: values.collections.map((collection) => collection.id),
     ...(fields.content && { content: values.content }),
     ...(fields.language && { language: values.language }),
     ...(fields.url && { url: values.url }),
@@ -51,10 +69,13 @@ interface ItemFormFieldsProps {
   fields: EditableItemFields;
   /** Which editor the content field uses: code, markdown or a plain textarea. */
   contentEditor: ContentEditorKind;
-  onChange: (name: keyof ItemFormValues, value: string) => void;
+  onChange: ItemFormChange;
 }
 
-/** Title, description and tags for every type, plus the type's own fields. */
+/**
+ * Title, description, tags and collections for every type, plus the type's own
+ * fields. The user's collections are loaded when the fields mount.
+ */
 export function ItemFormFields({
   values,
   errors,
@@ -63,8 +84,9 @@ export function ItemFormFields({
   onChange,
 }: ItemFormFieldsProps) {
   const id = useId();
+  const collectionOptions = useCollectionOptions();
   const field = (name: keyof ItemFormValues) => ({ id: `${id}-${name}`, error: errors[name] });
-  const bind = (name: keyof ItemFormValues) => ({
+  const bind = (name: TextFieldName) => ({
     value: values[name],
     onChange: (event: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement>) =>
       onChange(name, event.target.value),
@@ -139,8 +161,38 @@ export function ItemFormFields({
       <Field {...field("tags")} label="Tags" hint="Separate tags with commas">
         {(control) => <Input {...control} {...bind("tags")} placeholder="react, hooks" />}
       </Field>
+
+      <Field
+        id={`${id}-collections`}
+        error={errors.collectionIds}
+        label="Collections"
+        hint={getCollectionsHint(collectionOptions)}
+      >
+        {(control) => (
+          <CollectionPicker
+            {...control}
+            options={collectionOptions}
+            value={values.collections}
+            onChange={(value) => onChange("collections", value)}
+          />
+        )}
+      </Field>
     </div>
   );
+}
+
+/** What the Collections field says under the picker while it loads, fails or has nothing to list. */
+function getCollectionsHint(options: CollectionOptionsState): string | undefined {
+  if (options.status === "loading") {
+    return "Loading your collections...";
+  }
+  if (options.status === "error") {
+    return options.message;
+  }
+  if (options.collections.length === 0) {
+    return "No collections yet. Create one with New Collection.";
+  }
+  return undefined;
 }
 
 interface FieldControlProps {

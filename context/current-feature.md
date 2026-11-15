@@ -1,16 +1,33 @@
-# Current Feature
+# Current Feature: Add Items to Collections
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- A "Collections" multi-select in the shared item form fields, shown in the New Item dialog (every creatable type, files and images included) and the item drawer's edit form, where the user picks zero, one or several of their collections; edit mode starts with the item's current collections selected
+- The options are the signed-in user's collections (id + name, sorted by name), loaded for the client through a new `GET /api/collections` route (session-checked, 401 JSON when signed out, `{ success, data, error }`) backed by a new `lib/db` function scoped to the session user
+- A `collectionIds` field in the item schemas (`createItemSchema`, `updateItemSchema`, `createFileItemSchema`): an array of cuids, duplicates dropped, empty allowed
+- `createItem` / `updateItem` actions and `POST /api/items/upload` (repeated `collectionIds` form fields) save the memberships; every id must belong to the session user, otherwise a `collectionIds` field error and nothing written
+- Saving an edit replaces the item's memberships: removed collections' `ItemCollection` rows deleted, new ones added, kept ones untouched (so their `addedAt` stays), in the same write as the rest of the edit
+- After saving, the drawer's Collections section shows the new list from the returned detail, and `router.refresh()` updates the dashboard's collection cards (item counts, type colors) and the sidebar
+- Unit tests for the route's query, the schema rule, the actions' and upload route's ownership checks and the membership replace logic
+- `npm test`, lint, build pass; verified in the browser
 
 ## Notes
 
-<!-- Any extra notes -->
+- Requirement (inline): "Add functionality to add an item to a single or multiple collections. Add an input to the new/edit item forms where we can select from the available collections to add the item to. Don't worry about displaying the collection pages yet."
+- Proposed defaults, to confirm at start:
+  - **Picker:** the shadcn `combobox` (Base UI `Combobox` in `multiple` mode, already in `@base-ui/react@1.7`) with the selected collections as removable chips and type-to-filter, rather than a checkbox list, which won't scale past a handful of collections. The CLI will likely import `cn` from the unrelated `cn` package again, to be repointed at `@/lib/utils` and the package removed.
+  - **Loading the options:** fetched from `GET /api/collections` when the dialog or edit form opens (the requirement from Collection Create: API routes for client-side calls), not threaded down from the layout. A loading state disables the picker; a failed load shows an inline message and leaves the rest of the form usable.
+  - **Scoping:** the picker lists, and the writes check, the **session user's** collections, since the item is written for the session user and an item can only join its owner's collections. For the demo account this matches what the dashboard shows; another account sees only its own collections (none until it creates some), while the dashboard keeps reading the demo user's data through `getCurrentUserId()`.
+  - **Empty state:** with no collections, the field says "No collections yet" (creating one from inside the picker is out of scope).
+  - **Files and images included:** the New Item dialog's upload path sends the selection too, so every type can be added to collections.
+  - **No separate "add to collection" action** on cards or in the drawer's view mode; only the new / edit forms, as the requirement asks.
+- The `ItemCollection` join table already exists (`@@id([itemId, collectionId])`, cascading deletes), so no migration
+- The drawer already loads `collections` (id + name) in `ItemDetail`, so edit mode can preselect without a new query; the read-only Collections section in edit mode is replaced by the picker
+- Out of scope: collection pages (`/collections`, `/collections/[id]`), editing or deleting collections, the free tier's limits
 
 ## History
 

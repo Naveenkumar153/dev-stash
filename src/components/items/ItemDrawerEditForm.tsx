@@ -6,10 +6,11 @@ import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
 import { updateItem } from "@/actions/items";
-import { ItemCollectionsSection, ItemDatesSection } from "@/components/items/ItemDrawerDetails";
+import { ItemDatesSection } from "@/components/items/ItemDrawerDetails";
 import {
   ItemFormFields,
   toItemInput,
+  type ItemFormChange,
   type ItemFormValues,
 } from "@/components/items/ItemFormFields";
 import { Button } from "@/components/ui/button";
@@ -25,6 +26,7 @@ function toFormValues(item: ItemDetail): ItemFormValues {
     language: item.language ?? "",
     url: item.url ?? "",
     tags: item.tags.join(", "),
+    collections: item.collections,
   };
 }
 
@@ -38,7 +40,7 @@ interface ItemDrawerEditFormProps {
 /**
  * Edit mode: Save and Cancel take the action bar's place and the editable
  * fields replace the body. The inputs live in local state, so Cancel simply
- * drops them. Type, collections and dates stay display-only.
+ * drops them. Type and dates stay display-only.
  */
 export function ItemDrawerEditForm({ item, onCancel, onSaved }: ItemDrawerEditFormProps) {
   const router = useRouter();
@@ -47,9 +49,9 @@ export function ItemDrawerEditForm({ item, onCancel, onSaved }: ItemDrawerEditFo
   const [pending, startTransition] = useTransition();
   const fields = getEditableItemFields(item.typeName);
 
-  function handleChange(name: keyof ItemFormValues, value: string) {
+  const handleChange: ItemFormChange = (name, value) => {
     setValues((current) => ({ ...current, [name]: value }));
-  }
+  };
 
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
@@ -91,7 +93,6 @@ export function ItemDrawerEditForm({ item, onCancel, onSaved }: ItemDrawerEditFo
           contentEditor={getContentEditorKind(item.typeName)}
           onChange={handleChange}
         />
-        <ItemCollectionsSection collections={item.collections} />
         <ItemDatesSection createdAt={item.createdAt} updatedAt={item.updatedAt} />
       </div>
     </form>

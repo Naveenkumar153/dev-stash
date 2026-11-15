@@ -3,6 +3,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createItem, deleteItem, updateItem } from "@/actions/items";
 import { auth } from "@/auth";
+import { ownsCollections } from "@/lib/db/collections";
 import {
   createItem as createItemRecord,
   deleteItem as deleteItemRecord,
@@ -20,12 +21,16 @@ vi.mock("@/lib/db/items", () => ({
   deleteItem: vi.fn(),
 }));
 vi.mock("@/lib/r2", () => ({ deleteFile: vi.fn() }));
+vi.mock("@/lib/db/collections", () => ({ ownsCollections: vi.fn() }));
 
 /** `auth` is overloaded (it doubles as middleware), so its mock is typed by hand. */
 const mockAuth = auth as unknown as ReturnType<typeof vi.fn<() => Promise<Session | null>>>;
 
 const ITEM_ID = "cmtg169y00002zzx5wxanksok";
 const NOT_FOUND = "This item doesn't exist or has been deleted.";
+const COLLECTIONS_NOT_FOUND = "One of these collections doesn't exist or has been deleted.";
+const COLLECTION_A = "cmtg169y00004zzx5collect1";
+const COLLECTION_B = "cmtg169y00005zzx5collect2";
 
 function signInAs(id: string) {
   mockAuth.mockResolvedValue({ user: { id }, expires: "2099-01-01T00:00:00.000Z" });
@@ -38,6 +43,7 @@ const input = {
   language: " typescript ",
   url: "",
   tags: ["react", "react", "hooks"],
+  collectionIds: [COLLECTION_A, COLLECTION_B, COLLECTION_A],
 };
 
 const saved: ItemDetail = {
@@ -63,6 +69,33 @@ describe("updateItem", () => {
   beforeEach(() => {
     signInAs("user-1");
     vi.mocked(updateItemRecord).mockResolvedValue({ status: "saved", item: saved });
+    vi.mocked(ownsCollections).mockResolvedValue(true);
+  });
+
+  it("checks the chosen collections, each once, belong to the signed-in user", async () => {
+    await updateItem(ITEM_ID, input);
+
+    expect(ownsCollections).toHaveBeenCalledWith("user-1", [COLLECTION_A, COLLECTION_B]);
+  });
+
+  it("refuses a collection that isn't the user's, on the Collections field, without saving", async () => {
+    vi.mocked(ownsCollections).mockResolvedValue(false);
+
+    expect(await updateItem(ITEM_ID, input)).toEqual({
+      success: false,
+      data: null,
+      error: COLLECTIONS_NOT_FOUND,
+      fieldErrors: { collectionIds: COLLECTIONS_NOT_FOUND },
+    });
+    expect(updateItemRecord).not.toHaveBeenCalled();
+  });
+
+  it("rejects a collection id that isn't a cuid without a query", async () => {
+    const result = await updateItem(ITEM_ID, { ...input, collectionIds: ["not-an-id"] });
+
+    expect(result.fieldErrors).toEqual({ collectionIds: "Choose collections from the list" });
+    expect(ownsCollections).not.toHaveBeenCalled();
+    expect(updateItemRecord).not.toHaveBeenCalled();
   });
 
   it("saves the normalized payload for the signed-in user and returns the item", async () => {
@@ -76,6 +109,7 @@ describe("updateItem", () => {
       language: "typescript",
       url: null,
       tags: ["react", "hooks"],
+      collectionIds: [COLLECTION_A, COLLECTION_B],
     });
   });
 
@@ -248,6 +282,31 @@ describe("createItem", () => {
   beforeEach(() => {
     signInAs("user-1");
     vi.mocked(createItemRecord).mockResolvedValue(saved);
+    vi.mocked(ownsCollections).mockResolvedValue(true);
+  });
+
+  it("refuses a collection that isn't the user's, on the Collections field, without creating", async () => {
+    vi.mocked(ownsCollections).mockResolvedValue(false);
+
+    expect(await createItem(newItem)).toEqual({
+      success: false,
+      data: null,
+      error: COLLECTIONS_NOT_FOUND,
+      fieldErrors: { collectionIds: COLLECTIONS_NOT_FOUND },
+    });
+    expect(ownsCollections).toHaveBeenCalledWith("user-1", [COLLECTION_A, COLLECTION_B]);
+    expect(createItemRecord).not.toHaveBeenCalled();
+  });
+
+  it("reports a failed collection check without creating", async () => {
+    vi.mocked(ownsCollections).mockRejectedValue(new Error("connection lost"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    expect(await createItem(newItem)).toMatchObject({
+      success: false,
+      error: "Couldn't create this item. Please try again.",
+    });
+    expect(createItemRecord).not.toHaveBeenCalled();
   });
 
   it("creates the normalized item for the signed-in user and returns it", async () => {
@@ -262,6 +321,7 @@ describe("createItem", () => {
       language: "typescript",
       url: null,
       tags: ["react", "hooks"],
+      collectionIds: [COLLECTION_A, COLLECTION_B],
     });
   });
 

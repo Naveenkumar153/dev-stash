@@ -1,12 +1,14 @@
 "use server";
 
 import {
+  COLLECTIONS_NOT_FOUND,
   ITEM_CREATE_FAILED,
   ITEM_NOT_FOUND,
   SESSION_EXPIRED,
   getFieldErrors,
   type FieldErrors,
 } from "@/lib/action-result";
+import { ownsCollections } from "@/lib/db/collections";
 import {
   createItem as createItemRecord,
   deleteItem as deleteItemRecord,
@@ -28,10 +30,15 @@ function failure(error: string, fieldErrors: FieldErrors = {}): UpdateItemResult
   return { success: false, data: null, error, fieldErrors };
 }
 
+/** Shown on the Collections field when one of them isn't the user's. */
+const collectionsFailure = () =>
+  failure(COLLECTIONS_NOT_FOUND, { collectionIds: COLLECTIONS_NOT_FOUND });
+
 /**
  * Creates an item from the New Item dialog for the signed-in user and returns
  * it. The type must be one of the creatable system types; fields that type
- * doesn't use are dropped by the query.
+ * doesn't use are dropped by the query. Every chosen collection must be the
+ * user's, or nothing is written.
  */
 export async function createItem(data: CreateItemInput): Promise<CreateItemResult> {
   const userId = await getSessionUserId();
@@ -45,6 +52,10 @@ export async function createItem(data: CreateItemInput): Promise<CreateItemResul
   }
 
   try {
+    if (!(await ownsCollections(userId, parsed.data.collectionIds))) {
+      return collectionsFailure();
+    }
+
     const item = await createItemRecord(userId, parsed.data);
     if (!item) {
       return failure("This item type isn't available.");
@@ -82,6 +93,10 @@ export async function updateItem(
   }
 
   try {
+    if (!(await ownsCollections(userId, parsed.data.collectionIds))) {
+      return collectionsFailure();
+    }
+
     const outcome = await updateItemRecord(itemId, userId, parsed.data);
     if (outcome.status === "not-found") {
       return failure(ITEM_NOT_FOUND);
