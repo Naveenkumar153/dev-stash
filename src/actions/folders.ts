@@ -2,8 +2,13 @@
 
 import type { z } from "zod";
 
-import { auth } from "@/auth";
-import { getFieldErrors, type FieldErrors } from "@/lib/auth-schemas";
+import {
+  FILE_NOT_FOUND,
+  FOLDER_NOT_FOUND,
+  SESSION_EXPIRED,
+  getFieldErrors,
+  type FieldErrors,
+} from "@/lib/action-result";
 import {
   deleteFolderTree,
   findFolder,
@@ -14,8 +19,6 @@ import {
   updateFolder,
 } from "@/lib/db/folders";
 import {
-  FILE_NOT_FOUND,
-  FOLDER_NOT_FOUND,
   createFolderSchema,
   folderIdSchema,
   moveFolderSchema,
@@ -27,22 +30,12 @@ import {
   type RenameFolderInput,
 } from "@/lib/folder-schemas";
 import { hasNameClash, wouldCreateCycle } from "@/lib/folders";
+import { getSessionUserId } from "@/lib/session";
 import { discardStoredFiles } from "@/lib/stored-files";
 import type { DeleteFolderResult, FolderRef, FolderResult, MoveItemResult } from "@/types/folders";
 
-const SESSION_EXPIRED = "Your session has expired. Sign in again.";
 const DESTINATION_NOT_FOUND = "The folder you picked doesn't exist or has been deleted.";
 const MOVE_INTO_ITSELF = "A folder can't be moved into itself or one of its sub-folders.";
-
-/**
- * The session's user id. Every query below is scoped to it, so another user's
- * folder or file fails like a missing one.
- */
-async function getSessionUserId(): Promise<string | null> {
-  const session = await auth();
-
-  return session?.user?.id ?? null;
-}
 
 function failure(error: string, fieldErrors: FieldErrors = {}): FolderResult {
   return { success: false, data: null, error, fieldErrors };

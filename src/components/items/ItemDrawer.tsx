@@ -9,17 +9,16 @@ import { ItemDrawerSkeleton } from "@/components/items/ItemDrawerSkeleton";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import type { ItemDetailState } from "@/hooks/use-item-detail";
-import type { ItemSummary } from "@/lib/db/items";
 import { getItemCopyText } from "@/lib/item-copy";
 import { getItemTypeLabel, getItemTypeStyleByName } from "@/lib/item-types";
 import { cn } from "@/lib/utils";
-import type { ItemDetail } from "@/types/items";
+import type { ItemDetail, ItemDrawerSummary } from "@/types/items";
 
 interface ItemDrawerProps {
   open: boolean;
   onOpenChange: (open: boolean) => void;
   /** The card that was clicked. Null until the first item is opened. */
-  summary: ItemSummary | null;
+  summary: ItemDrawerSummary | null;
   detail: ItemDetailState;
   /** Takes the item a save returned, so the drawer shows it without a refetch. */
   onItemSaved: (item: ItemDetail) => void;
@@ -57,7 +56,7 @@ export function ItemDrawer({
 }
 
 interface ItemDrawerPanelProps {
-  summary: ItemSummary;
+  summary: ItemDrawerSummary;
   detail: ItemDetailState;
   onItemSaved: (item: ItemDetail) => void;
   onItemDeleted: () => void;

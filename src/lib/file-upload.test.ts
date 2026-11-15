@@ -8,6 +8,7 @@ import {
   getFileExtension,
   getItemFileUrl,
   getUploadAccept,
+  getUserFilePrefix,
   isImageFileName,
   sanitizeFileName,
   validateUpload,
@@ -212,6 +213,11 @@ describe("buildFileKey", () => {
 
   it("can't leave the owner's folder, whatever the name", () => {
     expect(buildFileKey("user-1", "id", "../../user-2/x.png")).toBe("user-1/id-user-2-x.png");
+  });
+
+  it("starts every key with the owner's prefix, so their files can be listed together", () => {
+    expect(getUserFilePrefix("user-1")).toBe("user-1/");
+    expect(buildFileKey("user-1", "id", "a.png").startsWith(getUserFilePrefix("user-1"))).toBe(true);
   });
 });
 

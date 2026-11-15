@@ -1,4 +1,5 @@
 import { Prisma } from "@/generated/prisma/client";
+import { errorResponse } from "@/lib/api-response";
 import { registerSchema } from "@/lib/auth-schemas";
 import { hashPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
@@ -8,23 +9,24 @@ import {
   getRetryAfterSeconds,
   rateLimit,
 } from "@/lib/rate-limit";
+import { readJsonBody } from "@/lib/request-body";
 import { isEmailVerificationEnabled, issueVerificationEmail } from "@/lib/verification";
 
 const EMAIL_TAKEN = "An account with this email already exists";
 
-function errorResponse(error: string, status: number, headers?: HeadersInit) {
-  return Response.json({ success: false, data: null, error }, { status, headers });
-}
+/**
+ * A name, an email and two passwords of at most 72 bytes fit in well under
+ * this, so anything larger is refused before it is read.
+ */
+const MAX_BODY_BYTES = 16 * 1024;
 
 export async function POST(request: Request) {
-  let body: unknown;
-  try {
-    body = await request.json();
-  } catch {
-    return errorResponse("Request body must be valid JSON", 400);
+  const body = await readJsonBody(request, MAX_BODY_BYTES);
+  if (!body.ok) {
+    return errorResponse(body.error, body.status);
   }
 
-  const parsed = registerSchema.safeParse(body);
+  const parsed = registerSchema.safeParse(body.body);
   if (!parsed.success) {
     return errorResponse(parsed.error.issues[0].message, 400);
   }
@@ -34,7 +36,7 @@ export async function POST(request: Request) {
   const limit = await rateLimit("register", getClientIp(request.headers));
   if (!limit.success) {
     return errorResponse(getRateLimitMessage(limit.reset), 429, {
-      "Retry-After": String(getRetryAfterSeconds(limit.reset)),
+      headers: { "Retry-After": String(getRetryAfterSeconds(limit.reset)) },
     });
   }
 

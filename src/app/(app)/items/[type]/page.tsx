@@ -8,9 +8,10 @@ import { NewFolderButton } from "@/components/items/NewFolderButton";
 import { NewItemDialog } from "@/components/items/NewItemDialog";
 import { getFolders } from "@/lib/db/folders";
 import { getItemTypeBySlug } from "@/lib/db/item-types";
-import { getItemsByType } from "@/lib/db/items";
+import { getFileListItems, getItemsByType } from "@/lib/db/items";
 import { folderIdSchema } from "@/lib/folder-schemas";
 import type { FolderEntry } from "@/lib/folders";
+import { formatCount } from "@/lib/format";
 import {
   getItemTypePlural,
   getItemTypeSlug,
@@ -54,16 +55,19 @@ export default async function ItemTypePage({
 }: PageProps<"/items/[type]">) {
   const [{ type: slug }, query] = await Promise.all([params, searchParams]);
   const isFilesPage = slug === getItemTypeSlug("file");
-  const [list, folders] = await Promise.all([
-    getItemsByType(slug),
+  // Files get their own, lighter rows; every other type loads its cards.
+  const [cards, files, folders] = await Promise.all([
+    isFilesPage ? null : getItemsByType(slug),
+    isFilesPage ? getFileListItems() : null,
     isFilesPage ? getFolders() : [],
   ]);
+  const list = files ?? cards;
 
   if (!list) {
     notFound();
   }
 
-  const { typeName, items } = list;
+  const { typeName } = list;
   // Folders exist only on the files page; other types ignore the parameter.
   const openFolder = isFilesPage ? resolveOpenFolder(query.folder, folders) : null;
 
@@ -89,7 +93,7 @@ export default async function ItemTypePage({
         <div className="min-w-0 flex-1">
           <h1 className="font-heading text-3xl font-semibold">{plural}</h1>
           <p className="mt-1 text-muted-foreground">
-            {items.length} {items.length === 1 ? "item" : "items"}
+            {formatCount(list.items.length, "item")}
           </p>
         </div>
         {isFilesPage && (
@@ -106,18 +110,18 @@ export default async function ItemTypePage({
           {plural}
         </h2>
 
-        {isFilesPage ? (
+        {files ? (
           // Files get a Drive-style list with folders and filters instead of a
           // card grid. It has its own empty states, since folders can exist
           // without any files.
-          <FileList items={items} folders={folders} folderId={openFolder?.id ?? null} />
-        ) : items.length === 0 ? (
+          <FileList items={files.items} folders={folders} folderId={openFolder?.id ?? null} />
+        ) : !cards?.items.length ? (
           <p className="text-sm text-muted-foreground">
             No {plural.toLowerCase()} yet.
           </p>
         ) : (
           <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-            {items.map((item) => (
+            {cards.items.map((item) => (
               <Card key={item.id} item={item} />
             ))}
           </div>

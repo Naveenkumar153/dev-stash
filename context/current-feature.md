@@ -1,16 +1,59 @@
-# Current Feature
+# Current Feature: Code Scan Fixes
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+Fix the 13 new findings in `docs/audit-results/CODE_SCAN_REVIEW.md` (2026-11-14). IDs match the report.
+
+**Medium**
+
+- [x] M1 — The top bar's New Item uploads into the open folder on `/items/files?folder=X`: `NewItemDialog` infers `folderId` from `?folder=` when no prop is passed, the way it already infers the type from the path
+- [x] M2 — Zod leaves the app-shell client bundle: `parseTagInput` moves to a Zod-free module (`src/lib/tags.ts`), `FOLDER_NAME_MAX_LENGTH` to `src/lib/folders.ts`; confirm after `npm run build` that Zod only ships on `/register`
+- [x] M3 — `db:seed` and `db:reset-users` remove the R2 objects of the items they delete (keys read, delete transaction, then `discardStoredFiles()`); `reset-users` also deletes `password-reset:` tokens and counts folders and stored files in its dry run
+- [x] M4 — Lighter list payloads: `OpenItemButton` takes only the fields the drawer reads; the files page uses its own select without `description` and `tags` (decided at start: payload trimming only; loading just the open folder server-side is left open)
+
+**Low**
+
+- [x] L1 — Editing a link can't clear its URL: `updateItem` returns a `url` field error, sharing one `requiresUrl(typeName)` check with `createItemSchema`
+- [x] L2 — `POST /api/auth/register` refuses a body over 16 KB with a 413 before reading it
+- [x] L3 — Deleting an account also deletes every R2 object under the `userId/` prefix after the transaction, catching an upload that committed mid-delete
+- [x] L4 — New `@@index([userId, itemTypeId, createdAt(sort: Desc), id(sort: Desc)])` on `Item` through `npm run db:migrate`
+- [x] L5 — One session-expired message for every action and route (profile actions included)
+- [x] L6 — `formatCount()` in `CollectionCard`, the `FileList` status count and the `/items/[type]` header ("1 item", "1 of 1 file")
+- [x] L7 — `/profile` runs `getProfileUser()` and `getProfileStats()` in one `Promise.all`
+- [x] L8 — Shared plumbing: `fetchItemDetail()` used by `useItemDetail` and `fetchItemCopyText`; `src/lib/session.ts` (`getSessionUserId()`), `src/lib/action-result.ts` (`FieldErrors`, `getFieldErrors`, shared messages), `src/lib/api-response.ts` (`errorResponse()`); `auth-schemas.ts` keeps only auth schemas
+- [x] L9 — Split `FileList.tsx` (`FilterSelect`, a `useFileListView` hook, `FileRowDialogs`) and `NewItemDialog.tsx` (`uploadFileItem()` into `src/lib/upload-request.ts`, `NewItemForm` into its own file)
+
+**Checks**
+
+- [x] Unit tests for every changed action and utility (happy path and error branches)
+- [x] Browser check of M1, M4, L1 and L6 on `development` as the demo user
+- [x] `npm test`, `npm run lint`, `npm run build`, `npm run db:status` pass
 
 ## Notes
 
-<!-- Any extra notes -->
+- Source: `docs/audit-results/CODE_SCAN_REVIEW.md`, committed with this fix.
+- Out of scope (decided at start): the 18 "Known, already tracked" items in the report.
+- Behavior-preserving except M1, L1, L2 and L6, which change what users see.
+- L4 adds a migration (index-only DDL); production picks it up through `npm run db:deploy`.
+- `npm run db:seed` now deletes the demo account's uploaded files from R2 along with their rows (decided while implementing: the seed is a reset, so it discards rather than keeps them). Running it removes the demo's uploaded PDF and image.
+
+### Implementation notes
+
+- New shared modules: `src/lib/action-result.ts` (`FieldErrors`, `getFieldErrors`, `SESSION_EXPIRED`, the not-found and load/create-failed messages; Zod is type-only so clients can import it), `src/lib/session.ts` (`getSessionUserId()`), `src/lib/api-response.ts` (`errorResponse()` with optional `fieldErrors` / `headers`), `src/lib/item-request.ts` (`fetchItemDetail()`, never throws), `src/lib/tags.ts`, `src/lib/item-upload.ts` (`uploadFileItem()`), `src/lib/item-summary.ts` (`toDrawerSummary()`), `src/lib/request-body.ts` (`readJsonBody()`).
+- M1: `getOpenFolderId()` in `src/lib/folders.ts`; `NewItemDialog` uses it only when no `folderId` prop is passed.
+- M2: verified on the production build — the Zod chunk (91 KB gzip) is referenced only by `/register`; `/items/[type]` ships 166 KB gzip of JS, down from 257 KB.
+- M3 / L3: `discardUserFiles(userId)` in `src/lib/stored-files.ts` lists R2 by the `userId/` prefix (`listFileKeys()` in `src/lib/r2.ts`, paginated `ListObjectsV2`) after the rows are gone and deletes each object; the account delete no longer pre-reads keys, so `getUserFileKeys()` was removed. Batched `DeleteObjects` was avoided because of R2's checksum-header handling.
+- M4: `ItemDrawerSummary` / `FileListItem` in `src/types/items.ts`; `getFileListItems()` with its own select; `ITEM_CARD_SELECT` dropped `fileSize` / `folderId`. Server-side folder loading left open.
+- L1: the `updateItem` query returns `{ status: "saved" | "not-found" | "url-required" }`; `requiresUrl()` and `URL_REQUIRED` shared with `createItemSchema`.
+- L2: 16 KB cap; chunked bodies are read with a byte cap too.
+- L4: migration `20261114184302_item_type_list_index` (index-only), applied to `development`.
+- L9: `FilterSelect.tsx`, `FileRowDialogs.tsx`, `useFileListView()` (`src/hooks/`), `NewItemForm.tsx`.
+- Tests: 473 → 511 in 28 files. `npm test`, lint, build and `db:status` pass.
+- Browser: 17 checks in a headless Playwright script on `development` as the demo user (M1 upload from the top bar into a folder, L1 inline error with no write, M4 drawer and the description sent twice instead of three times, L6 plurals, L7 profile, no page errors). Test folder and file deleted through the UI; no rows or R2 objects left.
 
 ## History
 

@@ -1,63 +1,35 @@
 "use client";
 
-import { useMemo, useState, type ReactNode } from "react";
+import { useState } from "react";
 
-import { renameFolder } from "@/actions/folders";
 import { FILE_ROW_ACTIONS, FILE_ROW_COLUMNS, FileRow } from "@/components/items/FileRow";
+import { FileRowDialogs, type RowDialog } from "@/components/items/FileRowDialogs";
 import { FileSortControl } from "@/components/items/FileSortControl";
 import { FileTypeIcon } from "@/components/items/FileTypeIcon";
+import { FilterSelect } from "@/components/items/FilterSelect";
 import { FolderBreadcrumb } from "@/components/items/FolderBreadcrumb";
-import { FolderDeleteDialog } from "@/components/items/FolderDeleteDialog";
-import { FolderNameDialog } from "@/components/items/FolderNameDialog";
 import { FolderRow, type FolderAction } from "@/components/items/FolderRow";
-import { MoveToDialog, type MoveSubject } from "@/components/items/MoveToDialog";
 import { Button } from "@/components/ui/button";
-import {
-  Select,
-  SelectContent,
-  SelectItem,
-  SelectTrigger,
-  SelectValue,
-} from "@/components/ui/select";
-import type { ItemSummary } from "@/lib/db/items";
+import { useFileListView } from "@/hooks/use-file-list-view";
 import {
   DEFAULT_FILE_FILTERS,
-  DEFAULT_FILE_SORT,
   FILE_DATE_FILTERS,
   FILE_TYPE_FILTERS,
-  type FileFilters,
-  type FileSort,
   type FileTypeFilter,
-  isFileFilterActive,
-  matchesFileFilters,
-  sortFiles,
-  sortFolders,
 } from "@/lib/file-filters";
 import {
-  countDirectContents,
-  countSubtree,
   formatFolderPath,
   getFolderHref,
   getFolderPath,
-  groupByParent,
   type FolderEntry,
 } from "@/lib/folders";
+import { formatCount } from "@/lib/format";
 import { cn } from "@/lib/utils";
-
-interface FilterState {
-  filters: FileFilters;
-  /** When the filters last changed; date ranges count back from here. */
-  now: Date;
-}
-
-/** The dialog a row's menu opened. Kept after closing, so the dialog has content while it animates out. */
-type RowDialog =
-  | { kind: "rename" | "delete"; folder: FolderEntry }
-  | { kind: "move"; subject: MoveSubject };
+import type { FileListItem } from "@/types/items";
 
 interface FileListProps {
   /** Every file, in every folder. */
-  items: ItemSummary[];
+  items: FileListItem[];
   /** Every folder. */
   folders: FolderEntry[];
   /** The open folder; null at the top level. */
@@ -75,39 +47,11 @@ interface FileListProps {
  * mounted, while the filters clear.
  */
 export function FileList({ items, folders, folderId }: Readonly<FileListProps>) {
-  const [state, setState] = useState<FilterState | null>(null);
-  const [sort, setSort] = useState<FileSort>(DEFAULT_FILE_SORT);
-  const [shownFolderId, setShownFolderId] = useState(folderId);
-
-  // Opening a folder - from a filtered row's path, or back / forward - clears
-  // the filters, or the list would stay flat and never show the folder. Reset
-  // while rendering rather than in an effect, so the stale list never paints.
-  if (folderId !== shownFolderId) {
-    setShownFolderId(folderId);
-    setState(null);
-  }
+  const view = useFileListView(items, folders, folderId);
   const [dialog, setDialog] = useState<RowDialog | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
-
-  const byId = useMemo(() => new Map(folders.map((folder) => [folder.id, folder])), [folders]);
-  const children = useMemo(() => groupByParent(folders), [folders]);
-  const itemCounts = useMemo(() => countDirectContents(folders, items), [folders, items]);
-
-  const filters = state?.filters ?? DEFAULT_FILE_FILTERS;
-  const filtering = state !== null && isFileFilterActive(filters);
-  const shownFiles = sortFiles(
-    filtering
-      ? items.filter((item) => matchesFileFilters(item, filters, state.now))
-      : items.filter((item) => item.folderId === folderId),
-    sort,
-  );
-  const shownFolders = filtering ? [] : sortFolders(children.get(folderId) ?? [], sort);
+  const { filters, filtering, shownFiles, shownFolders } = view;
   const isEmpty = shownFiles.length === 0 && shownFolders.length === 0;
-
-  function update(next: Partial<FileFilters>) {
-    // The time is taken here, not during render, so rendering stays pure.
-    setState({ filters: { ...filters, ...next }, now: new Date() });
-  }
 
   function openDialog(next: RowDialog) {
     setDialog(next);
@@ -122,21 +66,19 @@ export function FileList({ items, folders, folderId }: Readonly<FileListProps>) 
     );
   }
 
-  function folderPathOf(item: ItemSummary) {
+  function folderPathOf(item: FileListItem) {
     return {
-      label: formatFolderPath(getFolderPath(byId, item.folderId)),
+      label: formatFolderPath(getFolderPath(view.byId, item.folderId)),
       href: getFolderHref(item.folderId),
     };
   }
-
-  const rowFolder = dialog?.kind === "rename" || dialog?.kind === "delete" ? dialog.folder : null;
 
   return (
     <div className="flex flex-col gap-4">
       {filtering ? (
         <p className="text-sm text-muted-foreground">Showing matches from every folder.</p>
       ) : (
-        <FolderBreadcrumb path={getFolderPath(byId, folderId)} />
+        <FolderBreadcrumb path={getFolderPath(view.byId, folderId)} />
       )}
 
       <div className="flex flex-wrap items-center gap-2">
@@ -146,7 +88,7 @@ export function FileList({ items, folders, folderId }: Readonly<FileListProps>) 
           options={FILE_TYPE_FILTERS}
           value={filters.type}
           defaultValue={DEFAULT_FILE_FILTERS.type}
-          onChange={(type) => update({ type })}
+          onChange={(type) => view.updateFilters({ type })}
           renderIcon={renderFileTypeIcon}
         />
         <FilterSelect
@@ -155,16 +97,16 @@ export function FileList({ items, folders, folderId }: Readonly<FileListProps>) 
           options={FILE_DATE_FILTERS}
           value={filters.date}
           defaultValue={DEFAULT_FILE_FILTERS.date}
-          onChange={(date) => update({ date })}
+          onChange={(date) => view.updateFilters({ date })}
         />
-        <FileSortControl sort={sort} onChange={setSort} />
+        <FileSortControl sort={view.sort} onChange={view.setSort} />
         {filtering && (
           <>
-            <Button variant="ghost" size="sm" onClick={() => setState(null)}>
+            <Button variant="ghost" size="sm" onClick={view.clearFilters}>
               Clear filters
             </Button>
             <p role="status" className="ml-auto text-sm text-muted-foreground">
-              {shownFiles.length} of {items.length} files
+              {shownFiles.length} of {formatCount(items.length, "file")}
             </p>
           </>
         )}
@@ -197,7 +139,7 @@ export function FileList({ items, folders, folderId }: Readonly<FileListProps>) 
               <FolderRow
                 key={folder.id}
                 folder={folder}
-                itemCount={itemCounts.get(folder.id) ?? 0}
+                itemCount={view.itemCounts.get(folder.id) ?? 0}
                 onAction={(action) => handleFolderAction(folder, action)}
               />
             ))}
@@ -218,30 +160,12 @@ export function FileList({ items, folders, folderId }: Readonly<FileListProps>) 
         </div>
       )}
 
-      {/* Keyed by folder, so the name field always starts from the folder it was opened for. */}
-      <FolderNameDialog
-        key={rowFolder?.id}
-        open={dialogOpen && dialog?.kind === "rename"}
+      <FileRowDialogs
+        dialog={dialog}
+        open={dialogOpen}
         onOpenChange={setDialogOpen}
-        title="Rename folder"
-        description={`Renames “${rowFolder?.name ?? ""}”.`}
-        submitLabel="Rename"
-        pendingLabel="Renaming..."
-        successMessage="Folder renamed"
-        initialName={rowFolder?.name}
-        onSubmit={(name) => renameFolder({ folderId: rowFolder?.id ?? "", name })}
-      />
-      <MoveToDialog
-        open={dialogOpen && dialog?.kind === "move"}
-        onOpenChange={setDialogOpen}
-        subject={dialog?.kind === "move" ? dialog.subject : null}
+        items={items}
         folders={folders}
-      />
-      <FolderDeleteDialog
-        open={dialogOpen && dialog?.kind === "delete"}
-        onOpenChange={setDialogOpen}
-        folder={rowFolder}
-        contents={rowFolder ? countSubtree(folders, items, rowFolder.id) : { folders: 0, files: 0 }}
       />
     </div>
   );
@@ -250,60 +174,4 @@ export function FileList({ items, folders, folderId }: Readonly<FileListProps>) 
 /** The type filter's option icon; "All types" gets the plain file icon. */
 function renderFileTypeIcon(type: FileTypeFilter) {
   return <FileTypeIcon category={type === "all" ? null : type} className="size-4" />;
-}
-
-interface FilterSelectProps<T extends string> {
-  /** Accessible name of the trigger. */
-  label: string;
-  /** Shown in the trigger while the filter is off, like Drive's chip names. */
-  placeholder: string;
-  options: readonly { value: T; label: string }[];
-  value: T;
-  defaultValue: T;
-  onChange: (value: T) => void;
-  /** An icon beside each option, and in the chip once a value is picked. */
-  renderIcon?: (value: T) => ReactNode;
-}
-
-/** A filter chip: a compact select that reads its name until a value is picked. */
-function FilterSelect<T extends string>({
-  label,
-  placeholder,
-  options,
-  value,
-  defaultValue,
-  onChange,
-  renderIcon,
-}: Readonly<FilterSelectProps<T>>) {
-  const on = value !== defaultValue;
-
-  return (
-    <Select value={value} onValueChange={(next) => next && onChange(next)}>
-      <SelectTrigger
-        aria-label={label}
-        className={cn("rounded-full", on && "border-primary/50 bg-primary/10")}
-      >
-        <SelectValue>
-          {(selected: T) =>
-            selected === defaultValue ? (
-              placeholder
-            ) : (
-              <>
-                {renderIcon?.(selected)}
-                {options.find((option) => option.value === selected)?.label}
-              </>
-            )
-          }
-        </SelectValue>
-      </SelectTrigger>
-      <SelectContent>
-        {options.map((option) => (
-          <SelectItem key={option.value} value={option.value}>
-            {renderIcon?.(option.value)}
-            {option.label}
-          </SelectItem>
-        ))}
-      </SelectContent>
-    </Select>
-  );
 }

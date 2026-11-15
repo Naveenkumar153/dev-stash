@@ -5,6 +5,7 @@ import { redirect } from "next/navigation";
 import { AuthError, CredentialsSignin } from "next-auth";
 
 import { signIn, signOut, TooManyAttempts } from "@/auth";
+import { getFieldErrors, type FieldErrors } from "@/lib/action-result";
 import {
   EMAIL_NOT_VERIFIED,
   getSignInErrorMessage,
@@ -12,13 +13,7 @@ import {
   safeCallbackUrl,
   SIGN_IN_PATH,
 } from "@/lib/auth-redirect";
-import {
-  emailSchema,
-  getFieldErrors,
-  resetPasswordSchema,
-  signInSchema,
-  type FieldErrors,
-} from "@/lib/auth-schemas";
+import { emailSchema, resetPasswordSchema, signInSchema } from "@/lib/auth-schemas";
 import { issuePasswordResetEmail, resetPasswordWithToken } from "@/lib/password-reset";
 import { prisma } from "@/lib/prisma";
 import {

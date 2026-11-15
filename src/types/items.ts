@@ -1,5 +1,32 @@
 import type { ContentType } from "@/generated/prisma/enums";
-import type { FieldErrors } from "@/lib/auth-schemas";
+import type { FieldErrors } from "@/lib/action-result";
+
+/**
+ * What a card hands the item drawer when it opens: enough for the drawer's
+ * header and action bar while the full detail loads.
+ */
+export interface ItemDrawerSummary {
+  id: string;
+  title: string;
+  /** Item type name, e.g. "snippet" - drives the icon and colors. */
+  typeName: string;
+  isPinned: boolean;
+  isFavorite: boolean;
+}
+
+/**
+ * A file as the /items/files list shows it. Descriptions and tags are left out,
+ * since the rows don't show them and the page sends every file at once.
+ */
+export interface FileListItem extends ItemDrawerSummary {
+  /** Original name of the upload. */
+  fileName: string | null;
+  /** Size in bytes. */
+  fileSize: number | null;
+  /** The folder it sits in; null at the top level. */
+  folderId: string | null;
+  createdAt: Date;
+}
 
 /** A collection an item belongs to, as the item drawer lists it. */
 export interface ItemCollectionRef {

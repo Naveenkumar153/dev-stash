@@ -6,11 +6,11 @@ import { OpenItemButton } from "@/components/items/OpenItemButton";
 import { RowActionsMenu } from "@/components/items/RowActionsMenu";
 import { Button } from "@/components/ui/button";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
-import type { ItemSummary } from "@/lib/db/items";
 import { getFileCategory } from "@/lib/file-filters";
 import { getItemFileUrl } from "@/lib/file-upload";
 import { formatFileSize, formatShortDate } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import type { FileListItem } from "@/types/items";
 
 /** Shared by the rows and the list's column header, so the columns line up. */
 export const FILE_ROW_COLUMNS = "md:grid md:grid-cols-[minmax(0,1fr)_6rem_6rem] md:items-center md:gap-4";
@@ -23,7 +23,7 @@ export const FILE_ROW_COLUMNS = "md:grid md:grid-cols-[minmax(0,1fr)_6rem_6rem] 
 export const FILE_ROW_ACTIONS = "flex w-15 shrink-0 items-center justify-end gap-1";
 
 interface FileRowProps {
-  item: ItemSummary;
+  item: FileListItem;
   /**
    * Shown in place of the file name while a filter lists files from every
    * folder: where the file is ("Files / Docs"), linking to that folder.

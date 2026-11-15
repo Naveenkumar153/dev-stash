@@ -114,6 +114,10 @@ model Item {
   // return ten. Leading userId also serves the plain where: { userId } counts.
   @@index([userId, createdAt(sort: Desc), id(sort: Desc)])
   @@index([userId, isPinned, createdAt(sort: Desc), id(sort: Desc)])
+  // The per-type list pages (/items/[type]) filter on the owner and the type,
+  // newest first, and the sidebar's per-type counts group a user's rows by type.
+  @@index([userId, itemTypeId, createdAt(sort: Desc), id(sort: Desc)])
+  // Still needed on its own for the foreign key, which isn't led by userId.
   @@index([itemTypeId])
   @@index([folderId])
   @@map("items")

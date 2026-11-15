@@ -1,4 +1,4 @@
-import { getItemTypeHref } from "@/lib/item-types";
+import { getCreatableTypeFromPath, getItemTypeHref } from "@/lib/item-types";
 
 /** A folder's place in the tree: enough to walk it up or down. */
 export interface FolderLink {
@@ -13,6 +13,9 @@ export interface FolderEntry extends FolderLink {
   createdAt: Date;
 }
 
+/** Longest folder name allowed, in characters. */
+export const FOLDER_NAME_MAX_LENGTH = 100;
+
 /** The top level's name in breadcrumbs, paths and the Move to... picker. */
 export const ROOT_FOLDER_LABEL = "Files";
 
@@ -21,6 +24,22 @@ export function getFolderHref(folderId: string | null): string {
   const base = getItemTypeHref("file");
 
   return folderId ? `${base}?folder=${encodeURIComponent(folderId)}` : base;
+}
+
+/**
+ * The folder open at a location: the files page's `?folder=`, or null at its
+ * top level and on every other page. An id that isn't the user's is refused
+ * by whatever it is sent to, like any other folder id.
+ */
+export function getOpenFolderId(
+  pathname: string,
+  searchParams: { get(name: string): string | null },
+): string | null {
+  if (getCreatableTypeFromPath(pathname) !== "file") {
+    return null;
+  }
+
+  return searchParams.get("folder") || null;
 }
 
 /** Whether two folder names count as the same: case is ignored, as is Unicode composition. */

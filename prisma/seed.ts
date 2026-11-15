@@ -5,7 +5,8 @@
  *
  * Creates a demo user, the 7 system item types, and 5 collections holding 18
  * tagged items. Safe to re-run: system types are matched by name, and the demo
- * user's collections and items are cleared before being recreated.
+ * user's collections and items are cleared before being recreated, along with
+ * the stored files of any items uploaded through the app.
  *
  * Scoped entirely to the demo user — it never touches other users' rows. Point
  * this at the development branch only, never production.
@@ -17,6 +18,7 @@ import "dotenv/config";
 import { ContentType } from "@/generated/prisma/enums";
 import { hashPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
+import { discardUserFiles } from "@/lib/stored-files";
 
 const DEMO_EMAIL = "demo@devstash.io";
 const DEMO_PASSWORD = "12345678";
@@ -416,12 +418,17 @@ async function seedSystemTypes(): Promise<Map<SystemTypeName, string>> {
   return ids;
 }
 
-/** Clears the demo user's own collections and items so re-runs stay clean. */
+/**
+ * Clears the demo user's own collections and items so re-runs stay clean,
+ * including files and images uploaded through the app, whose stored files are
+ * removed from R2 once their rows are gone so none is left behind.
+ */
 async function clearDemoData(userId: string): Promise<void> {
   const { count: items } = await prisma.item.deleteMany({ where: { userId } });
   const { count: collections } = await prisma.collection.deleteMany({
     where: { userId },
   });
+  await discardUserFiles(userId);
 
   if (items > 0 || collections > 0) {
     console.log(

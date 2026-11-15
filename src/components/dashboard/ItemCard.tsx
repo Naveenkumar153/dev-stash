@@ -6,6 +6,7 @@ import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import type { ItemSummary } from "@/lib/db/items";
 import { formatShortDate } from "@/lib/format";
+import { toDrawerSummary } from "@/lib/item-summary";
 import { getItemTypeLabel, getItemTypeStyleByName, isFileItemType } from "@/lib/item-types";
 import { cn } from "@/lib/utils";
 
@@ -41,7 +42,7 @@ export function ItemCard({ item }: Readonly<{ item: ItemSummary }>) {
 
         <div className="min-w-0 flex-1">
           <h3 className="flex items-center gap-2 font-heading text-base font-medium">
-            <OpenItemButton item={item} className="truncate">
+            <OpenItemButton item={toDrawerSummary(item)} className="truncate">
               {item.title}
             </OpenItemButton>
             {item.isPinned && (

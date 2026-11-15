@@ -13,6 +13,7 @@ import {
   isCreatableItemType,
   isFileItemType,
   isProItemType,
+  requiresUrl,
 } from "@/lib/item-types";
 
 describe("type naming", () => {
@@ -148,5 +149,18 @@ describe("isFileItemType", () => {
 
   it.each(["snippet", "link", "recipe", "Image"])("doesn't treat %s as a file type", (name) => {
     expect(isFileItemType(name)).toBe(false);
+  });
+});
+
+describe("requiresUrl", () => {
+  it("is true only for links, in any case", () => {
+    expect(requiresUrl("link")).toBe(true);
+    expect(requiresUrl("Link")).toBe(true);
+  });
+
+  it("is false for every other type, custom ones included", () => {
+    for (const name of ["snippet", "prompt", "command", "note", "file", "image", "recipe"]) {
+      expect(requiresUrl(name)).toBe(false);
+    }
   });
 });

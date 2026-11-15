@@ -3,6 +3,7 @@ import { Star } from "lucide-react";
 
 import { Card } from "@/components/ui/card";
 import type { CollectionSummary } from "@/lib/db/collections";
+import { formatCount } from "@/lib/format";
 import { getItemTypeLabel, getItemTypeStyleByName } from "@/lib/item-types";
 import { cn } from "@/lib/utils";
 
@@ -40,7 +41,7 @@ export function CollectionCard({
           )}
         </h3>
         <p className="text-sm text-muted-foreground">
-          {collection.itemCount} items
+          {formatCount(collection.itemCount, "item")}
         </p>
       </div>
 

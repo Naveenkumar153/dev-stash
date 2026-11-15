@@ -5,8 +5,9 @@ import { MarkdownEditor } from "@/components/items/MarkdownEditor";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
-import type { FieldErrors } from "@/lib/auth-schemas";
-import { parseTagInput, type UpdateItemInput } from "@/lib/item-schemas";
+import type { FieldErrors } from "@/lib/action-result";
+import type { UpdateItemInput } from "@/lib/item-schemas";
+import { parseTagInput } from "@/lib/tags";
 import type { ContentEditorKind, EditableItemFields } from "@/lib/item-types";
 
 /** The form's inputs, as typed. Tags stay one comma-separated string until Save. */

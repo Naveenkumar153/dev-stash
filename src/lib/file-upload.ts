@@ -169,7 +169,12 @@ export function sanitizeFileName(fileName: string): string {
  * two uploads of the same name never collide, then a safe form of the name.
  */
 export function buildFileKey(userId: string, uploadId: string, fileName: string): string {
-  return `${userId}/${uploadId}-${sanitizeFileName(fileName)}`;
+  return `${getUserFilePrefix(userId)}${uploadId}-${sanitizeFileName(fileName)}`;
+}
+
+/** Where every one of `userId`'s uploads is stored in R2: the start of each key. */
+export function getUserFilePrefix(userId: string): string {
+  return `${userId}/`;
 }
 
 /** RFC 5987 encoding, which unlike encodeURIComponent also escapes ' ( ) *. */

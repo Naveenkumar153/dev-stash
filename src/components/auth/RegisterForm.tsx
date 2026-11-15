@@ -10,7 +10,8 @@ import { FormMessage } from "@/components/auth/FormMessage";
 import { ResendVerificationButton } from "@/components/auth/ResendVerificationButton";
 import { Button } from "@/components/ui/button";
 import { SIGN_IN_PATH } from "@/lib/auth-redirect";
-import { getFieldErrors, registerSchema, type FieldErrors } from "@/lib/auth-schemas";
+import { getFieldErrors, type FieldErrors } from "@/lib/action-result";
+import { registerSchema } from "@/lib/auth-schemas";
 import type { RegisterResponse } from "@/types/auth";
 
 const SERVER_UNREACHABLE = "Could not reach the server. Please try again.";

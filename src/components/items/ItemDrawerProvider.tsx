@@ -4,11 +4,11 @@ import { createContext, useCallback, useContext, useMemo, useState } from "react
 
 import { ItemDrawer } from "@/components/items/ItemDrawer";
 import { useItemDetail } from "@/hooks/use-item-detail";
-import type { ItemSummary } from "@/lib/db/items";
+import type { ItemDrawerSummary } from "@/types/items";
 
 interface ItemDrawerContextValue {
   /** Opens the drawer on an item and starts loading its full detail. */
-  openItem: (item: ItemSummary) => void;
+  openItem: (item: ItemDrawerSummary) => void;
 }
 
 const ItemDrawerContext = createContext<ItemDrawerContextValue | null>(null);
@@ -33,11 +33,11 @@ export function ItemDrawerProvider({
 }: Readonly<{ children: React.ReactNode }>) {
   const [open, setOpen] = useState(false);
   // Kept after closing, so the drawer still has content while it animates out.
-  const [summary, setSummary] = useState<ItemSummary | null>(null);
+  const [summary, setSummary] = useState<ItemDrawerSummary | null>(null);
   const { detail, load, replace } = useItemDetail();
 
   const openItem = useCallback(
-    (item: ItemSummary) => {
+    (item: ItemDrawerSummary) => {
       setSummary(item);
       setOpen(true);
       void load(item.id);

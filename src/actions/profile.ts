@@ -1,14 +1,15 @@
 "use server";
 
-import { auth, signOut } from "@/auth";
+import { signOut } from "@/auth";
+import { SESSION_EXPIRED, getFieldErrors, type FieldErrors } from "@/lib/action-result";
 import { SIGN_IN_PATH } from "@/lib/auth-redirect";
-import { changePasswordSchema, getFieldErrors, type FieldErrors } from "@/lib/auth-schemas";
-import { getUserFileKeys } from "@/lib/db/items";
+import { changePasswordSchema } from "@/lib/auth-schemas";
 import { DEMO_USER_EMAIL } from "@/lib/db/user";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { resetIdentifier } from "@/lib/password-reset";
 import { prisma } from "@/lib/prisma";
-import { discardStoredFiles } from "@/lib/stored-files";
+import { getSessionUserId } from "@/lib/session";
+import { discardUserFiles } from "@/lib/stored-files";
 
 export interface ChangePasswordResult {
   success: boolean;
@@ -23,9 +24,9 @@ export interface ChangePasswordResult {
  * as by the page hiding the form.
  */
 export async function changePassword(formData: FormData): Promise<ChangePasswordResult> {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return { success: false, data: null, error: "You are not signed in.", fieldErrors: {} };
+  const userId = await getSessionUserId();
+  if (!userId) {
+    return { success: false, data: null, error: SESSION_EXPIRED, fieldErrors: {} };
   }
 
   const parsed = changePasswordSchema.safeParse(Object.fromEntries(formData));
@@ -35,7 +36,7 @@ export async function changePassword(formData: FormData): Promise<ChangePassword
 
   try {
     const user = await prisma.user.findUnique({
-      where: { id: session.user.id },
+      where: { id: userId },
       select: { passwordHash: true },
     });
     if (!user?.passwordHash) {
@@ -56,7 +57,7 @@ export async function changePassword(formData: FormData): Promise<ChangePassword
     }
 
     await prisma.user.update({
-      where: { id: session.user.id },
+      where: { id: userId },
       data: { passwordHash: await hashPassword(parsed.data.password) },
     });
     return { success: true, data: null, error: null, fieldErrors: {} };
@@ -91,10 +92,9 @@ async function getUserTagIds(userId: string): Promise<string[]> {
  * On success this redirects and never returns.
  */
 export async function deleteAccount(): Promise<DeleteAccountResult> {
-  const session = await auth();
-  const userId = session?.user?.id;
+  const userId = await getSessionUserId();
   if (!userId) {
-    return { success: false, data: null, error: "You are not signed in." };
+    return { success: false, data: null, error: SESSION_EXPIRED };
   }
 
   try {
@@ -107,7 +107,7 @@ export async function deleteAccount(): Promise<DeleteAccountResult> {
       return { success: false, data: null, error: "The demo account can't be deleted." };
     }
 
-    const [tagIds, fileKeys] = await Promise.all([getUserTagIds(userId), getUserFileKeys(userId)]);
+    const tagIds = await getUserTagIds(userId);
     // One transaction, so a failure leaves the account as it was. Items go
     // first because `Item.itemType` has no cascade, so a custom type can't be
     // deleted while its items exist.
@@ -122,8 +122,10 @@ export async function deleteAccount(): Promise<DeleteAccountResult> {
       prisma.tag.deleteMany({ where: { id: { in: tagIds }, items: { none: {} } } }),
     ]);
 
-    // R2 isn't part of the transaction, so its files go once the rows are gone.
-    await discardStoredFiles(fileKeys);
+    // R2 isn't part of the transaction, so its files go once the rows are
+    // gone. Listing them by the user's key prefix only now also catches an
+    // upload whose row committed while this was running.
+    await discardUserFiles(userId);
   } catch (error) {
     console.error("Deleting account failed", error);
     return { success: false, data: null, error: "Could not delete your account. Please try again." };

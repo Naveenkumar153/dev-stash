@@ -1,11 +1,7 @@
 import { describe, expect, it } from "vitest";
 
-import {
-  emailSchema,
-  getFieldErrors,
-  registerSchema,
-  signInSchema,
-} from "@/lib/auth-schemas";
+import { getFieldErrors } from "@/lib/action-result";
+import { emailSchema, registerSchema, signInSchema } from "@/lib/auth-schemas";
 
 const validRegistration = {
   name: "Ada Lovelace",
@@ -77,17 +73,5 @@ describe("registerSchema", () => {
   it("reports a mismatched confirmation on confirmPassword", () => {
     expect(errorsFor({ ...validRegistration, confirmPassword: "password124" }))
       .toEqual({ confirmPassword: "Passwords do not match" });
-  });
-});
-
-describe("getFieldErrors", () => {
-  it("keeps only the first message for each field", () => {
-    const errors = errorsFor({ name: "", email: "bad", password: "", confirmPassword: "" });
-
-    expect(errors).toEqual({
-      name: "Name is required",
-      email: "Enter a valid email address",
-      password: "Password must be at least 8 characters",
-    });
   });
 });

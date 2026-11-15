@@ -6,6 +6,7 @@ import {
   formatFolderPath,
   getFolderHref,
   getFolderPath,
+  getOpenFolderId,
   getSubtreeIds,
   groupByParent,
   hasNameClash,
@@ -198,5 +199,24 @@ describe("countSubtree", () => {
 
   it("counts nothing for an empty folder", () => {
     expect(countSubtree(TREE, files, "drafts")).toEqual({ folders: 0, files: 0 });
+  });
+});
+
+describe("getOpenFolderId", () => {
+  const params = (query: string) => new URLSearchParams(query);
+
+  it("reads the open folder on the files page", () => {
+    expect(getOpenFolderId("/items/files", params("folder=folder-1"))).toBe("folder-1");
+  });
+
+  it("is null at the files page's top level, including an empty parameter", () => {
+    expect(getOpenFolderId("/items/files", params(""))).toBeNull();
+    expect(getOpenFolderId("/items/files", params("folder="))).toBeNull();
+  });
+
+  it("ignores the parameter on every other page", () => {
+    expect(getOpenFolderId("/items/images", params("folder=folder-1"))).toBeNull();
+    expect(getOpenFolderId("/dashboard", params("folder=folder-1"))).toBeNull();
+    expect(getOpenFolderId("/items/files/extra", params("folder=folder-1"))).toBeNull();
   });
 });

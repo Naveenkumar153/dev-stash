@@ -1,4 +1,5 @@
-import { auth } from "@/auth";
+import { FILE_NOT_FOUND, SESSION_EXPIRED } from "@/lib/action-result";
+import { errorResponse } from "@/lib/api-response";
 import { getItemFile } from "@/lib/db/items";
 import {
   contentDisposition,
@@ -7,18 +8,13 @@ import {
 } from "@/lib/file-upload";
 import { itemIdSchema } from "@/lib/item-schemas";
 import { getFile } from "@/lib/r2";
-
-const NOT_FOUND = "This file doesn't exist or has been deleted.";
+import { getSessionUserId } from "@/lib/session";
 
 /**
  * Served files never run as pages on this origin: an SVG opened directly
  * can't execute its scripts, and nothing in a file can load other resources.
  */
 const FILE_CSP = "default-src 'none'; img-src 'self' data:; style-src 'unsafe-inline'; sandbox";
-
-function errorResponse(error: string, status: number) {
-  return Response.json({ success: false, data: null, error }, { status });
-}
 
 /**
  * The download proxy: streams an item's file from R2 through this origin, so
@@ -28,21 +24,20 @@ function errorResponse(error: string, status: number) {
  * from the stored name's extension, never from what the uploader reported.
  */
 export async function GET(request: Request, ctx: RouteContext<"/api/items/[id]/file">) {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return errorResponse("Your session has expired. Sign in again.", 401);
+  if (!(await getSessionUserId())) {
+    return errorResponse(SESSION_EXPIRED, 401);
   }
 
   const { id } = await ctx.params;
   if (!itemIdSchema.safeParse(id).success) {
-    return errorResponse(NOT_FOUND, 404);
+    return errorResponse(FILE_NOT_FOUND, 404);
   }
 
   try {
     const item = await getItemFile(id);
     const stored = item && (await getFile(item.key));
     if (!item || !stored) {
-      return errorResponse(NOT_FOUND, 404);
+      return errorResponse(FILE_NOT_FOUND, 404);
     }
 
     const download = new URL(request.url).searchParams.has("download");
