@@ -1,7 +1,7 @@
 import Link from "next/link";
-import { Star } from "lucide-react";
 
 import { CollectionCardMenu } from "@/components/collections/CollectionCardMenu";
+import { FavoriteToggle } from "@/components/favorites/FavoriteToggle";
 import { Card } from "@/components/ui/card";
 import type { CollectionSummary } from "@/lib/db/collections";
 import { formatCount } from "@/lib/format";
@@ -11,7 +11,8 @@ import { cn } from "@/lib/utils";
 /**
  * Collection card, color-coded on its left edge by the item type the collection
  * holds most of. Empty collections fall back to the neutral border. The whole
- * card links to the collection's page, except its "more actions" menu.
+ * card links to the collection's page, except its favorite star and "more
+ * actions" menu.
  */
 export function CollectionCard({
   collection,
@@ -36,18 +37,20 @@ export function CollectionCard({
               <span aria-hidden className="absolute inset-0" />
               {name}
             </Link>
-            {isFavorite && (
-              <Star
-                aria-label="Favorite"
-                className="size-4 shrink-0 fill-amber-400 text-amber-400"
-              />
-            )}
           </h3>
           <p className="text-sm text-muted-foreground">
             {formatCount(collection.itemCount, "item")}
           </p>
         </div>
-        {/* Above the stretched link, so it opens its menu without navigating. */}
+        {/* Both sit above the stretched link, so they work without navigating. */}
+        <FavoriteToggle
+          kind="collection"
+          id={id}
+          name={name}
+          isFavorite={isFavorite}
+          size="icon"
+          className="relative z-10 shrink-0"
+        />
         <CollectionCardMenu collection={{ id, name, description, isFavorite }} />
       </div>
 

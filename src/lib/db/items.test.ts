@@ -6,10 +6,12 @@ import {
   createItem,
   deleteItem,
   getCollectionItems,
+  getFavoriteItems,
   getFileListItems,
   getItemFile,
   getItemsByType,
   getSearchItems,
+  setItemFavorite,
   updateItem,
 } from "@/lib/db/items";
 import { getItemTypeBySlug } from "@/lib/db/item-types";
@@ -693,5 +695,84 @@ describe("getSearchItems", () => {
 
     expect(await getSearchItems()).toEqual([]);
     expect(prisma.item.findMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("getFavoriteItems", () => {
+  it("lists only the current user's favorites, most recently updated first, uncapped", async () => {
+    const updatedAt = new Date("2026-11-15T14:00:00.000Z");
+    vi.mocked(getCurrentUserId).mockResolvedValue("user-1");
+    vi.mocked(prisma.item.findMany).mockResolvedValue([
+      {
+        id: ITEM_ID,
+        title: "useDebounce hook",
+        isPinned: false,
+        isFavorite: true,
+        updatedAt,
+        itemType: { name: "snippet" },
+      },
+    ] as never);
+
+    const items = await getFavoriteItems();
+
+    expect(prisma.item.findMany).toHaveBeenCalledWith({
+      where: { userId: "user-1", isFavorite: true },
+      orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+      select: {
+        id: true,
+        title: true,
+        isPinned: true,
+        isFavorite: true,
+        updatedAt: true,
+        itemType: { select: { name: true } },
+      },
+    });
+    expect(items).toEqual([
+      {
+        id: ITEM_ID,
+        title: "useDebounce hook",
+        typeName: "snippet",
+        isPinned: false,
+        isFavorite: true,
+        updatedAt,
+      },
+    ]);
+  });
+
+  it("lists nothing, without a query, when there is no current user", async () => {
+    vi.mocked(getCurrentUserId).mockResolvedValue(null);
+
+    expect(await getFavoriteItems()).toEqual([]);
+    expect(prisma.item.findMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("setItemFavorite", () => {
+  it("updates only the favorite flag, scoped to the user, in one statement", async () => {
+    vi.mocked(prisma.item.update).mockResolvedValue({ id: ITEM_ID } as never);
+
+    expect(await setItemFavorite("user-1", ITEM_ID, true)).toBe(true);
+    expect(prisma.item.update).toHaveBeenCalledWith({
+      where: { id: ITEM_ID, userId: "user-1" },
+      data: { isFavorite: true },
+      select: { id: true },
+    });
+  });
+
+  it("returns false when there is no such item for the user", async () => {
+    vi.mocked(prisma.item.update).mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError("Record not found", {
+        code: "P2025",
+        clientVersion: "7",
+      }),
+    );
+
+    expect(await setItemFavorite("user-1", ITEM_ID, false)).toBe(false);
+  });
+
+  it("rethrows other database errors", async () => {
+    vi.mocked(prisma.item.update).mockRejectedValue(new Error("connection lost"));
+
+    await expect(setItemFavorite("user-1", ITEM_ID, true)).rejects.toThrow("connection lost");
   });
 });

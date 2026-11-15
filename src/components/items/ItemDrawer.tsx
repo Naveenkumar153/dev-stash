@@ -102,6 +102,9 @@ function ItemDrawerPanel({ summary, detail, onItemSaved, onItemDeleted }: ItemDr
             itemTitle={current.title}
             canDelete={item !== null}
             onDeleted={onItemDeleted}
+            onFavoriteSaved={
+              item ? (isFavorite) => onItemSaved({ ...item, isFavorite }) : undefined
+            }
             isFavorite={current.isFavorite}
             isPinned={current.isPinned}
             copyText={item ? getItemCopyText(item) : null}

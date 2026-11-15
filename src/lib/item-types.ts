@@ -19,6 +19,8 @@ export interface ItemTypeStyle {
   bgClass: string;
   /** Tailwind solid background class, used for the sidebar's type dots. */
   dotClass: string;
+  /** Tailwind full border color class, used to outline small type chips. */
+  chipBorderClass: string;
 }
 
 /**
@@ -36,6 +38,7 @@ const TYPE_STYLES: Record<string, ItemTypeStyle> = {
     borderClass: "border-l-type-snippet",
     bgClass: "bg-type-snippet/10",
     dotClass: "bg-type-snippet",
+    chipBorderClass: "border-type-snippet/60",
   },
   prompt: {
     icon: Sparkles,
@@ -43,6 +46,7 @@ const TYPE_STYLES: Record<string, ItemTypeStyle> = {
     borderClass: "border-l-type-prompt",
     bgClass: "bg-type-prompt/10",
     dotClass: "bg-type-prompt",
+    chipBorderClass: "border-type-prompt/60",
   },
   command: {
     icon: Terminal,
@@ -50,6 +54,7 @@ const TYPE_STYLES: Record<string, ItemTypeStyle> = {
     borderClass: "border-l-type-command",
     bgClass: "bg-type-command/10",
     dotClass: "bg-type-command",
+    chipBorderClass: "border-type-command/60",
   },
   note: {
     icon: StickyNote,
@@ -57,6 +62,7 @@ const TYPE_STYLES: Record<string, ItemTypeStyle> = {
     borderClass: "border-l-type-note",
     bgClass: "bg-type-note/10",
     dotClass: "bg-type-note",
+    chipBorderClass: "border-type-note/60",
   },
   file: {
     icon: File,
@@ -64,6 +70,7 @@ const TYPE_STYLES: Record<string, ItemTypeStyle> = {
     borderClass: "border-l-type-file",
     bgClass: "bg-type-file/10",
     dotClass: "bg-type-file",
+    chipBorderClass: "border-type-file/60",
   },
   image: {
     icon: Image,
@@ -71,6 +78,7 @@ const TYPE_STYLES: Record<string, ItemTypeStyle> = {
     borderClass: "border-l-type-image",
     bgClass: "bg-type-image/10",
     dotClass: "bg-type-image",
+    chipBorderClass: "border-type-image/60",
   },
   link: {
     icon: Link,
@@ -78,6 +86,7 @@ const TYPE_STYLES: Record<string, ItemTypeStyle> = {
     borderClass: "border-l-type-link",
     bgClass: "bg-type-link/10",
     dotClass: "bg-type-link",
+    chipBorderClass: "border-type-link/60",
   },
 };
 
@@ -96,6 +105,7 @@ const FALLBACK_STYLE: ItemTypeStyle = {
   borderClass: "border-l-border",
   bgClass: "bg-muted",
   dotClass: "bg-muted-foreground",
+  chipBorderClass: "border-border",
 };
 
 /**

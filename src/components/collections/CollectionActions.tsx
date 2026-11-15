@@ -24,7 +24,11 @@ export function CollectionActions({ collection }: Readonly<{ collection: Collect
 
   return (
     <div className="flex shrink-0 items-center gap-2">
-      <FavoriteCollectionButton isFavorite={collection.isFavorite} />
+      <FavoriteCollectionButton
+        collectionId={collection.id}
+        name={collection.name}
+        isFavorite={collection.isFavorite}
+      />
       <Button
         ref={editRef}
         variant="outline"

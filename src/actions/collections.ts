@@ -7,6 +7,7 @@ import {
   COLLECTION_DELETE_FAILED,
   COLLECTION_NOT_FOUND,
   COLLECTION_UPDATE_FAILED,
+  FAVORITE_UPDATE_FAILED,
   SESSION_EXPIRED,
   getFieldErrors,
   type FieldErrors,
@@ -21,14 +22,17 @@ import {
 import {
   createCollection as createCollectionRecord,
   deleteCollection as deleteCollectionRecord,
+  setCollectionFavorite as setCollectionFavoriteRecord,
   updateCollection as updateCollectionRecord,
 } from "@/lib/db/collections";
+import { isFavoriteSchema } from "@/lib/favorite-schemas";
 import { getSessionUserId } from "@/lib/session";
 import type {
   CreateCollectionResult,
   DeleteCollectionResult,
   UpdateCollectionResult,
 } from "@/types/collections";
+import type { SetFavoriteResult } from "@/types/favorites";
 
 function failure(error: string, fieldErrors: FieldErrors = {}): CreateCollectionResult {
   return { success: false, data: null, error, fieldErrors };
@@ -129,4 +133,44 @@ export async function deleteCollection(collectionId: string): Promise<DeleteColl
   // a router.refresh() right after router.replace() cancels the navigation.
   refresh();
   return { success: true, data: { id: collectionId }, error: null };
+}
+
+function favoriteFailure(error: string): SetFavoriteResult {
+  return { success: false, data: null, error };
+}
+
+/**
+ * Favorites or unfavorites one of the signed-in user's collections. On success
+ * the page and its layout re-render in this response, so the cards, the
+ * sidebar's Favorites and /favorites follow.
+ */
+export async function setCollectionFavorite(
+  collectionId: string,
+  isFavorite: boolean,
+): Promise<SetFavoriteResult> {
+  const userId = await getSessionUserId();
+  if (!userId) {
+    return favoriteFailure(SESSION_EXPIRED);
+  }
+
+  if (!collectionIdSchema.safeParse(collectionId).success) {
+    return favoriteFailure(COLLECTION_NOT_FOUND);
+  }
+
+  const parsed = isFavoriteSchema.safeParse(isFavorite);
+  if (!parsed.success) {
+    return favoriteFailure(FAVORITE_UPDATE_FAILED);
+  }
+
+  try {
+    if (!(await setCollectionFavoriteRecord(userId, collectionId, parsed.data))) {
+      return favoriteFailure(COLLECTION_NOT_FOUND);
+    }
+  } catch (error) {
+    console.error("Updating collection favorite failed", error);
+    return favoriteFailure(FAVORITE_UPDATE_FAILED);
+  }
+
+  refresh();
+  return { success: true, data: { id: collectionId, isFavorite: parsed.data }, error: null };
 }

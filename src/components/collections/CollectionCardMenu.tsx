@@ -3,15 +3,17 @@
 import { Pencil, Star, Trash2 } from "lucide-react";
 import { useRef, useState } from "react";
 
+import { setCollectionFavorite } from "@/actions/collections";
 import { DeleteCollectionDialog } from "@/components/collections/DeleteCollectionDialog";
 import { EditCollectionDialog } from "@/components/collections/EditCollectionDialog";
 import { RowActionsMenu } from "@/components/items/RowActionsMenu";
 import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
+import { useFavoriteToggle } from "@/hooks/use-favorite-toggle";
 import type { CollectionHeader } from "@/lib/db/collections";
 
 /**
- * A collection card's "more actions" menu: Edit, Favorite (shown but disabled
- * until favoriting is built) and Delete. The trigger sits above the card's
+ * A collection card's "more actions" menu: Edit, Favorite / Unfavorite and
+ * Delete. The trigger sits above the card's
  * stretched link, so it opens the menu without navigating. The dialogs live
  * outside the menu, so they stay open after it closes.
  */
@@ -19,6 +21,9 @@ export function CollectionCardMenu({ collection }: Readonly<{ collection: Collec
   const [editOpen, setEditOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
   const triggerRef = useRef<HTMLButtonElement>(null);
+  const favorite = useFavoriteToggle(collection.isFavorite, (next) =>
+    setCollectionFavorite(collection.id, next),
+  );
 
   return (
     <>
@@ -27,9 +32,9 @@ export function CollectionCardMenu({ collection }: Readonly<{ collection: Collec
           <Pencil aria-hidden />
           Edit
         </DropdownMenuItem>
-        <DropdownMenuItem disabled>
+        <DropdownMenuItem onClick={favorite.toggle}>
           <Star aria-hidden />
-          {collection.isFavorite ? "Unfavorite" : "Favorite"}
+          {favorite.isFavorite ? "Unfavorite" : "Favorite"}
         </DropdownMenuItem>
         <DropdownMenuSeparator />
         <DropdownMenuItem variant="destructive" onClick={() => setDeleteOpen(true)}>

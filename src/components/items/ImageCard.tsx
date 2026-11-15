@@ -1,6 +1,7 @@
-import { Pin, Star } from "lucide-react";
+import { Pin } from "lucide-react";
 import Image from "next/image";
 
+import { FavoriteToggle } from "@/components/favorites/FavoriteToggle";
 import { OpenItemButton } from "@/components/items/OpenItemButton";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
@@ -46,12 +47,6 @@ export function ImageCard({ item }: Readonly<{ item: ItemSummary }>) {
             {item.isPinned && (
               <Pin aria-label="Pinned" className="size-4 shrink-0 text-muted-foreground" />
             )}
-            {item.isFavorite && (
-              <Star
-                aria-label="Favorite"
-                className="size-4 shrink-0 fill-amber-400 text-amber-400"
-              />
-            )}
           </h3>
           <time
             dateTime={item.createdAt.toISOString()}
@@ -59,6 +54,13 @@ export function ImageCard({ item }: Readonly<{ item: ItemSummary }>) {
           >
             {formatShortDate(item.createdAt)}
           </time>
+          <FavoriteToggle
+            kind="item"
+            id={item.id}
+            name={item.title}
+            isFavorite={item.isFavorite}
+            className="relative z-10 shrink-0"
+          />
         </div>
 
         {item.tags.length > 0 && (

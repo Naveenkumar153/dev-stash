@@ -18,6 +18,7 @@ import {
 } from "@/lib/pagination";
 import { prisma } from "@/lib/prisma";
 import { getItemPreview } from "@/lib/search";
+import type { FavoriteItem } from "@/types/favorites";
 import type { FileListItem, ItemDetail, ItemDrawerSummary } from "@/types/items";
 import type { SearchItem } from "@/types/search";
 
@@ -58,6 +59,12 @@ const FILE_LIST_SELECT = {
 
 /** Newest first. createdAt ties break on id so the order is stable. */
 const NEWEST_FIRST = [{ createdAt: "desc" }, { id: "desc" }] as const;
+
+/**
+ * Most recently changed first. There's no favorited-at column, so updatedAt
+ * stands in for when an item was favorited; ties break on id.
+ */
+const RECENTLY_UPDATED = [{ updatedAt: "desc" }, { id: "desc" }] as const;
 
 interface ItemRow {
   id: string;
@@ -101,6 +108,60 @@ export async function getPinnedItems(
   });
 
   return items.map(toSummary);
+}
+
+/**
+ * Every item the user favorited, most recently favorited (updated) first, for
+ * /favorites. Uncapped: favorites are picked by hand, so the list stays short.
+ */
+export async function getFavoriteItems(): Promise<FavoriteItem[]> {
+  await connection();
+
+  const userId = await getCurrentUserId();
+
+  if (!userId) {
+    return [];
+  }
+
+  const items = await prisma.item.findMany({
+    where: { userId, isFavorite: true },
+    orderBy: [...RECENTLY_UPDATED],
+    select: {
+      id: true,
+      title: true,
+      isPinned: true,
+      isFavorite: true,
+      updatedAt: true,
+      itemType: { select: { name: true } },
+    },
+  });
+
+  return items.map(({ itemType, ...item }) => ({ ...item, typeName: itemType.name }));
+}
+
+/**
+ * Sets whether one of `userId`'s items is a favorite, in one scoped statement.
+ * Prisma bumps `updatedAt` with it, which is what /favorites sorts by. False
+ * when there is no such item or it's someone else's.
+ */
+export async function setItemFavorite(
+  userId: string,
+  itemId: string,
+  isFavorite: boolean,
+): Promise<boolean> {
+  try {
+    await prisma.item.update({
+      where: { id: itemId, userId },
+      data: { isFavorite },
+      select: { id: true },
+    });
+    return true;
+  } catch (error) {
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
+      return false;
+    }
+    throw error;
+  }
 }
 
 /** The latest items, newest first. */

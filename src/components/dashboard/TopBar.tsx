@@ -1,11 +1,12 @@
 import { NewCollectionDialog } from "@/components/collections/NewCollectionDialog";
+import { FavoritesLink } from "@/components/dashboard/FavoritesLink";
 import { SidebarToggle } from "@/components/dashboard/SidebarToggle";
 import { NewItemDialog } from "@/components/items/NewItemDialog";
 import { SearchTrigger } from "@/components/search/SearchTrigger";
 
 /**
  * Dashboard top bar: the sidebar toggle, the search field that opens the
- * command palette, New Collection and New Item.
+ * command palette, the Favorites link, New Collection and New Item.
  */
 export function TopBar() {
   return (
@@ -15,6 +16,7 @@ export function TopBar() {
       <SearchTrigger />
 
       <div className="ml-auto flex shrink-0 items-center gap-2">
+        <FavoritesLink />
         <NewCollectionDialog />
         <NewItemDialog />
       </div>

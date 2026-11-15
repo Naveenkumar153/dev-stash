@@ -54,3 +54,6 @@ export const SEARCH_LOAD_FAILED = "Couldn't load your items and collections.";
 
 /** Saving editor preferences failed for a reason the user can't act on. */
 export const EDITOR_PREFERENCES_SAVE_FAILED = "Couldn't save your editor preferences. Please try again.";
+
+/** Saving a favorite / unfavorite failed for a reason the user can't act on. */
+export const FAVORITE_UPDATE_FAILED = "Couldn't update favorites. Please try again.";

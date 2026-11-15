@@ -1,7 +1,10 @@
 "use server";
 
+import { refresh } from "next/cache";
+
 import {
   COLLECTIONS_NOT_FOUND,
+  FAVORITE_UPDATE_FAILED,
   ITEM_CREATE_FAILED,
   ITEM_NOT_FOUND,
   SESSION_EXPIRED,
@@ -12,8 +15,10 @@ import { ownsCollections } from "@/lib/db/collections";
 import {
   createItem as createItemRecord,
   deleteItem as deleteItemRecord,
+  setItemFavorite as setItemFavoriteRecord,
   updateItem as updateItemRecord,
 } from "@/lib/db/items";
+import { isFavoriteSchema } from "@/lib/favorite-schemas";
 import {
   createItemSchema,
   URL_REQUIRED,
@@ -24,6 +29,7 @@ import {
 } from "@/lib/item-schemas";
 import { getSessionUserId } from "@/lib/session";
 import { discardStoredFiles } from "@/lib/stored-files";
+import type { SetFavoriteResult } from "@/types/favorites";
 import type { CreateItemResult, DeleteItemResult, UpdateItemResult } from "@/types/items";
 
 function failure(error: string, fieldErrors: FieldErrors = {}): UpdateItemResult {
@@ -150,4 +156,45 @@ export async function deleteItem(itemId: string): Promise<DeleteItemResult> {
   }
 
   return { success: true, data: { id: itemId }, error: null };
+}
+
+function favoriteFailure(error: string): SetFavoriteResult {
+  return { success: false, data: null, error };
+}
+
+/**
+ * Favorites or unfavorites one of the signed-in user's items. Scoped to the
+ * session's user like `updateItem`, so anyone else's item fails like a missing
+ * one. On success the page and its layout re-render in this response, so the
+ * cards and /favorites follow.
+ */
+export async function setItemFavorite(
+  itemId: string,
+  isFavorite: boolean,
+): Promise<SetFavoriteResult> {
+  const userId = await getSessionUserId();
+  if (!userId) {
+    return favoriteFailure(SESSION_EXPIRED);
+  }
+
+  if (!itemIdSchema.safeParse(itemId).success) {
+    return favoriteFailure(ITEM_NOT_FOUND);
+  }
+
+  const parsed = isFavoriteSchema.safeParse(isFavorite);
+  if (!parsed.success) {
+    return favoriteFailure(FAVORITE_UPDATE_FAILED);
+  }
+
+  try {
+    if (!(await setItemFavoriteRecord(userId, itemId, parsed.data))) {
+      return favoriteFailure(ITEM_NOT_FOUND);
+    }
+  } catch (error) {
+    console.error("Updating item favorite failed", error);
+    return favoriteFailure(FAVORITE_UPDATE_FAILED);
+  }
+
+  refresh();
+  return { success: true, data: { id: itemId, isFavorite: parsed.data }, error: null };
 }

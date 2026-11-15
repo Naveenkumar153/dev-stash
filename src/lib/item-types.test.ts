@@ -35,6 +35,7 @@ describe("type naming", () => {
 describe("getItemTypeStyleByName", () => {
   it("returns the type's own color classes", () => {
     expect(getItemTypeStyleByName("link").borderClass).toBe("border-l-type-link");
+    expect(getItemTypeStyleByName("link").chipBorderClass).toBe("border-type-link/60");
   });
 
   it("ignores case", () => {
@@ -43,6 +44,7 @@ describe("getItemTypeStyleByName", () => {
 
   it("falls back to neutral styling for a custom type", () => {
     expect(getItemTypeStyleByName("recipe").borderClass).toBe("border-l-border");
+    expect(getItemTypeStyleByName("recipe").chipBorderClass).toBe("border-border");
   });
 });
 

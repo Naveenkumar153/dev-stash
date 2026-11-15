@@ -1,12 +1,14 @@
+import { refresh } from "next/cache";
 import type { Session } from "next-auth";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createItem, deleteItem, updateItem } from "@/actions/items";
+import { createItem, deleteItem, setItemFavorite, updateItem } from "@/actions/items";
 import { auth } from "@/auth";
 import { ownsCollections } from "@/lib/db/collections";
 import {
   createItem as createItemRecord,
   deleteItem as deleteItemRecord,
+  setItemFavorite as setItemFavoriteRecord,
   updateItem as updateItemRecord,
 } from "@/lib/db/items";
 import { deleteFile } from "@/lib/r2";
@@ -15,10 +17,12 @@ import type { ItemDetail } from "@/types/items";
 // The session and the query are mocked; the Zod schema runs for real, so these
 // tests also cover what the action sends to the database.
 vi.mock("@/auth", () => ({ auth: vi.fn() }));
+vi.mock("next/cache", () => ({ refresh: vi.fn() }));
 vi.mock("@/lib/db/items", () => ({
   createItem: vi.fn(),
   updateItem: vi.fn(),
   deleteItem: vi.fn(),
+  setItemFavorite: vi.fn(),
 }));
 vi.mock("@/lib/r2", () => ({ deleteFile: vi.fn() }));
 vi.mock("@/lib/db/collections", () => ({ ownsCollections: vi.fn() }));
@@ -385,5 +389,77 @@ describe("createItem", () => {
       error: "Couldn't create this item. Please try again.",
       fieldErrors: {},
     });
+  });
+});
+
+describe("setItemFavorite", () => {
+  const FAILED = "Couldn't update favorites. Please try again.";
+
+  beforeEach(() => {
+    signInAs("user-1");
+    vi.mocked(setItemFavoriteRecord).mockResolvedValue(true);
+  });
+
+  it.each([true, false])("saves isFavorite = %s on the signed-in user's item", async (isFavorite) => {
+    expect(await setItemFavorite(ITEM_ID, isFavorite)).toEqual({
+      success: true,
+      data: { id: ITEM_ID, isFavorite },
+      error: null,
+    });
+    expect(setItemFavoriteRecord).toHaveBeenCalledWith("user-1", ITEM_ID, isFavorite);
+    // The cards and /favorites re-render in the same response.
+    expect(refresh).toHaveBeenCalledOnce();
+  });
+
+  it("refuses when signed out, without a query", async () => {
+    mockAuth.mockResolvedValue(null);
+
+    expect(await setItemFavorite(ITEM_ID, true)).toEqual({
+      success: false,
+      data: null,
+      error: "Your session has expired. Sign in again.",
+    });
+    expect(setItemFavoriteRecord).not.toHaveBeenCalled();
+  });
+
+  it("treats an id that isn't a cuid as not found, without a query", async () => {
+    expect(await setItemFavorite("../etc", true)).toEqual({
+      success: false,
+      data: null,
+      error: NOT_FOUND,
+    });
+    expect(setItemFavoriteRecord).not.toHaveBeenCalled();
+  });
+
+  it("rejects a state that isn't a boolean, without a query", async () => {
+    expect(await setItemFavorite(ITEM_ID, "true" as unknown as boolean)).toEqual({
+      success: false,
+      data: null,
+      error: FAILED,
+    });
+    expect(setItemFavoriteRecord).not.toHaveBeenCalled();
+  });
+
+  it("reports a missing or someone else's item as not found, without refreshing", async () => {
+    vi.mocked(setItemFavoriteRecord).mockResolvedValue(false);
+
+    expect(await setItemFavorite(ITEM_ID, true)).toEqual({
+      success: false,
+      data: null,
+      error: NOT_FOUND,
+    });
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it("returns a generic error when the write fails", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(setItemFavoriteRecord).mockRejectedValue(new Error("connection lost"));
+
+    expect(await setItemFavorite(ITEM_ID, true)).toEqual({
+      success: false,
+      data: null,
+      error: FAILED,
+    });
+    expect(refresh).not.toHaveBeenCalled();
   });
 });

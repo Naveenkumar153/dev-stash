@@ -1,23 +1,27 @@
-import { Star } from "lucide-react";
+"use client";
 
-import { Button } from "@/components/ui/button";
-import { cn } from "@/lib/utils";
+import { FavoriteToggle } from "@/components/favorites/FavoriteToggle";
 
-/**
- * The collection page's Favorite button. It shows the collection's state but
- * stays disabled until favoriting is built, like the item drawer's Favorite.
- */
-export function FavoriteCollectionButton({ isFavorite }: Readonly<{ isFavorite: boolean }>) {
+interface FavoriteCollectionButtonProps {
+  collectionId: string;
+  name: string;
+  isFavorite: boolean;
+}
+
+/** The collection page's Favorite button: an outlined star beside Edit and Delete. */
+export function FavoriteCollectionButton({
+  collectionId,
+  name,
+  isFavorite,
+}: Readonly<FavoriteCollectionButtonProps>) {
   return (
-    <Button
+    <FavoriteToggle
+      kind="collection"
+      id={collectionId}
+      name={name}
+      isFavorite={isFavorite}
       variant="outline"
       size="icon"
-      aria-label="Favorite"
-      aria-pressed={isFavorite}
-      disabled
-      className={cn(isFavorite && "text-amber-400")}
-    >
-      <Star aria-hidden className={cn(isFavorite && "fill-amber-400")} />
-    </Button>
+    />
   );
 }

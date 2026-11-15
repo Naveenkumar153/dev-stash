@@ -13,11 +13,18 @@ import {
 } from "@/lib/pagination";
 import { prisma } from "@/lib/prisma";
 import type { CollectionOption } from "@/types/collections";
+import type { FavoriteCollection } from "@/types/favorites";
 
 const SIDEBAR_COLLECTION_LIMIT = 5;
 
 /** Newest first. createdAt ties break on id so the order is stable. */
 const NEWEST_FIRST = [{ createdAt: "desc" }, { id: "desc" }] as const;
+
+/**
+ * Most recently changed first. There's no favorited-at column, so updatedAt
+ * stands in for when a collection was favorited; ties break on id.
+ */
+const RECENTLY_UPDATED = [{ updatedAt: "desc" }, { id: "desc" }] as const;
 
 export interface CollectionSummary {
   id: string;
@@ -155,9 +162,8 @@ async function listCollections({ skip, take }: CollectionSlice = {}): Promise<
     return [];
   }
 
-  // The type list does not depend on which collections come back, so it goes
-  // out with them rather than adding a stage.
-  const [collections, types] = await Promise.all([
+  const { rows, typeCounts } = await withTypeCounts(
+    userId,
     prisma.collection.findMany({
       where: { userId },
       orderBy: [...NEWEST_FIRST],
@@ -165,15 +171,56 @@ async function listCollections({ skip, take }: CollectionSlice = {}): Promise<
       take,
       select: COLLECTION_SUMMARY_SELECT,
     }),
-    getAvailableTypes(userId),
-  ]);
+  );
 
+  return rows.map((collection) => summarize(collection, typeCounts));
+}
+
+/**
+ * Collection rows plus the type breakdown behind their summaries. The type
+ * list does not depend on which collections come back, so it goes out with
+ * the rows rather than adding a stage.
+ */
+async function withTypeCounts<T extends CollectionRow>(
+  userId: string,
+  findRows: Promise<T[]>,
+): Promise<{ rows: T[]; typeCounts: TypeCounts }> {
+  const [rows, types] = await Promise.all([findRows, getAvailableTypes(userId)]);
   const typeCounts = await getTypeCounts(
-    collections.map((collection) => collection.id),
+    rows.map((row) => row.id),
     types,
   );
 
-  return collections.map((collection) => summarize(collection, typeCounts));
+  return { rows, typeCounts };
+}
+
+/**
+ * Every collection the user favorited, most recently favorited (updated)
+ * first, for /favorites. Uncapped: favorites are picked by hand.
+ */
+export async function getFavoriteCollections(): Promise<FavoriteCollection[]> {
+  await connection();
+
+  const userId = await getCurrentUserId();
+
+  if (!userId) {
+    return [];
+  }
+
+  const { rows, typeCounts } = await withTypeCounts(
+    userId,
+    prisma.collection.findMany({
+      where: { userId, isFavorite: true },
+      orderBy: [...RECENTLY_UPDATED],
+      select: { ...COLLECTION_SUMMARY_SELECT, updatedAt: true },
+    }),
+  );
+
+  return rows.map((row) => {
+    const { id, name, itemCount, dominantTypeName } = summarize(row, typeCounts);
+
+    return { id, name, itemCount, dominantTypeName, updatedAt: row.updatedAt };
+  });
 }
 
 /** Most recently created collections, as cards for the dashboard. */
@@ -274,6 +321,31 @@ export async function updateCollection(
   } catch (error) {
     if (isNotFound(error)) {
       return null;
+    }
+    throw error;
+  }
+}
+
+/**
+ * Sets whether one of `userId`'s collections is a favorite, in one scoped
+ * statement. Prisma bumps `updatedAt` with it, which is what /favorites sorts
+ * by. False when there is no such collection or it's someone else's.
+ */
+export async function setCollectionFavorite(
+  userId: string,
+  id: string,
+  isFavorite: boolean,
+): Promise<boolean> {
+  try {
+    await prisma.collection.update({
+      where: { id, userId },
+      data: { isFavorite },
+      select: { id: true },
+    });
+    return true;
+  } catch (error) {
+    if (isNotFound(error)) {
+      return false;
     }
     throw error;
   }

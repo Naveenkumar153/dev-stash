@@ -8,8 +8,10 @@ import {
   getCollectionOptions,
   getCollectionPage,
   getCollections,
+  getFavoriteCollections,
   getRecentCollections,
   ownsCollections,
+  setCollectionFavorite,
   updateCollection,
 } from "@/lib/db/collections";
 import { getAvailableTypes } from "@/lib/db/item-types";
@@ -271,5 +273,87 @@ describe("deleteCollection", () => {
     vi.mocked(prisma.collection.delete).mockRejectedValue(new Error("connection lost"));
 
     await expect(deleteCollection("user-1", COLLECTION_ID)).rejects.toThrow("connection lost");
+  });
+});
+
+describe("getFavoriteCollections", () => {
+  it("lists only the current user's favorites, most recently updated first, as rows", async () => {
+    const updatedAt = new Date("2026-11-15T14:00:00.000Z");
+    vi.mocked(getCurrentUserId).mockResolvedValue("user-1");
+    vi.mocked(getAvailableTypes).mockResolvedValue([
+      { id: "type-snippet", name: "snippet" },
+      { id: "type-prompt", name: "prompt" },
+    ] as never);
+    vi.mocked(prisma.collection.findMany).mockResolvedValue([
+      {
+        id: "col-1",
+        name: "AI Workflows",
+        description: "Prompts",
+        isFavorite: true,
+        updatedAt,
+        _count: { items: 3 },
+      },
+      { id: "col-2", name: "Empty", description: null, isFavorite: true, updatedAt, _count: { items: 0 } },
+    ] as never);
+    vi.mocked(prisma.itemCollection.groupBy)
+      .mockResolvedValueOnce([{ collectionId: "col-1", _count: { _all: 1 } }] as never)
+      .mockResolvedValueOnce([{ collectionId: "col-1", _count: { _all: 2 } }] as never);
+
+    const result = await getFavoriteCollections();
+
+    expect(prisma.collection.findMany).toHaveBeenCalledWith({
+      where: { userId: "user-1", isFavorite: true },
+      orderBy: [{ updatedAt: "desc" }, { id: "desc" }],
+      select: {
+        id: true,
+        name: true,
+        description: true,
+        isFavorite: true,
+        _count: { select: { items: true } },
+        updatedAt: true,
+      },
+    });
+    // Only the row's fields: the description and type list stay on the server.
+    expect(result).toEqual([
+      { id: "col-1", name: "AI Workflows", itemCount: 3, dominantTypeName: "prompt", updatedAt },
+      { id: "col-2", name: "Empty", itemCount: 0, dominantTypeName: null, updatedAt },
+    ]);
+  });
+
+  it("lists nothing, without a query, when there is no current user", async () => {
+    vi.mocked(getCurrentUserId).mockResolvedValue(null);
+
+    expect(await getFavoriteCollections()).toEqual([]);
+    expect(prisma.collection.findMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("setCollectionFavorite", () => {
+  it("updates only the favorite flag, scoped to the user, in one statement", async () => {
+    vi.mocked(prisma.collection.update).mockResolvedValue({ id: "col-1" } as never);
+
+    expect(await setCollectionFavorite("user-1", "col-1", true)).toBe(true);
+    expect(prisma.collection.update).toHaveBeenCalledWith({
+      where: { id: "col-1", userId: "user-1" },
+      data: { isFavorite: true },
+      select: { id: true },
+    });
+  });
+
+  it("returns false when there is no such collection for the user", async () => {
+    vi.mocked(prisma.collection.update).mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError("Record not found", {
+        code: "P2025",
+        clientVersion: "7",
+      }),
+    );
+
+    expect(await setCollectionFavorite("user-1", "col-1", false)).toBe(false);
+  });
+
+  it("rethrows other database errors", async () => {
+    vi.mocked(prisma.collection.update).mockRejectedValue(new Error("connection lost"));
+
+    await expect(setCollectionFavorite("user-1", "col-1", true)).rejects.toThrow("connection lost");
   });
 });

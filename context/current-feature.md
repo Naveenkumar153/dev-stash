@@ -1,16 +1,114 @@
-# Current Feature
+# Current Feature: Favorites Page & Favorite Toggle
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+Complete
 
 ## Goals
 
-<!-- Goals & requirements -->
+- [x] A star icon button in the `TopBar` links to `/favorites`
+- [x] `/favorites` exists under the `(app)` shell and is protected: added to the `src/proxy.ts` matcher, so signed-out requests 302 to `/sign-in` with a callback
+- [x] Every favorited item and collection of the user is fetched
+- [x] Compact list view in a VS Code / terminal style, not cards. Each row shows the type icon, title, type badge and date
+- [x] Separate Items and Collections sections, each with its count
+- [x] Clicking an item row opens the `ItemDrawer`; clicking a collection row navigates to `/collections/[id]`
+- [x] Empty state when there are no favorites
+- [x] Both lists are sorted by most recently favorited (`updatedAt` desc)
+- [x] UI style: monospace or semi-monospace, minimal padding and high density, subtle hover, no cards or heavy borders, only clean lines
+- [x] Unit tests for the new queries' logic; `npm test`, lint and build pass
+
+### Favorite toggle (folded in at the user's request)
+
+- [x] **Item drawer:** the Favorite button, disabled until now, toggles the open item's favorite state.
+- [x] **Collection page:** the Favorite button, also disabled until now, toggles the collection's favorite state.
+- [x] **Cards:** item cards (`ItemCard`, `ImageCard`) and collection cards (`CollectionCard`) get a star toggle, and the collection card menu's Favorite / Unfavorite item works.
+- [x] Each toggle shows its state with `aria-pressed` and a filled amber star, updates at once, and rolls back with an error toast on failure.
+- [x] After a toggle, the other views follow: cards, the sidebar's Favorites collections and `/favorites`.
+- [x] Server actions `setItemFavorite` and `setCollectionFavorite` check the session, validate with Zod, scope the write to the user and return `{ success, data, error }`.
+- [x] Unit tests for both actions and their queries; `npm test`, lint and build pass.
 
 ## Notes
 
-<!-- Any extra notes -->
+- **Spec:** `context/features/favorites-spec.md`.
+- **Data:**
+  - There's no `favoritedAt` column, so "date added" and the sort both use `updatedAt`, as the spec says.
+  - Any edit also bumps `updatedAt`, so an edited favorite moves to the top. Accepted per the spec, with no migration.
+  - Use `NEWEST_FIRST`-style ordering (`updatedAt desc, id desc`) for a stable tie-break. The existing composite indexes carry `isFavorite` with `createdAt`, not `updatedAt`, which is fine at today's sizes.
+- **Scoping (proposed):**
+  - Reads go through `getCurrentUserId()` like the dashboard, sidebar, collection pages and search, so the page shows exactly what the rest of the app shows. The drawer it opens scopes the same way.
+- **Queries (proposed):**
+  - `getFavoriteItems()` in `src/lib/db/items.ts`, reusing `ITEM_CARD_SELECT` / `toSummary()` so rows can call `toDrawerSummary()`.
+  - `getFavoriteCollections()` in `src/lib/db/collections.ts`, through `summarize()` for `itemCount` and `dominantTypeName`.
+  - Both run in one `Promise.all` and are uncapped, like the other full lists. Favorites are user-curated and small, so no pagination.
+- **Rows (proposed):**
+  - Item rows reuse the stretched `OpenItemButton` pattern, so the whole row opens the drawer and the button carries the name and focus.
+  - Collection rows use a stretched `next/link`.
+  - The "type badge" on an item row is its singular type label. On a collection row it's "Collection", and the icon is a `FolderOpen` tinted by its dominant type, as in the search palette.
+  - Dates use `formatShortDate()`, with `<time dateTime>`.
+  - Rows also show the collection's item count. That isn't in the spec; drop it if unwanted.
+- **Style (proposed):** `font-mono` text-sm rows about 32px tall, with `divide-y` hairlines, `hover:bg-muted/50`, an inset focus ring, and the type badge as a small muted mono label. On phones, the badge and date stay and long titles truncate.
+- **Top bar (proposed):** a ghost `icon` button rendered as a plain `next/link` with `buttonVariants`, like the sidebar's settings gear, named "Favorites" with a tooltip-free `aria-label`. It sits before New Collection, and its star is filled and amber while on `/favorites` (`aria-current="page"`).
+- **Empty state:**
+  - One message for no favorites at all.
+  - Each section still renders its header with a "0" count and a short line when only one of the two is empty.
+- **Built (differences from the proposals above):**
+  - The badge is the raw lowercase type name (`snippet`, `link`) to match the terminal style, rather than the capitalized label.
+  - Both queries are uncapped. `getFavoriteCollections()` shares the new private `withTypeCounts()` with `listCollections()` and returns only the row's fields.
+  - The collection's item count shows from `sm` up.
+  - The star is an `icon-lg` ghost link, matching the 36px top bar buttons.
+- **Review:**
+  - Fixed: item rows now pass `toDrawerSummary(item)`, the existing helper, instead of picking the fields by hand. `RECENTLY_UPDATED` in `items.ts` moved up beside `NEWEST_FIRST`. Section headings read "Items 6", not "Items6". All three re-checked in the browser, with the drawer loading an item's detail and no page errors.
+  - Changed after review at the user's request:
+    - The type chips are outlined in their type's color through a new `chipBorderClass` on `ItemTypeStyle` in `src/lib/item-types.ts` (`border-type-<name>/60`, with `border-border` for custom types). They had used the near-invisible neutral `border-border`.
+    - A collection's chip follows its dominant type, like its icon, and stays neutral when the collection is empty.
+  - Open, not fixed:
+    - Any edit bumps `updatedAt`, so saving an item from the drawer moves it to the top of the list. This is per the spec, and a `favoritedAt` column would fix it.
+    - Truncated titles on phones have no tooltip.
+    - Dates show no year, like the rest of the app.
+    - The sort uses the `isFavorite` composite indexes for the filter but sorts `updatedAt` in memory, which is fine for hand-picked lists.
+    - The empty states weren't seen in the browser.
+- **Favorite toggle (proposed):**
+  - **Actions:** set, not flip. `setItemFavorite(itemId, isFavorite)` and `setCollectionFavorite(collectionId, isFavorite)` in `src/actions/items.ts` / `src/actions/collections.ts` take the wanted state.
+    - A double-click or two open tabs therefore can't invert each other.
+    - Each is a single `update` on `id` + `userId` returning `{ id, isFavorite }`. P2025 maps to `ITEM_NOT_FOUND` / `COLLECTION_NOT_FOUND`, and a non-cuid id fails without a query.
+    - Queries go in `src/lib/db/items.ts` / `collections.ts` beside `updateItem` / `updateCollection`.
+  - **Sort:** Prisma's `@updatedAt` bumps `updatedAt` on the write, so a newly favorited row goes to the top of `/favorites`, which matches the page's "most recently favorited" sort. Unfavoriting also bumps it, which is harmless.
+  - **Scoping:** writes check the session user like edit and delete, while the lists read `getCurrentUserId()`. So only the demo account can toggle, as with the other writes.
+  - **UI:**
+    - One client `FavoriteToggle` (ghost icon button, star outline or filled amber, `aria-pressed`, `aria-label` "Favorite <name>").
+    - It updates optimistically, rolls back with an error toast on failure, and calls `router.refresh()` on success.
+    - No success toast, since the star itself is the feedback.
+    - Clicks never pass through to the card's stretched link or button: the toggle sits in `relative z-10` like `QuickCopyButton`.
+  - **Cards:** the decorative star after the title becomes the toggle, always visible so it works on touch.
+    - On item cards it sits in the title row.
+    - On collection cards it sits beside the menu, and the menu's Favorite / Unfavorite item calls the same action.
+  - **Drawer:**
+    - Favorite enables once the detail has loaded, like Delete.
+    - A toggle swaps the drawer's detail through `useItemDetail().replace()` with the new state, so the drawer, header and card behind it all agree after the refresh.
+  - **Collection page:** `FavoriteCollectionButton` keeps its outline look and becomes the toggle.
+- **Favorite toggle (built):**
+  - **Server:**
+    - `setItemFavorite` / `setCollectionFavorite` actions and queries as proposed, with `isFavoriteSchema` (`z.boolean()`) in the new `src/lib/favorite-schemas.ts`, `FAVORITE_UPDATE_FAILED` in `action-result.ts` and `SetFavoriteResult` in `src/types/favorites.ts`.
+    - The actions call `refresh()` from `next/cache` on success, like `deleteCollection`, so cards, the sidebar and `/favorites` re-render in the action's own response with no client `router.refresh()`.
+  - **Client:**
+    - The new `useFavoriteToggle()` hook (`src/hooks/`) uses `useOptimistic` in a transition. It ignores clicks while a save runs. A failed or thrown save rolls back with an error toast; a dropped connection no longer reaches the error boundary.
+    - The drawer's `onSaved` runs in a nested transition.
+    - The new `FavoriteToggle` (`src/components/favorites/`) is a ghost or outline star button with `aria-pressed` and `aria-label` "Favorite <name>" (the visible "Favorite" text in the drawer).
+  - **Cards:**
+    - `ItemCard` puts the star between the date and Copy, and `ImageCard` after the date.
+    - `CollectionCard` puts it beside the menu. The decorative stars in their headings were removed, since the toggle now shows the state.
+    - The card menu's Favorite / Unfavorite uses the hook.
+  - **Drawer:** `ItemDrawerActions` takes `onFavoriteSaved`. `ItemDrawer` passes one only once the detail has loaded, and it saves into the detail through `onItemSaved` (`replace`). Until then the old disabled button shows the state.
+  - **Collection page:** `FavoriteCollectionButton` was kept and now wraps `FavoriteToggle` (outline, `icon`).
+  - **Browser check:** verified on :3000 as the demo user.
+    - The card star toggled without opening the drawer and persisted across a reload. `/favorites` then listed the item first.
+    - The drawer's Favorite toggled with the drawer staying open and the card behind updating.
+    - The collection card star toggled without navigating, and the sidebar's Favorites gained and lost DevOps. The menu read "Unfavorite" and toggled it back.
+    - The collection page button toggled and persisted.
+    - With the action request aborted, the star flipped, the error toast showed and it rolled back. No page errors.
+    - Every toggle was put back: SQL shows 6 favorite items and AI Workflows + React Patterns. Lucide icons' and DevOps's `updatedAt` moved.
+  - **Tests:** 20 new, 715 in all: 7 per action and 3 per query. `src/actions/items.ts`, `src/actions/collections.ts` and `favorite-schemas.ts` are at 100%.
+- **Out of scope:** pinning; favoriting from the file list rows, the search palette or the `/favorites` rows (an unfavorite there could follow later); filters or search on the page.
 
 ## History
 

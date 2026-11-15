@@ -2,11 +2,17 @@ import { refresh } from "next/cache";
 import type { Session } from "next-auth";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { createCollection, deleteCollection, updateCollection } from "@/actions/collections";
+import {
+  createCollection,
+  deleteCollection,
+  setCollectionFavorite,
+  updateCollection,
+} from "@/actions/collections";
 import { auth } from "@/auth";
 import {
   createCollection as createCollectionRecord,
   deleteCollection as deleteCollectionRecord,
+  setCollectionFavorite as setCollectionFavoriteRecord,
   updateCollection as updateCollectionRecord,
   type CollectionSummary,
 } from "@/lib/db/collections";
@@ -19,6 +25,7 @@ vi.mock("@/lib/db/collections", () => ({
   createCollection: vi.fn(),
   updateCollection: vi.fn(),
   deleteCollection: vi.fn(),
+  setCollectionFavorite: vi.fn(),
 }));
 
 /** `auth` is overloaded (it doubles as middleware), so its mock is typed by hand. */
@@ -233,5 +240,78 @@ describe("deleteCollection", () => {
       success: false,
       error: "Couldn't delete this collection. Please try again.",
     });
+  });
+});
+
+describe("setCollectionFavorite", () => {
+  const FAILED = "Couldn't update favorites. Please try again.";
+  const NOT_FOUND = "This collection doesn't exist or has been deleted.";
+
+  beforeEach(() => {
+    mockAuth.mockResolvedValue(SESSION);
+    vi.mocked(setCollectionFavoriteRecord).mockResolvedValue(true);
+  });
+
+  it.each([true, false])("saves isFavorite = %s on the signed-in user's collection", async (isFavorite) => {
+    expect(await setCollectionFavorite(COLLECTION_ID, isFavorite)).toEqual({
+      success: true,
+      data: { id: COLLECTION_ID, isFavorite },
+      error: null,
+    });
+    expect(setCollectionFavoriteRecord).toHaveBeenCalledWith("user-1", COLLECTION_ID, isFavorite);
+    // The cards, the sidebar's Favorites and /favorites re-render in the same response.
+    expect(refresh).toHaveBeenCalledOnce();
+  });
+
+  it("refuses when signed out, without a query", async () => {
+    mockAuth.mockResolvedValue(null);
+
+    expect(await setCollectionFavorite(COLLECTION_ID, true)).toEqual({
+      success: false,
+      data: null,
+      error: "Your session has expired. Sign in again.",
+    });
+    expect(setCollectionFavoriteRecord).not.toHaveBeenCalled();
+  });
+
+  it("treats an id that isn't a cuid as not found, without a query", async () => {
+    expect(await setCollectionFavorite("not-a-cuid", true)).toEqual({
+      success: false,
+      data: null,
+      error: NOT_FOUND,
+    });
+    expect(setCollectionFavoriteRecord).not.toHaveBeenCalled();
+  });
+
+  it("rejects a state that isn't a boolean, without a query", async () => {
+    expect(await setCollectionFavorite(COLLECTION_ID, 1 as unknown as boolean)).toEqual({
+      success: false,
+      data: null,
+      error: FAILED,
+    });
+    expect(setCollectionFavoriteRecord).not.toHaveBeenCalled();
+  });
+
+  it("reports a missing or someone else's collection as not found, without refreshing", async () => {
+    vi.mocked(setCollectionFavoriteRecord).mockResolvedValue(false);
+
+    expect(await setCollectionFavorite(COLLECTION_ID, false)).toEqual({
+      success: false,
+      data: null,
+      error: NOT_FOUND,
+    });
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it("returns a generic error when the write fails", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(setCollectionFavoriteRecord).mockRejectedValue(new Error("connection lost"));
+
+    expect(await setCollectionFavorite(COLLECTION_ID, true)).toEqual({
+      success: false,
+      data: null,
+      error: FAILED,
+    });
+    expect(refresh).not.toHaveBeenCalled();
   });
 });

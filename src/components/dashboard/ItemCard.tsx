@@ -1,5 +1,6 @@
-import { Pin, Star } from "lucide-react";
+import { Pin } from "lucide-react";
 
+import { FavoriteToggle } from "@/components/favorites/FavoriteToggle";
 import { OpenItemButton } from "@/components/items/OpenItemButton";
 import { QuickCopyButton } from "@/components/items/QuickCopyButton";
 import { Badge } from "@/components/ui/badge";
@@ -13,8 +14,8 @@ import { cn } from "@/lib/utils";
 /**
  * Item row card, color-coded on its left edge by item type. Used for the
  * dashboard's pinned and recent lists and the /items/[type] grid. Clicking
- * anywhere on it opens the item drawer, through the button on its title. Items
- * with text or a URL get a copy icon beside the date.
+ * anywhere on it opens the item drawer, through the button on its title. A star
+ * beside the date toggles favorite, and items with text or a URL get a copy icon.
  */
 export function ItemCard({ item }: Readonly<{ item: ItemSummary }>) {
   const { icon: Icon, colorClass, borderClass, bgClass } =
@@ -51,12 +52,6 @@ export function ItemCard({ item }: Readonly<{ item: ItemSummary }>) {
                 className="size-4 shrink-0 text-muted-foreground"
               />
             )}
-            {item.isFavorite && (
-              <Star
-                aria-label="Favorite"
-                className="size-4 shrink-0 fill-amber-400 text-amber-400"
-              />
-            )}
           </h3>
 
           {item.description && (
@@ -83,6 +78,13 @@ export function ItemCard({ item }: Readonly<{ item: ItemSummary }>) {
           >
             {formatShortDate(item.createdAt)}
           </time>
+          <FavoriteToggle
+            kind="item"
+            id={item.id}
+            name={item.title}
+            isFavorite={item.isFavorite}
+            className="relative z-10 shrink-0"
+          />
           {!isFileItemType(item.typeName) && (
             <QuickCopyButton itemId={item.id} itemTitle={item.title} />
           )}

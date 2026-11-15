@@ -2,6 +2,7 @@
 
 import { Copy, Pencil, Pin, Star } from "lucide-react";
 
+import { FavoriteToggle } from "@/components/favorites/FavoriteToggle";
 import { ItemDeleteDialog } from "@/components/items/ItemDeleteDialog";
 import { Button } from "@/components/ui/button";
 import { copyToClipboard } from "@/lib/clipboard";
@@ -22,19 +23,24 @@ interface ItemDrawerActionsProps {
   canDelete: boolean;
   /** Runs after the item has been deleted. */
   onDeleted: () => void;
+  /**
+   * Saves a favorite toggle into the drawer's copy of the item. Undefined until
+   * the full item has loaded, which keeps Favorite disabled like Edit.
+   */
+  onFavoriteSaved?: (isFavorite: boolean) => void;
 }
 
 /**
- * The drawer's action bar. Copy, Edit and Delete work; favoriting and pinning
- * come with their own features, so until then those buttons are disabled rather
- * than doing nothing when clicked. Favorite and Pin still show the item's
- * current state.
+ * The drawer's action bar. Favorite, Copy, Edit and Delete work; pinning comes
+ * with its own feature, so until then Pin is disabled rather than doing nothing
+ * when clicked, while still showing the item's state.
  */
 export function ItemDrawerActions({
   itemId,
   itemTitle,
   canDelete,
   onDeleted,
+  onFavoriteSaved,
   isFavorite,
   isPinned,
   copyText,
@@ -49,15 +55,27 @@ export function ItemDrawerActions({
 
   return (
     <div className="flex flex-wrap items-center gap-1 border-b border-border px-4 pb-4">
-      <Button
-        variant="ghost"
-        disabled
-        aria-pressed={isFavorite}
-        className={cn(isFavorite && "text-amber-400")}
-      >
-        <Star aria-hidden className={cn(isFavorite && "fill-amber-400")} />
-        Favorite
-      </Button>
+      {onFavoriteSaved ? (
+        <FavoriteToggle
+          kind="item"
+          id={itemId}
+          name={itemTitle}
+          isFavorite={isFavorite}
+          onSaved={onFavoriteSaved}
+          size="default"
+          showLabel
+        />
+      ) : (
+        <Button
+          variant="ghost"
+          disabled
+          aria-pressed={isFavorite}
+          className={cn(isFavorite && "text-amber-400")}
+        >
+          <Star aria-hidden className={cn(isFavorite && "fill-amber-400")} />
+          Favorite
+        </Button>
+      )}
 
       <Button variant="ghost" disabled aria-pressed={isPinned}>
         <Pin aria-hidden className={cn(isPinned && "fill-current")} />
