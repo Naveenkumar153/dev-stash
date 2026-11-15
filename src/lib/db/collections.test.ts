@@ -1,12 +1,15 @@
 import { describe, expect, it, vi } from "vitest";
 
+import { Prisma } from "@/generated/prisma/client";
 import {
   createCollection,
+  deleteCollection,
   getCollection,
   getCollectionOptions,
   getCollections,
   getRecentCollections,
   ownsCollections,
+  updateCollection,
 } from "@/lib/db/collections";
 import { getAvailableTypes } from "@/lib/db/item-types";
 import { getCurrentUserId } from "@/lib/db/user";
@@ -14,7 +17,14 @@ import { prisma } from "@/lib/prisma";
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
-    collection: { create: vi.fn(), findFirst: vi.fn(), findMany: vi.fn(), count: vi.fn() },
+    collection: {
+      create: vi.fn(),
+      update: vi.fn(),
+      delete: vi.fn(),
+      findFirst: vi.fn(),
+      findMany: vi.fn(),
+      count: vi.fn(),
+    },
     itemCollection: { groupBy: vi.fn() },
   },
 }));
@@ -169,5 +179,63 @@ describe("getCollection", () => {
 
     expect(await getCollection(COLLECTION_ID)).toBeNull();
     expect(prisma.collection.findFirst).not.toHaveBeenCalled();
+  });
+});
+
+const notFound = () =>
+  new Prisma.PrismaClientKnownRequestError("No record was found", {
+    code: "P2025",
+    clientVersion: "7",
+  });
+
+describe("updateCollection", () => {
+  const data = { name: "Hooks", description: "Custom hooks" };
+
+  it("writes the name and description in one statement scoped to the owner", async () => {
+    const saved = { id: COLLECTION_ID, ...data, isFavorite: false };
+    vi.mocked(prisma.collection.update).mockResolvedValue(saved as never);
+
+    expect(await updateCollection("user-1", COLLECTION_ID, data)).toEqual(saved);
+    expect(prisma.collection.update).toHaveBeenCalledWith({
+      where: { id: COLLECTION_ID, userId: "user-1" },
+      data,
+      select: { id: true, name: true, description: true, isFavorite: true },
+    });
+  });
+
+  it("returns null when nothing matched: someone else's collection or a missing one", async () => {
+    vi.mocked(prisma.collection.update).mockRejectedValue(notFound());
+
+    expect(await updateCollection("user-1", COLLECTION_ID, data)).toBeNull();
+  });
+
+  it("lets any other database error through", async () => {
+    vi.mocked(prisma.collection.update).mockRejectedValue(new Error("connection lost"));
+
+    await expect(updateCollection("user-1", COLLECTION_ID, data)).rejects.toThrow("connection lost");
+  });
+});
+
+describe("deleteCollection", () => {
+  it("deletes only the owner's collection, in one scoped statement, leaving items to the cascade", async () => {
+    vi.mocked(prisma.collection.delete).mockResolvedValue({ id: COLLECTION_ID } as never);
+
+    expect(await deleteCollection("user-1", COLLECTION_ID)).toBe(true);
+    expect(prisma.collection.delete).toHaveBeenCalledWith({
+      where: { id: COLLECTION_ID, userId: "user-1" },
+      select: { id: true },
+    });
+  });
+
+  it("returns false when nothing matched", async () => {
+    vi.mocked(prisma.collection.delete).mockRejectedValue(notFound());
+
+    expect(await deleteCollection("user-1", COLLECTION_ID)).toBe(false);
+  });
+
+  it("lets any other database error through", async () => {
+    vi.mocked(prisma.collection.delete).mockRejectedValue(new Error("connection lost"));
+
+    await expect(deleteCollection("user-1", COLLECTION_ID)).rejects.toThrow("connection lost");
   });
 });

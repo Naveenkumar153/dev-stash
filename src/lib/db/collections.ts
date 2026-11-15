@@ -1,6 +1,7 @@
 import { connection } from "next/server";
 
-import type { CreateCollectionData } from "@/lib/collection-schemas";
+import { Prisma } from "@/generated/prisma/client";
+import type { CreateCollectionData, UpdateCollectionData } from "@/lib/collection-schemas";
 import { getAvailableTypes, type ItemTypeRow } from "@/lib/db/item-types";
 import { getCurrentUserId } from "@/lib/db/user";
 import { compareItemTypeOrder } from "@/lib/item-types";
@@ -176,13 +177,20 @@ export async function getCollections(): Promise<CollectionSummary[]> {
   return listCollections();
 }
 
-/** What a collection's own page shows above its items. */
+/** What a collection's own page shows above its items, and what its menus edit. */
 export interface CollectionHeader {
   id: string;
   name: string;
   description: string | null;
   isFavorite: boolean;
 }
+
+const COLLECTION_HEADER_SELECT = {
+  id: true,
+  name: true,
+  description: true,
+  isFavorite: true,
+} as const;
 
 /**
  * The collection at /collections/[id] when it's the current user's; null for
@@ -199,8 +207,54 @@ export async function getCollection(id: string): Promise<CollectionHeader | null
 
   return prisma.collection.findFirst({
     where: { id, userId },
-    select: { id: true, name: true, description: true, isFavorite: true },
+    select: COLLECTION_HEADER_SELECT,
   });
+}
+
+/** True for Prisma's "no record matched" error, raised by a scoped update or delete. */
+function isNotFound(error: unknown): boolean {
+  return error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025";
+}
+
+/**
+ * Renames or re-describes one of `userId`'s collections. Ownership and the
+ * write are one statement; null when there is no such collection or it
+ * belongs to someone else.
+ */
+export async function updateCollection(
+  userId: string,
+  id: string,
+  data: UpdateCollectionData,
+): Promise<CollectionHeader | null> {
+  try {
+    return await prisma.collection.update({
+      where: { id, userId },
+      data: { name: data.name, description: data.description },
+      select: COLLECTION_HEADER_SELECT,
+    });
+  } catch (error) {
+    if (isNotFound(error)) {
+      return null;
+    }
+    throw error;
+  }
+}
+
+/**
+ * Deletes one of `userId`'s collections in one scoped statement. Its join rows
+ * cascade, so its items only leave the collection; the items themselves are
+ * untouched. False when there is no such collection or it's someone else's.
+ */
+export async function deleteCollection(userId: string, id: string): Promise<boolean> {
+  try {
+    await prisma.collection.delete({ where: { id, userId }, select: { id: true } });
+    return true;
+  } catch (error) {
+    if (isNotFound(error)) {
+      return false;
+    }
+    throw error;
+  }
 }
 
 export interface SidebarCollections {

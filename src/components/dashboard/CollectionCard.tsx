@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { Star } from "lucide-react";
 
+import { CollectionCardMenu } from "@/components/collections/CollectionCardMenu";
 import { Card } from "@/components/ui/card";
 import type { CollectionSummary } from "@/lib/db/collections";
 import { formatCount } from "@/lib/format";
@@ -9,12 +10,13 @@ import { cn } from "@/lib/utils";
 
 /**
  * Collection card, color-coded on its left edge by the item type the collection
- * holds most of. Empty collections fall back to the neutral border.
+ * holds most of. Empty collections fall back to the neutral border. The whole
+ * card links to the collection's page, except its "more actions" menu.
  */
 export function CollectionCard({
   collection,
 }: Readonly<{ collection: CollectionSummary }>) {
-  const { dominantTypeName, typeNames } = collection;
+  const { id, name, description, isFavorite, dominantTypeName, typeNames } = collection;
   const accent = dominantTypeName
     ? getItemTypeStyleByName(dominantTypeName).borderClass
     : "border-l-border";
@@ -26,28 +28,32 @@ export function CollectionCard({
         accent,
       )}
     >
-      <div>
-        <h3 className="flex items-center gap-2 font-heading text-base font-medium">
-          <Link href={`/collections/${collection.id}`} className="truncate">
-            {/* Stretches over the card so the whole surface is clickable. */}
-            <span aria-hidden className="absolute inset-0" />
-            {collection.name}
-          </Link>
-          {collection.isFavorite && (
-            <Star
-              aria-label="Favorite"
-              className="size-4 shrink-0 fill-amber-400 text-amber-400"
-            />
-          )}
-        </h3>
-        <p className="text-sm text-muted-foreground">
-          {formatCount(collection.itemCount, "item")}
-        </p>
+      <div className="flex items-start gap-2">
+        <div className="min-w-0 flex-1">
+          <h3 className="flex items-center gap-2 font-heading text-base font-medium">
+            <Link href={`/collections/${id}`} className="truncate">
+              {/* Stretches over the card so the whole surface is clickable. */}
+              <span aria-hidden className="absolute inset-0" />
+              {name}
+            </Link>
+            {isFavorite && (
+              <Star
+                aria-label="Favorite"
+                className="size-4 shrink-0 fill-amber-400 text-amber-400"
+              />
+            )}
+          </h3>
+          <p className="text-sm text-muted-foreground">
+            {formatCount(collection.itemCount, "item")}
+          </p>
+        </div>
+        {/* Above the stretched link, so it opens its menu without navigating. */}
+        <CollectionCardMenu collection={{ id, name, description, isFavorite }} />
       </div>
 
-      {collection.description && (
+      {description && (
         <p className="line-clamp-2 text-sm text-muted-foreground">
-          {collection.description}
+          {description}
         </p>
       )}
 

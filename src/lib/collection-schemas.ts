@@ -26,8 +26,13 @@ export const createCollectionSchema = z.object({
     .transform((value) => value || null),
 });
 
-/** What the New Collection form sends. */
-export type CreateCollectionInput = z.input<typeof createCollectionSchema>;
+/** Edit collection: the same fields and rules as New Collection. */
+export const updateCollectionSchema = createCollectionSchema;
 
-/** The validated, normalized payload the query writes. */
+/** What the New and Edit collection forms send. */
+export type CollectionFormInput = z.input<typeof createCollectionSchema>;
+export type CreateCollectionInput = CollectionFormInput;
+
+/** The validated, normalized payload the queries write. */
 export type CreateCollectionData = z.output<typeof createCollectionSchema>;
+export type UpdateCollectionData = CreateCollectionData;

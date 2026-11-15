@@ -1,16 +1,33 @@
-# Current Feature
+# Current Feature: Collection Edit, Delete & Favorite Actions
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- [x] `/collections/[id]` header gets three buttons: **Edit** (pencil), **Delete** (trash) and **Favorite** (star)
+- [x] **Edit** opens a modal (shadcn `Dialog`) prefilled with the collection's name and description, with the same fields, limits and validation as New Collection; Save toasts "Collection updated", closes and refreshes so the header, cards and sidebar show the new name/description; failure keeps the dialog open with field errors and a toast
+- [x] **Delete** opens a confirmation (shadcn `AlertDialog`, like `ItemDeleteDialog`): "Delete “<name>”?", saying its items are kept and only removed from this collection; Cancel focused; "Deleting..." while pending and not dismissable mid-delete; success toasts "Collection deleted"
+- [x] Deleting a collection deletes **only** the collection and its `ItemCollection` join rows (the schema's cascade) - **no items are deleted**
+- [x] After deleting from `/collections/[id]`, navigate to `/collections`; after deleting from a card, stay and refresh
+- [x] **Favorite** is display-only for now: shows the current state (filled amber star + `aria-pressed` when favorited) but is `disabled`, like the drawer's Favorite/Pin until their feature
+- [x] `CollectionCard` (on `/collections` and the dashboard) gets a 3-dots (`EllipsisVertical`) button opening a dropdown with **Edit**, **Delete** and **Favorite** (Favorite disabled); Edit and Delete open the same dialogs as the page
+- [x] The 3-dots button sits above the card's stretched link (`relative z-10`), so opening the menu doesn't navigate, while a click anywhere else on the card still goes to `/collections/[id]`
+- [x] New server actions `updateCollection(collectionId, data)` and `deleteCollection(collectionId)` in `src/actions/collections.ts`: session check (`getSessionUserId()`), cuid id check without a query, Zod validation, scoped to the owner, `{ success, data, error }` results with "doesn't exist or has been deleted" for no match
+- [x] Unit tests for the new actions, schema and queries; `npm test`, lint and build pass; verified in the browser
 
 ## Notes
 
-<!-- Any extra notes -->
+- **Reuse:** extract the New Collection form fields (Name + Description, `maxLength`s, field errors) into a shared `CollectionFormFields` (or `CollectionForm`) used by both `NewCollectionDialog` and the new `EditCollectionDialog`, like `ItemFormFields` is shared by New Item and edit mode. `updateCollectionSchema` = the same rules as `createCollectionSchema` (reuse it).
+- **Queries** in `src/lib/db/collections.ts`: `updateCollection(userId, id, data)` writing name + description scoped to `id` + `userId` (null / not-found when no match, e.g. `updateMany` count or `update` with P2025 mapped), and `deleteCollection(userId, id)` as one scoped `deleteMany` with a `count > 0` check (like the item delete). `ItemCollection.collection` is `onDelete: Cascade`, so the join rows go with it and `Item` rows are untouched; no migration.
+- **Menu:** reuse the files list's `RowActionsMenu` pattern (ghost `icon-sm` `EllipsisVertical` trigger, `relative z-10`, `aria-label` "Actions for <name>"), or move it to a shared spot if it fits. The dropdown items open controlled dialogs; dialogs are rendered outside the menu so they survive it closing.
+- **Card:** `CollectionCard` is a server component with a stretched `<Link>`; the new client actions component is placed in the card's title row. Keep the rest of the card unchanged.
+- **Page header:** a client `CollectionActions` (Edit / Delete / Favorite buttons) next to the title on `/collections/[id]`; on phones the buttons may collapse to icons with `aria-label`s.
+- **Scoping (proposed default):** writes check the session user (like create and item edit/delete); reads stay on `getCurrentUserId()`. So only the demo account can edit/delete what it sees, matching earlier features.
+- **Favorite (per requirement):** not implemented - button/menu item present but disabled, reflecting `isFavorite`. Implementing the toggle is a later feature.
+- **Errors:** `COLLECTION_NOT_FOUND`, `COLLECTION_UPDATE_FAILED`, `COLLECTION_DELETE_FAILED` added to `src/lib/action-result.ts`.
+- Out of scope: favorite toggling, bulk actions, removing a single item from a collection from the collection page, undo.
 
 ## History
 

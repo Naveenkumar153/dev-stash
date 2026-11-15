@@ -2,8 +2,9 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { cache } from "react";
-import { ChevronLeft, FolderOpen, Star } from "lucide-react";
+import { ChevronLeft, FolderOpen } from "lucide-react";
 
+import { CollectionActions } from "@/components/collections/CollectionActions";
 import { ItemCard } from "@/components/dashboard/ItemCard";
 import { collectionIdSchema } from "@/lib/collection-schemas";
 import { getCollection } from "@/lib/db/collections";
@@ -55,14 +56,9 @@ export default async function CollectionPage({ params }: PageProps<"/collections
             <FolderOpen aria-hidden className="size-6 text-muted-foreground" />
           </span>
           <div className="min-w-0 flex-1">
-            <h1 className="flex items-center gap-2 font-heading text-3xl font-semibold">
-              <span className="break-words">{collection.name}</span>
-              {collection.isFavorite && (
-                <Star
-                  aria-label="Favorite"
-                  className="size-5 shrink-0 fill-amber-400 text-amber-400"
-                />
-              )}
+            {/* The Favorite button beside it shows the favorite state. */}
+            <h1 className="font-heading text-3xl font-semibold wrap-anywhere">
+              {collection.name}
             </h1>
             <p className="mt-1 text-muted-foreground">{formatCount(items.length, "item")}</p>
             {collection.description && (
@@ -71,6 +67,7 @@ export default async function CollectionPage({ params }: PageProps<"/collections
               </p>
             )}
           </div>
+          <CollectionActions collection={collection} />
         </header>
       </div>
 

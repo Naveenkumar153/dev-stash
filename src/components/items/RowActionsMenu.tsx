@@ -10,6 +10,8 @@ interface RowActionsMenuProps {
   label: string;
   /** The menu's `DropdownMenuItem`s. */
   children: React.ReactNode;
+  /** The trigger button, e.g. for a dialog an item opens to return focus to. */
+  triggerRef?: React.Ref<HTMLButtonElement>;
 }
 
 /**
@@ -17,11 +19,19 @@ interface RowActionsMenuProps {
  * row's stretched link or button (relative z-10), so opening the menu doesn't
  * also open the row.
  */
-export function RowActionsMenu({ label, children }: Readonly<RowActionsMenuProps>) {
+export function RowActionsMenu({ label, children, triggerRef }: Readonly<RowActionsMenuProps>) {
   return (
     <DropdownMenu>
       <DropdownMenuTrigger
-        render={<Button variant="ghost" size="icon-sm" className="relative z-10 shrink-0" aria-label={label} />}
+        render={
+          <Button
+            ref={triggerRef}
+            variant="ghost"
+            size="icon-sm"
+            className="relative z-10 shrink-0"
+            aria-label={label}
+          />
+        }
       >
         <EllipsisVertical aria-hidden />
       </DropdownMenuTrigger>
