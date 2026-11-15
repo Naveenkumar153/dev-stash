@@ -8,6 +8,7 @@ import {
   getCollectionItems,
   getFileListItems,
   getItemFile,
+  getSearchItems,
   updateItem,
 } from "@/lib/db/items";
 import { getItemTypeBySlug } from "@/lib/db/item-types";
@@ -567,6 +568,68 @@ describe("getCollectionItems", () => {
     vi.mocked(getCurrentUserId).mockResolvedValue(null);
 
     expect(await getCollectionItems(COLLECTION_ID)).toEqual([]);
+    expect(prisma.item.findMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("getSearchItems", () => {
+  it("lists the current user's items newest first, each with a preview instead of its payload", async () => {
+    vi.mocked(getCurrentUserId).mockResolvedValue("user-1");
+    vi.mocked(prisma.item.findMany).mockResolvedValue([
+      {
+        id: ITEM_ID,
+        title: "useDebounce hook",
+        isPinned: true,
+        isFavorite: false,
+        content: "export function useDebounce() {\n  return value;\n}",
+        url: null,
+        fileName: null,
+        itemType: { name: "snippet" },
+      },
+      {
+        id: "cmtg169y00004zzx5wxanksok",
+        title: "Lucide icons",
+        isPinned: false,
+        isFavorite: true,
+        content: null,
+        url: "https://lucide.dev/icons",
+        fileName: null,
+        itemType: { name: "link" },
+      },
+    ] as never);
+
+    const items = await getSearchItems();
+
+    expect(prisma.item.findMany).toHaveBeenCalledWith(
+      expect.objectContaining({
+        where: { userId: "user-1" },
+        orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+      }),
+    );
+    expect(items).toEqual([
+      {
+        id: ITEM_ID,
+        title: "useDebounce hook",
+        typeName: "snippet",
+        isPinned: true,
+        isFavorite: false,
+        preview: "export function useDebounce() { return value; }",
+      },
+      {
+        id: "cmtg169y00004zzx5wxanksok",
+        title: "Lucide icons",
+        typeName: "link",
+        isPinned: false,
+        isFavorite: true,
+        preview: "https://lucide.dev/icons",
+      },
+    ]);
+  });
+
+  it("lists nothing, without a query, when there is no current user", async () => {
+    vi.mocked(getCurrentUserId).mockResolvedValue(null);
+
+    expect(await getSearchItems()).toEqual([]);
     expect(prisma.item.findMany).not.toHaveBeenCalled();
   });
 });

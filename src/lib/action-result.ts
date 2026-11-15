@@ -48,3 +48,6 @@ export const COLLECTIONS_NOT_FOUND = "One of these collections doesn't exist or 
 
 /** Loading the Collections picker's options failed. */
 export const COLLECTIONS_LOAD_FAILED = "Couldn't load your collections.";
+
+/** Loading the command palette's items and collections failed. */
+export const SEARCH_LOAD_FAILED = "Couldn't load your items and collections.";

@@ -1,34 +1,18 @@
-import { Search } from "lucide-react";
-
 import { NewCollectionDialog } from "@/components/collections/NewCollectionDialog";
 import { SidebarToggle } from "@/components/dashboard/SidebarToggle";
 import { NewItemDialog } from "@/components/items/NewItemDialog";
-import { Input } from "@/components/ui/input";
+import { SearchTrigger } from "@/components/search/SearchTrigger";
 
 /**
- * Dashboard top bar. The sidebar toggle, New Collection and New Item work; the
- * search field is display only until its own feature.
+ * Dashboard top bar: the sidebar toggle, the search field that opens the
+ * command palette, New Collection and New Item.
  */
 export function TopBar() {
   return (
     <header className="flex h-16 shrink-0 items-center gap-3 border-b border-border px-4 sm:px-6">
       <SidebarToggle />
 
-      <div className="relative min-w-0 flex-1 max-w-lg">
-        <Search
-          aria-hidden
-          className="pointer-events-none absolute left-3 top-1/2 size-4 -translate-y-1/2 text-muted-foreground"
-        />
-        <Input
-          type="search"
-          placeholder="Search items..."
-          aria-label="Search items"
-          className="h-10 pl-9 pr-4 sm:pr-16"
-        />
-        <kbd className="pointer-events-none absolute right-3 top-1/2 hidden -translate-y-1/2 select-none items-center gap-1 rounded border border-border bg-muted px-1.5 py-0.5 font-sans text-xs text-muted-foreground sm:flex">
-          <span className="text-sm">&#8984;</span>K
-        </kbd>
-      </div>
+      <SearchTrigger />
 
       <div className="ml-auto flex shrink-0 items-center gap-2">
         <NewCollectionDialog />

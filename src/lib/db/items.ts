@@ -11,7 +11,9 @@ import {
   requiresUrl,
 } from "@/lib/item-types";
 import { prisma } from "@/lib/prisma";
+import { getItemPreview } from "@/lib/search";
 import type { FileListItem, ItemDetail, ItemDrawerSummary } from "@/types/items";
+import type { SearchItem } from "@/types/search";
 
 const RECENT_ITEM_LIMIT = 10;
 const PINNED_ITEM_LIMIT = 10;
@@ -214,6 +216,47 @@ export async function getFileListItems(): Promise<FileItemList | null> {
     : [];
 
   return { typeName: itemType.name, items: rows.map((row) => ({ ...row, typeName: itemType.name })) };
+}
+
+/** A palette row's columns, plus the payloads its preview is cut from. */
+const SEARCH_ITEM_SELECT = {
+  id: true,
+  title: true,
+  isPinned: true,
+  isFavorite: true,
+  content: true,
+  url: true,
+  fileName: true,
+  itemType: { select: { name: true } },
+} as const;
+
+/**
+ * Every item of the current user's for the command palette, newest first, each
+ * with a short preview in place of its payload. The full content is read and
+ * cut down here, since Prisma can't select a substring without raw SQL, so
+ * only the preview reaches the browser.
+ *
+ * Uncapped: the palette filters in the browser, so an item left out here could
+ * never be found.
+ */
+export async function getSearchItems(): Promise<SearchItem[]> {
+  const userId = await getCurrentUserId();
+
+  if (!userId) {
+    return [];
+  }
+
+  const rows = await prisma.item.findMany({
+    where: { userId },
+    orderBy: [...NEWEST_FIRST],
+    select: SEARCH_ITEM_SELECT,
+  });
+
+  return rows.map(({ itemType, content, url, fileName, ...item }) => ({
+    ...item,
+    typeName: itemType.name,
+    preview: getItemPreview({ content, url, fileName }),
+  }));
 }
 
 /** What the drawer shows on top of the card: the payload, collections and dates. */

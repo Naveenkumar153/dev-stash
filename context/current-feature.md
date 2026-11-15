@@ -1,16 +1,51 @@
-# Current Feature
+# Current Feature: Global Search / Command Palette
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- Cmd+K (Mac) / Ctrl+K (Windows/Linux) opens a global command palette from anywhere in the signed-in app shell (except while another dialog or the item drawer is open); pressing it again or Escape closes it
+- Fuzzy search across all of the user's items and collections, entirely client-side (no request per keystroke)
+- Results grouped into an **Items** section and a **Collections** section
+- Keyboard navigation: arrow keys move through results, Enter selects
+- Item rows show the item type's icon (in its color); collection rows show the item count
+- Selecting an item opens the existing item drawer; selecting a collection navigates to `/collections/[id]`
+- The TopBar search field opens the palette on click (and on focus/Enter from the keyboard)
+- The search field shows a ⌘K hint
+- Searchable data (items: id, title, type, content preview; collections: id, name, itemCount) is pre-fetched when the app shell loads
+- Built on the shadcn `command` component (`cmdk`)
+- Unit tests for any new data shaping / search utilities; `npm test`, lint and build pass
 
 ## Notes
 
-<!-- Any extra notes -->
+- Source spec: `context/features/global-search-spec.md`
+- **Proposed defaults (confirm or change at `start`):**
+  - **Data loading:** a new `GET /api/search` route (session-checked 401, `{ success, data, error }`, `Cache-Control: private, no-store`, like `GET /api/collections`) fetched by a client provider when the shell mounts, and re-fetched in the background each time the palette opens so items/collections created, edited or deleted since still show correctly. This keeps the search payload out of every page's RSC payload, which loading it in `(app)/layout.tsx` would do on every render and `router.refresh()`.
+  - **Queries:** reuse existing pieces where they fit - the collection side can come from the existing `listCollections()` / `COLLECTION_SUMMARY_SELECT` path (it already derives `itemCount`), the item side is a new lean `getSearchItems()` in `src/lib/db/items.ts` (id, title, type name, isPinned, isFavorite, plus content / url / fileName for the preview). Prisma can't substring without raw SQL, so the preview is trimmed in memory to a fixed length (~200 chars, whitespace collapsed) by a tested helper in `src/lib/search.ts`.
+  - **Scoping:** reads go through `getCurrentUserId()` like the dashboard, lists, sidebar and drawer, so every result opens something that exists (same split as earlier entries).
+  - **Fuzzy matching:** cmdk's built-in fuzzy scorer, with each item's type label and content preview passed as `keywords` so content matches too; no new search library (Fuse.js etc.).
+  - **Item select:** calls `useItemDrawer().openItem()` with the 5-field `ItemDrawerSummary`, so the palette lives inside `ItemDrawerProvider`.
+  - **Search field:** the TopBar `Input` becomes a button styled like the current field ("Search items..." plus the existing ⌘K `kbd`), so it can't take typed text that would be lost; the hint stays ⌘K as the spec says (not switched to "Ctrl K" per platform).
+  - **Empty query:** shows all results (cmdk lists everything); "No results found." when nothing matches.
+- New shadcn component: `command` (it pulls in `cmdk`). The CLI has repeatedly imported `cn` from the unrelated `cn` npm package - repoint at `@/lib/utils` and remove the package if it happens again.
+- Monaco binds Cmd+K as a chord prefix while the editor has focus; check whether the palette shortcut should yield there (e.g. inside the drawer's edit form) or always win.
+- No limit on result counts for now (free tier caps items at 50, Pro is unlimited); revisit if the payload gets large.
+- Out of scope: server-side / full-text search, tag search, search-result highlighting, recent searches, actions/commands in the palette beyond navigation.
+- **Decided during implementation:**
+  - All proposed defaults kept. Collections come from the existing `getCollections()` (adds its type-count queries per load, in exchange for tinting each collection's icon by its dominant type).
+  - Ranking is in `searchPaletteData()` (`src/lib/search-filter.ts`) with cmdk's own filter off (`shouldFilter={false}`). An item scores the best of: cmdk's fuzzy scorer (`defaultFilter`) over title + type label, counted only at 0.2 or above (`MIN_FUZZY_SCORE`); every typed word starting a word of the title, camelCase humps included (0.5, so "debounce" finds "useDebounce hook"); every typed word starting a word of the content preview (0.2). Collections take the first two over their name. Each group is capped at 50 rows.
+  - **Tightened after user testing ("test" listed almost everything):** cmdk's scorer multiplies by 0.9 per jump to a word start but 0.17 per jump into the middle of a word, and any score above 0 counted, so titles holding the letters in order anywhere matched - measured against the demo data, "test" matched 6 of 23 items and none contained the word, several only through the type label ("Typed conText ... Snippet"). Real matches scored 0.8-0.99 and every mid-word jump 0.17 or less, so the 0.2 floor sits in that gap. Content matching changed from substring to word start, so "test" no longer matches "latest". After the change "test" matches nothing, "react" drops "Refactoring assistant" and keeps React Patterns plus the three items whose content mentions React. Trade-off: abbreviations that jump into a word no longer match ("udh" for useDebounce hook, "tw" for Tailwind); typing the word does.
+  - cmdk's `vimBindings` turned off: it took Ctrl+K as "previous item" inside the palette, so on Windows the shortcut couldn't close it.
+  - Shortcut skips events already `defaultPrevented`, so a focused Monaco editor keeps Cmd+K for its own chords (checked: Cmd+K inside the read-only editor doesn't open the palette).
+- **Review fixes:**
+  - The shortcut is per platform (`isPaletteShortcut()` / `isApplePlatform()` in the new `src/lib/keyboard-shortcuts.ts`, platform from `navigator.userAgentData` then `navigator.platform`): Cmd+K on macOS/iOS, Ctrl+K elsewhere, so Ctrl+K on a Mac stays "delete to end of line" in text fields.
+  - The shortcut does nothing while another modal is open (any `[role=dialog]` or `[role=alertdialog]` with `data-open`, the item drawer included), so it can't navigate or swap the drawer out from under a draft or a running delete. While the palette is open it still closes it. This replaced keying `ItemDrawerPanel` by item id (added at start, when the palette could open over the drawer and a pick carried edit mode into the next item), which was reverted as no longer reachable: the drawer's backdrop also covers the top bar's trigger.
+  - shadcn's `CommandDialog` rendered its sr-only title and description outside the popup, leaving a stray "Search" `h2` in every page while closed; moved inside `DialogContent` in `src/components/ui/command.tsx`.
+  - A refresh after a failed first load clears the error, so the palette shows "Loading..." while the retry runs instead of the old error.
+  - An account with no items or collections sees "Nothing to search yet." instead of "No results found."
+  - Not changed (documented trade-offs): each load reads every item's full content to cut previews, and `getCollections()` adds one count query per type for the icon colors.
 
 ## History
 
