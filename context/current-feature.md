@@ -1,16 +1,26 @@
-# Current Feature
+# Current Feature: Settings Page
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- A new `/settings` page holding the account actions, styled like `/profile` (standalone page, "Back to dashboard" link, cards in a `max-w-3xl` column)
+- `/settings` is protected: `/settings/:path*` added to the `src/proxy.ts` matcher (signed-out requests 302 to `/sign-in?callbackUrl=%2Fsettings`), and the page itself redirects when the session or user row is missing, like `/profile`
+- The user dropdown at the bottom of the sidebar (`SidebarUser`) gets a "Settings" item (lucide `Settings` icon) linking to `/settings`, between Profile and the separator before Sign out
+- The Change password card (shown only when the account has a password) and the Delete account card move from `/profile` to `/settings`, reusing `ChangePasswordForm` and `DeleteAccountDialog` unchanged
+- `/profile` keeps the avatar / name / email / join date card and the Usage stats only
+- Metadata title `Settings | DevStash`
 
 ## Notes
 
-<!-- Any extra notes -->
+- "Forgot password" in the request is read as the profile's **Change password** card: that is the account action the profile has. The forgot-password flow lives on `/sign-in` → `/forgot-password` for signed-out users and stays there.
+- The account actions are presentational moves: `changePassword()` and `deleteAccount()` in `src/actions/profile.ts` stay as they are (no new server actions, so no new unit tests expected); `getProfileUser()` gives the page `hasPassword`.
+- `SidebarUser` already has a display-only gear button (`aria-label="Settings"`) beside the menu trigger in the expanded sidebar. Proposed default: make it a link to `/settings` too, so it isn't a dead control.
+- Proposed default: `/settings` stays a standalone page outside the `(app)` shell, matching `/profile`, rather than moving both into the shell.
+- The mobile drawer doesn't close when following a menu link (open since Auth Phase 3: `SidebarUser` gets no `onNavigate`); this applies to the new item too and stays out of scope unless chosen at start.
+- No schema change, no migration.
 
 ## History
 

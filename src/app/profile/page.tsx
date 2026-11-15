@@ -3,16 +3,8 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 
-import { ChangePasswordForm } from "@/components/profile/ChangePasswordForm";
-import { DeleteAccountDialog } from "@/components/profile/DeleteAccountDialog";
 import { ProfileStats } from "@/components/profile/ProfileStats";
-import {
-  Card,
-  CardContent,
-  CardDescription,
-  CardHeader,
-  CardTitle,
-} from "@/components/ui/card";
+import { Card, CardContent } from "@/components/ui/card";
 import { UserAvatar } from "@/components/user/UserAvatar";
 import { SIGN_IN_PATH } from "@/lib/auth-redirect";
 import { getProfileStats, getProfileUser } from "@/lib/db/profile";
@@ -70,30 +62,6 @@ export default async function ProfilePage() {
       </Card>
 
       <ProfileStats stats={stats} />
-
-      {user.hasPassword && (
-        <Card>
-          <CardHeader>
-            <CardTitle>Change password</CardTitle>
-            <CardDescription>You&apos;ll use the new password next time you sign in.</CardDescription>
-          </CardHeader>
-          <CardContent>
-            <ChangePasswordForm />
-          </CardContent>
-        </Card>
-      )}
-
-      <Card className="ring-destructive/40">
-        <CardHeader>
-          <CardTitle>Delete account</CardTitle>
-          <CardDescription>
-            Permanently remove your account and everything in it.
-          </CardDescription>
-        </CardHeader>
-        <CardContent>
-          <DeleteAccountDialog />
-        </CardContent>
-      </Card>
     </main>
   );
 }

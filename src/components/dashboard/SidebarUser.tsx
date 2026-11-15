@@ -5,7 +5,7 @@ import Link from "next/link";
 import { LogOut, Settings, User } from "lucide-react";
 
 import { signOutUser } from "@/actions/auth";
-import { Button } from "@/components/ui/button";
+import { buttonVariants } from "@/components/ui/button";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -16,6 +16,8 @@ import {
 import { UserAvatar } from "@/components/user/UserAvatar";
 import { cn } from "@/lib/utils";
 import type { SessionUser } from "@/types/auth";
+
+const SETTINGS_PATH = "/settings";
 
 interface SidebarUserProps {
   user: SessionUser;
@@ -57,6 +59,10 @@ export function SidebarUser({ user, collapsed }: SidebarUserProps) {
             <User />
             Profile
           </DropdownMenuItem>
+          <DropdownMenuItem render={<Link href={SETTINGS_PATH} />}>
+            <Settings />
+            Settings
+          </DropdownMenuItem>
           <DropdownMenuSeparator />
           <DropdownMenuItem
             variant="destructive"
@@ -70,9 +76,13 @@ export function SidebarUser({ user, collapsed }: SidebarUserProps) {
       </DropdownMenu>
 
       {!collapsed && (
-        <Button variant="ghost" size="icon-sm" aria-label="Settings">
+        <Link
+          href={SETTINGS_PATH}
+          aria-label="Settings"
+          className={buttonVariants({ variant: "ghost", size: "icon-sm" })}
+        >
           <Settings />
-        </Button>
+        </Link>
       )}
     </div>
   );
