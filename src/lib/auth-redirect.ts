@@ -1,8 +1,10 @@
 export const SIGN_IN_PATH = "/sign-in";
 export const FORGOT_PASSWORD_PATH = "/forgot-password";
 export const RESET_PASSWORD_PATH = "/reset-password";
+export const REGISTER_PATH = "/register";
+export const DASHBOARD_PATH = "/dashboard";
 
-const DEFAULT_REDIRECT = "/dashboard";
+const DEFAULT_REDIRECT = DASHBOARD_PATH;
 
 /**
  * Where to send the user after signing in. Only same-site paths are kept, so a

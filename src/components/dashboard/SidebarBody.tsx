@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { Layers } from "lucide-react";
 
+import { Logo } from "@/components/brand/Logo";
 import { SidebarNav } from "@/components/dashboard/SidebarNav";
 import { SidebarUser } from "@/components/dashboard/SidebarUser";
 import { Separator } from "@/components/ui/separator";
@@ -34,16 +34,14 @@ export function SidebarBody({
         href="/dashboard"
         onClick={onNavigate}
         className={cn(
-          "flex h-16 shrink-0 items-center gap-3 px-4",
+          "flex h-16 shrink-0 items-center px-4",
           collapsed && "justify-center px-0",
         )}
       >
-        <span className="flex size-8 shrink-0 items-center justify-center rounded-lg bg-sidebar-primary text-sidebar-primary-foreground">
-          <Layers aria-hidden className="size-5" />
-        </span>
-        {!collapsed && (
-          <span className="font-heading text-lg font-semibold">DevStash</span>
-        )}
+        <Logo
+          showName={!collapsed}
+          tileClassName="bg-sidebar-primary text-sidebar-primary-foreground"
+        />
       </Link>
 
       <SidebarNav

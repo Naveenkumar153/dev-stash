@@ -1,16 +1,29 @@
-# Current Feature
+# Current Feature: Homepage
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- `src/app/page.tsx` replaced by the real marketing homepage, rebuilt from `prototypes/homepage/` with the same sections, copy and motion: fixed nav, hero (gradient headline, chaos → arrow → dashboard preview), 6 feature cards, AI section, Free / Pro pricing with monthly / yearly toggle, CTA, footer
+- Server components by default; client islands only for the nav's scroll opacity, the chaos icons animation, the preview's search demo, the billing toggle and a reusable `Reveal` fade-in
+- Tailwind v4 + shadcn (`Button` / `buttonVariants`, `Card`, `Badge`, `Switch`), no port of `styles.css`, no inline styles; missing keyframes go in `globals.css`
+- Links go to real places: Sign In → `/sign-in`; Get Started / Get Started Free / Free plan / CTA / Upgrade to Pro → `/register`; Features / Pricing → in-page anchors; signed in, Sign In hides, Get Started becomes "Dashboard" and the CTAs go to `/dashboard` (session read once in the page with `auth()`)
+- Footer keeps only links with real destinations (Product: Features, Pricing; Account: Sign In, Register / Dashboard) plus the copyright year
+- DRY: one shared `Logo` replacing the copies in the `(auth)` layout and `SidebarBody`; static content as typed arrays in `src/lib/homepage.ts`; one section header component; type colors and icons from `getItemTypeStyleByName()` / `--color-type-*`; the GitHub mark extracted from `GitHubSignInButton` and reused
+- `prefers-reduced-motion` stops the drift, arrow pulse, preview demo and fade-ins
+- Responsive: hero stacks with the arrow pointing down, grids collapse to one column, no horizontal scroll at 390px
+- Unit tests for the pure helpers (billing-period price, bounce / cursor-push math); components verified in the browser
 
 ## Notes
 
-<!-- Any extra notes -->
+- Spec: `context/features/homepage-spec.md`. Visual reference: the prototype in `prototypes/homepage/` (kept, not deleted) and `context/screenshots/homepage-*.png`.
+- Defaults proposed at load, to confirm at start: the app's type colors rather than the prototype's separate palette (prompt purple, command orange, note yellow, file gray, link emerald); dead footer links dropped rather than kept as `#`; "Upgrade to Pro" routes to `/register` (or `/dashboard` signed in) until billing exists; the session-aware nav and CTAs make `/` render dynamically.
+- `/` isn't in the `src/proxy.ts` matcher, so it stays public; no proxy change needed.
+- The root layout already sets `dark`, Geist fonts and the `Toaster`; the homepage needs no layout of its own.
+- Brand marks (Notion, Slack, VS Code) as simple inline SVG components; lucide has no brand icons.
+- Out of scope: Stripe / real billing, light mode, auth page changes beyond the shared `Logo`.
 
 ## History
 

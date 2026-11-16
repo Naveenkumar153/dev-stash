@@ -28,10 +28,12 @@ export default function RootLayout({
 }>) {
   return (
     // `dark` is hardcoded for now - dark mode is the default and a light-mode
-    // toggle is not part of this phase.
+    // toggle is not part of this phase. Smooth scrolling is for the homepage's
+    // in-page links; `data-scroll-behavior` keeps route changes instant.
     <html
       lang="en"
-      className={`dark ${geistSans.variable} ${geistMono.variable}`}
+      data-scroll-behavior="smooth"
+      className={`dark motion-safe:scroll-smooth ${geistSans.variable} ${geistMono.variable}`}
     >
       <body className="min-h-svh bg-background text-foreground antialiased">
         {children}
