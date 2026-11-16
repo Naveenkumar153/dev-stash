@@ -1,16 +1,26 @@
-# Current Feature
+# Current Feature: Top Bar Declutter
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- One "+ New" menu replaces the separate New Collection and New Item buttons in `TopBar`: a single primary button opening a dropdown with "Item" and "Collection", each opening the existing dialog with unchanged behavior (the top bar's item type still follows the current list page, and files still go into the open folder). The list pages' "New <Type>" buttons are unchanged
+- Search becomes a ghost icon button (magnifier, `aria-label` "Search", `aria-keyshortcuts` kept) when the bar is narrow, and stays the "Search items..." field with the ⌘K hint when there's room; both open the command palette, and Cmd/Ctrl+K is unchanged
+- The top bar sizes by its own width, not the viewport: `@container` on the header, with container-query variants (e.g. `@md:` / `@lg:`) deciding the search field vs icon, the "New" label, the ⌘K hint and the Favorites star, so the 768px-with-sidebar case gets the same treatment as a phone
+- Favorites moves off the narrow top bar: a "Favorites" row (star icon, `aria-current` on `/favorites`) is added to the sidebar's nav, so it's reachable from the mobile drawer and the desktop sidebar; the top bar's star shows only when the bar is wide
+- One style for secondary controls: the sidebar toggle, search icon and Favorites star are all ghost icon buttons of the same size, so "+ New" is the only filled button
+- Target layouts: about 390px → `[☰] [🔍] … [+ New ▾]` with no squeezed text; wide → toggle, the full search field with ⌘K, the star, "+ New ▾"; no horizontal scroll at 320px, and nothing truncated mid-word in the top bar at any width
+- Unit tests for any new utility logic (e.g. a pure helper choosing the dialog or label); the components are verified in the browser
 
 ## Notes
 
-<!-- Any extra notes -->
+- Source: the top-bar review on 2026-11-16, Playwright-measured as the demo user. Search was 100px at 320 ("Searc..."), 140px at 360, 170px at 390, and 102px at 768 with the sidebar open, where it showed only the icon and ⌘K because the `sm:` labels follow the viewport while the sidebar takes 256px. Five controls in about 358px on phones, in three button styles (ghost star, outline folder-plus, solid plus).
+- Files today: `src/components/dashboard/TopBar.tsx`, `src/components/search/SearchTrigger.tsx`, `src/components/dashboard/FavoritesLink.tsx`, `src/components/items/NewItemDialog.tsx` (own `DialogTrigger`, `defaultType` / `folderId` props, page type from `getCreatableTypeFromPath()`, folder from `getOpenFolderId()`), `src/components/collections/NewCollectionDialog.tsx` (own trigger), `src/components/dashboard/SidebarNav.tsx`.
+- Defaults proposed at load, to confirm at start: the dropdown is the existing shadcn `dropdown-menu`; the dialogs gain a controlled mode (`open` / `onOpenChange`) without their own trigger, keeping the triggered mode for the list pages, with focus returning to "+ New" on close (`finalFocus`, as in the collection dialogs); breakpoints are chosen from the measured widths, roughly the search field from about 480px of bar width and the star from about 640px; the "New" label stays visible at every width since it's the one primary action; the sidebar's Favorites row sits with the item types at the top of the nav.
+- Tailwind 4 has container queries built in (`@container`, `@sm:` … `@7xl:` and arbitrary `@[480px]:`); no plugin.
+- Out of scope: the command palette itself, the dialogs' forms, the sidebar's collapse behavior, and the list pages' "New <Type>" buttons.
 
 ## History
 

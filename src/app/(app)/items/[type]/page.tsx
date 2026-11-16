@@ -5,7 +5,7 @@ import { ItemCard } from "@/components/dashboard/ItemCard";
 import { FileList } from "@/components/items/FileList";
 import { ImageCard } from "@/components/items/ImageCard";
 import { NewFolderButton } from "@/components/items/NewFolderButton";
-import { NewItemDialog } from "@/components/items/NewItemDialog";
+import { NewItemButton } from "@/components/items/NewItemButton";
 import { ListPagination } from "@/components/pagination/ListPagination";
 import { getFolders } from "@/lib/db/folders";
 import { getItemTypeBySlug } from "@/lib/db/item-types";
@@ -123,7 +123,7 @@ export default async function ItemTypePage({
           <NewFolderButton parentId={openFolder?.id ?? null} parentName={openFolder?.name ?? null} />
         )}
         {isCreatableItemType(typeName) && (
-          <NewItemDialog defaultType={typeName} folderId={openFolder?.id ?? null} />
+          <NewItemButton defaultType={typeName} folderId={openFolder?.id ?? null} />
         )}
       </header>
 

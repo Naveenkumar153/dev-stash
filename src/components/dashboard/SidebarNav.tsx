@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ArrowRight, ChevronDown, Folder, Star } from "lucide-react";
 
+import { FAVORITES_PATH } from "@/components/dashboard/FavoritesLink";
 import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import {
@@ -181,6 +182,17 @@ export function SidebarNav({
         aria-label="Sidebar"
         className={cn("flex-1 overflow-y-auto py-2", collapsed ? "px-3" : "px-2")}
       >
+        {/* Also the top bar's star, which hides when the bar is narrow. */}
+        <NavRow
+          href={FAVORITES_PATH}
+          label="Favorites"
+          collapsed={collapsed}
+          onNavigate={onNavigate}
+          icon={<Star className="size-4 text-amber-400" />}
+        />
+
+        <Separator className="my-3" />
+
         <NavGroup title="Types" collapsed={collapsed}>
           {itemTypes.map((type) => {
             const { icon: Icon, colorClass } = getItemTypeStyleByName(type.name);

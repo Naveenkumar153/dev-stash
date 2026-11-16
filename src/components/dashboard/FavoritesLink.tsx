@@ -7,13 +7,13 @@ import { usePathname } from "next/navigation";
 import { buttonVariants } from "@/components/ui/button";
 import { cn } from "@/lib/utils";
 
-const FAVORITES_PATH = "/favorites";
+export const FAVORITES_PATH = "/favorites";
 
 /**
  * The top bar's star, linking to /favorites. A plain link styled as a button
  * (Base UI's Button would add role="button"); the star fills while there.
  */
-export function FavoritesLink() {
+export function FavoritesLink({ className }: Readonly<{ className?: string }>) {
   const active = usePathname() === FAVORITES_PATH;
 
   return (
@@ -21,7 +21,7 @@ export function FavoritesLink() {
       href={FAVORITES_PATH}
       aria-label="Favorites"
       aria-current={active ? "page" : undefined}
-      className={buttonVariants({ variant: "ghost", size: "icon-lg" })}
+      className={cn(buttonVariants({ variant: "ghost", size: "icon-lg" }), className)}
     >
       <Star aria-hidden className={cn(active && "fill-amber-400 text-amber-400")} />
     </Link>
