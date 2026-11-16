@@ -1,16 +1,36 @@
-# Current Feature
+# Current Feature: Homepage Mockup
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- A static marketing homepage prototype in `prototypes/homepage/` as three files: `index.html`, `styles.css`, `script.js` (no build step, opens straight in a browser)
+- Dark theme using the spec's item-type accents: snippet `#3b82f6`, prompt `#f59e0b`, command `#06b6d4`, note `#22c55e`, file `#64748b`, image `#ec4899`, URL `#6366f1`
+- Fixed top nav: logo, Features / Pricing links (scroll to their sections), Sign In and Get Started buttons; background grows more opaque on scroll
+- Hero text: "Stop Losing Your Developer Knowledge" headline with gradient text, a subheadline about scattered knowledge, and CTA buttons
+- Hero visual, "chaos to order", three parts side by side:
+  - Chaos container labelled "Your knowledge today..." with 8 floating icons (Notion, GitHub, Slack, VS Code, browser tabs, terminal, text file, bookmark) animated with `requestAnimationFrame`: random drift, bouncing off the walls, subtle rotation and scale pulsing, and pushing away from the mouse cursor
+  - A CSS-pulsing transform arrow in the middle
+  - Dashboard preview labelled "...with DevStash": a simplified sidebar with nav items and a grid of item cards with colored top borders in the type colors
+- Features: 6 cards in a grid (Code Snippets, AI Prompts, Instant Search, Commands, Files & Docs, Collections), each in its type's accent color
+- AI section: two columns, a "Pro Feature" badge and a checklist of AI capabilities on the left, a code editor mockup with an "AI Generated Tags" demo on the right
+- Pricing: Free ($0, 50 items, 3 collections) and Pro ($8/mo, unlimited, AI features) cards, Pro highlighted with a "Most Popular" badge, plus a monthly / yearly toggle switching Pro to $72/yr
+- CTA: "Ready to Organize Your Knowledge?" with a button
+- Footer: logo, link columns, and a copyright line with the current year set from JS
+- Scroll animation: sections fade in as they enter the viewport
+- Responsive: on mobile the chaos / arrow / dashboard stack vertically with the arrow rotated 90° to point down, and every grid collapses to one column; no horizontal scroll at 390px
 
 ## Notes
 
-<!-- Any extra notes -->
+- Source spec: `context/features/homepage-mockup-spec.md`. Visual references: `context/screenshots/homepage-full.png`, `homepage-full-visible.png` and `homepage-mobile.png`.
+- This is a standalone prototype, not part of the Next.js app: plain HTML / CSS / JS outside `src/`, so the Tailwind v4, shadcn, React and "no inline styles" standards don't apply to it. No server actions or utilities, so no unit tests; verify in the browser instead.
+- The spec's palette differs from the app's type colors in `context/project-overview.md` (prompt purple `#8b5cf6`, command orange `#f97316`, note yellow `#fde047`, file gray `#6b7280`, link emerald `#10b981`). The spec is explicit, so the prototype uses its palette; the app stays unchanged. The spec also says "URL" where the app says "link".
+- Brand logos (Notion, GitHub, Slack, VS Code): draw simple inline SVG marks or recognizable glyphs rather than loading third-party assets, so the prototype has no external dependencies.
+- ESLint's flat config doesn't ignore `prototypes/**`, so `npm run lint` will lint `script.js`; keep it clean or add the folder to `globalIgnores` (decide at start).
+- Respect `prefers-reduced-motion`: stop the icon drift, arrow pulse and fade-ins when it's set.
+- Out of scope: wiring the prototype into the Next.js app, real auth links, light mode.
 
 ## History
 
