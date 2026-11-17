@@ -60,7 +60,7 @@ export default async function DashboardPage() {
 
       <StatsCards stats={stats} />
 
-      <section className="flex flex-col gap-4">
+      <section className="@container flex flex-col gap-4">
         <div className="flex items-center justify-between gap-4">
           <h2 className="font-heading text-xl font-semibold">Collections</h2>
           <Link
@@ -74,7 +74,7 @@ export default async function DashboardPage() {
         {collections.length === 0 ? (
           <p className="text-sm text-muted-foreground">No collections yet.</p>
         ) : (
-          <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
+          <div className="grid gap-4 @xl:grid-cols-2 @[60rem]:grid-cols-3">
             {collections.map((collection) => (
               <CollectionCard key={collection.id} collection={collection} />
             ))}

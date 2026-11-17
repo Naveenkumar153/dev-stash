@@ -23,7 +23,7 @@ export function PlanPrice({ amount, billed, animationKey }: Readonly<PlanPricePr
       </span>
       <span className="text-sm text-muted-foreground">/month</span>
       {billed && (
-        <span aria-live="polite" className="mt-1.5 basis-full text-[13px] text-muted-foreground/70">
+        <span aria-live="polite" className="mt-1.5 basis-full text-[13px] text-muted-foreground">
           {billed}
         </span>
       )}

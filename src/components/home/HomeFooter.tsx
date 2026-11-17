@@ -32,7 +32,7 @@ export function HomeFooter({ isSignedIn }: Readonly<{ isSignedIn: boolean }>) {
             </nav>
           ))}
         </div>
-        <p className="mt-12 border-t pt-6 text-center text-[13px] text-muted-foreground/70">
+        <p className="mt-12 border-t pt-6 text-center text-[13px] text-muted-foreground">
           &copy; {new Date().getFullYear()} DevStash. All rights reserved.
         </p>
       </HomeContainer>

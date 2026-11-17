@@ -59,10 +59,12 @@ export default async function CollectionsPage({ searchParams }: PageProps<"/coll
           </p>
         ) : (
           <div className="flex flex-1 flex-col gap-8">
-            <div className="grid gap-4 sm:grid-cols-2 xl:grid-cols-3">
-              {collections.map((collection) => (
-                <CollectionCard key={collection.id} collection={collection} />
-              ))}
+            <div className="@container">
+              <div className="grid gap-4 @xl:grid-cols-2 @[60rem]:grid-cols-3">
+                {collections.map((collection) => (
+                  <CollectionCard key={collection.id} collection={collection} />
+                ))}
+              </div>
             </div>
             <ListPagination
               pathname={PATHNAME}

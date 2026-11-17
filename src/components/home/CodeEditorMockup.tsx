@@ -47,7 +47,7 @@ export function CodeEditorMockup() {
           <i className="size-2.5 rounded-full bg-[#28c840]" />
         </span>
         <span className="text-muted-foreground">useDebounce.ts</span>
-        <span className="ml-auto text-muted-foreground/70">typescript</span>
+        <span className="ml-auto text-muted-foreground">typescript</span>
       </div>
 
       <ol

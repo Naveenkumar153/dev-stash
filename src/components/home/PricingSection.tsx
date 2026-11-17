@@ -47,7 +47,7 @@ function PlanCard({ name, price, description, features, action, highlighted }: R
       <p className="mt-2.5 text-sm text-muted-foreground">{description}</p>
       <ul className="mt-6.5 mb-7.5 grid flex-1 content-start gap-3 text-sm text-foreground/85">
         {features.map(({ label, included }) => (
-          <li key={label} className={cn("flex gap-2.5", !included && "text-muted-foreground/70")}>
+          <li key={label} className={cn("flex gap-2.5", !included && "text-muted-foreground")}>
             {included ? (
               <Check aria-label="Included" className="mt-0.75 size-4 shrink-0 text-emerald-500" strokeWidth={2.5} />
             ) : (

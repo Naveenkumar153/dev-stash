@@ -11,7 +11,7 @@ import { FEATURES_ANCHOR, getStartAction } from "@/lib/homepage";
 function HeroPanel({ label, children }: Readonly<{ label: string; children: ReactNode }>) {
   return (
     <figure className="min-w-0">
-      <figcaption className="mb-3 text-center text-[11px] font-semibold tracking-[0.14em] text-muted-foreground/70 uppercase">
+      <figcaption className="mb-3 text-center text-[11px] font-semibold tracking-[0.14em] text-muted-foreground uppercase">
         {label}
       </figcaption>
       {children}
