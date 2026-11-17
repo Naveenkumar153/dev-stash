@@ -4,13 +4,30 @@
 
 <!-- Not Started|In Progress|Completed -->
 
+In Progress
+
 ## Goals
 
-<!-- Goals & requirements -->
+UI Review Quick Wins: fix three findings from the 2026-11-17 UI review of the homepage and dashboard.
+
+- **#2 Muted homepage text below 4.5:1.** Text using `text-muted-foreground/70` measured 3.98-4.16:1. Drop the `/70` on the billing period (`PlanPrice.tsx`), the Free plan's excluded features (`PricingSection.tsx`), the hero captions (`Hero.tsx`), the footer copyright (`HomeFooter.tsx`) and the "typescript" label (`CodeEditorMockup.tsx`).
+- **#3 Focus rings barely visible.** `ring-ring/50` is about 1.9:1 against the dark cards, below the 3:1 non-text minimum. Lighten the dark-mode `--ring` (and `--sidebar-ring`) token in `src/app/globals.css` so every component's 50% ring clears 3:1, with no per-component changes.
+- **#8 Collection titles cut off at 768px with the sidebar open.** The grid goes to two columns at the `sm` viewport width while the content area is about 464px wide. Base the columns on the grid's container width instead, on the dashboard and on `/collections` (same grid).
+
+Added on the same branch at the user's request: **Auth Page Nav & Logo**.
+
+- The homepage's top nav (`HomeNav`: logo, Features / Pricing, Sign In / Get Started, or Go to Dashboard when signed in) shows on the sign-in, register, forgot-password and reset-password pages, through the `(auth)` layout, replacing the centered standalone logo.
+- Features / Pricing point at `/#features` and `/#pricing` so they work away from the homepage.
+- The DevStash logo uses the logged-in sidebar's blue tile (`sidebar-primary`) everywhere: homepage nav and footer, auth pages and sidebar.
 
 ## Notes
 
-<!-- Any extra notes -->
+- Out of scope: the review's other findings (social proof, badges, tap targets, skip link, collection card focus ring, drawer action bar, dashboard title, Pinned/Recent layout); the decorative text inside the hero's `role="img"` visuals.
+- No server actions or utilities change, so no unit tests.
+- Ring: dark `--ring` / `--sidebar-ring` went from `oklch(0.556 0 0)` to `oklch(0.87 0 0)`; at the existing 50% opacity that measures 3.93:1 on the page background and 3.91:1 on cards (was about 1.9:1). Solid `focus-visible:border-ring` borders on inputs get lighter too.
+- Grid: `@container` on the dashboard's Collections section and on a wrapper around the `/collections` grid (not the div holding the sticky pagination, to keep layout containment off it); 2 columns from `@xl` (576px of grid width), 3 from `@[60rem]`. Measured: 1 column at 375px and at 769px with the sidebar open (465px grid, 353px titles, none truncated), 2 at 1024px (720px), 3 at 1280px (976px), no horizontal scroll.
+- Muted text after the change: 6.94-7.66:1. `npm test` (770), lint and build pass.
+- Auth nav: the `(auth)` layout renders `HomeNav` (reading `getSessionUserId()`, so a signed-in visitor sees Go to Dashboard) above a `<main>` padded past the fixed 56px / 64px bar; the old centered logo is gone. `Logo` lost its `tileClassName` prop (the sidebar was its only user) and defaults to `bg-sidebar-primary text-sidebar-primary-foreground`. `SECTION_LINKS` became `/#features` / `/#pricing`, and the nav and footer render them as plain `<a>`: with `next/link`, a client-side jump from `/sign-in` to `/#pricing` followed by Features gave `/#pricing#features` (Next's router appending the hash); route links stay `next/link`. Verified in the browser: the nav on sign-in, register and forgot-password at mobile and desktop with no horizontal scroll and the card below the bar; the same blue tile on the homepage, auth pages and sidebar; Sign In / Get Started switching pages; Features / Pricing from `/sign-in`, the homepage and the footer giving clean URLs with the section 64px from the top; no page errors. `npm test` (770), lint and build pass.
 
 ## History
 

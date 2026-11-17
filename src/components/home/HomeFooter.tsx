@@ -20,15 +20,20 @@ export function HomeFooter({ isSignedIn }: Readonly<{ isSignedIn: boolean }>) {
           {getFooterColumns(isSignedIn).map((column) => (
             <nav key={column.title} aria-label={column.title} className="flex flex-col gap-2.5">
               <p className="mb-1 text-xs font-bold tracking-widest uppercase">{column.title}</p>
-              {column.links.map((link) => (
-                <Link
-                  key={link.href}
-                  href={link.href}
-                  className="w-fit text-muted-foreground transition-colors hover:text-foreground"
-                >
-                  {link.label}
-                </Link>
-              ))}
+              {column.links.map((link) => {
+                // Section anchors stay plain links, like the nav's (see HomeNav).
+                const Anchor = link.href.includes("#") ? "a" : Link;
+
+                return (
+                  <Anchor
+                    key={link.href}
+                    href={link.href}
+                    className="w-fit text-muted-foreground transition-colors hover:text-foreground"
+                  >
+                    {link.label}
+                  </Anchor>
+                );
+              })}
             </nav>
           ))}
         </div>

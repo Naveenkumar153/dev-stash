@@ -17,11 +17,13 @@ export function HomeNav({ isSignedIn }: Readonly<{ isSignedIn: boolean }>) {
         <Link href="/">
           <Logo />
         </Link>
+        {/* Plain anchors: after a client-side jump from another page to `/#pricing`,
+            Next's router appended the next hash (`/#pricing#features`). */}
         <nav aria-label="Main" className="hidden gap-6 text-sm text-muted-foreground md:flex">
           {SECTION_LINKS.map((link) => (
-            <Link key={link.href} href={link.href} className="transition-colors hover:text-foreground">
+            <a key={link.href} href={link.href} className="transition-colors hover:text-foreground">
               {link.label}
-            </Link>
+            </a>
           ))}
         </nav>
         <div className="ml-auto flex items-center gap-1 sm:gap-2">

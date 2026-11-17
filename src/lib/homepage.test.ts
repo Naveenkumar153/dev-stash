@@ -33,8 +33,8 @@ describe("getFooterColumns", () => {
     expect(product).toEqual({
       title: "Product",
       links: [
-        { label: "Features", href: "#features" },
-        { label: "Pricing", href: "#pricing" },
+        { label: "Features", href: "/#features" },
+        { label: "Pricing", href: "/#pricing" },
       ],
     });
   });

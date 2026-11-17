@@ -29,8 +29,8 @@ export const FEATURES_ANCHOR = "features";
 export const PRICING_ANCHOR = "pricing";
 
 export const SECTION_LINKS: readonly HomeLink[] = [
-  { label: "Features", href: `#${FEATURES_ANCHOR}` },
-  { label: "Pricing", href: `#${PRICING_ANCHOR}` },
+  { label: "Features", href: `/#${FEATURES_ANCHOR}` },
+  { label: "Pricing", href: `/#${PRICING_ANCHOR}` },
 ];
 
 const DASHBOARD_ACTION: HomeLink = { label: "Go to Dashboard", href: DASHBOARD_PATH };

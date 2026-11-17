@@ -38,10 +38,7 @@ export function SidebarBody({
           collapsed && "justify-center px-0",
         )}
       >
-        <Logo
-          showName={!collapsed}
-          tileClassName="bg-sidebar-primary text-sidebar-primary-foreground"
-        />
+        <Logo showName={!collapsed} />
       </Link>
 
       <SidebarNav
