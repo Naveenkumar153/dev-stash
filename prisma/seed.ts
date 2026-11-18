@@ -3,8 +3,10 @@
  *
  * Run with: npm run db:seed
  *
- * Creates a demo user, the 7 system item types, and 5 collections holding 18
- * tagged items. Safe to re-run: system types are matched by name, and the demo
+ * Creates a demo user, the 7 system item types, and 18 tagged items: 10 in
+ * 3 collections and 8 in none. The demo user models a Free account, so it
+ * stays within the Free plan's 3 collections and 50 items (`src/lib/plans.ts`).
+ * Safe to re-run: system types are matched by name, and the demo
  * user's collections and items are cleared before being recreated, along with
  * the stored files of any items uploaded through the app.
  *
@@ -294,78 +296,76 @@ CMD ["node", "server.js"]`,
       },
     ],
   },
+];
+
+/**
+ * Demo items in no collection. The demo user models a Free account, which is
+ * capped at 3 collections, so these keep the Commands and Links pages stocked
+ * without a fourth and fifth collection.
+ */
+const UNCOLLECTED_ITEMS: SeedItem[] = [
+  // Terminal commands
   {
-    name: "Terminal Commands",
-    description: "Useful shell commands for everyday development",
-    items: [
-      {
-        title: "Undo the last commit, keep changes",
-        tags: ["git"],
-        type: "command",
-        language: "bash",
-        description: "Moves HEAD back one commit, leaving the work staged.",
-        content: `git reset --soft HEAD~1`,
-      },
-      {
-        title: "Remove stopped containers and dangling images",
-        tags: ["docker", "cleanup"],
-        type: "command",
-        language: "bash",
-        description: "Reclaims disk after a lot of local image churn.",
-        isPinned: true,
-        content: `docker container prune -f && docker image prune -f`,
-      },
-      {
-        title: "Find and kill whatever holds a port",
-        tags: ["shell", "process"],
-        type: "command",
-        language: "bash",
-        description: "For when the dev server says the port is already in use.",
-        content: `lsof -ti :3000 | xargs kill -9`,
-      },
-      {
-        title: "Find outdated and vulnerable packages",
-        tags: ["npm", "security"],
-        type: "command",
-        language: "bash",
-        description: "Quick dependency health check before a release.",
-        content: `npm outdated; npm audit --omit=dev`,
-      },
-    ],
+    title: "Undo the last commit, keep changes",
+    tags: ["git"],
+    type: "command",
+    language: "bash",
+    description: "Moves HEAD back one commit, leaving the work staged.",
+    content: `git reset --soft HEAD~1`,
   },
   {
-    name: "Design Resources",
-    description: "UI/UX resources and references",
-    items: [
-      {
-        title: "Tailwind CSS documentation",
-        tags: ["css", "tailwind", "docs"],
-        type: "link",
-        description: "Utility class reference and the v4 CSS-first config.",
-        url: "https://tailwindcss.com/docs",
-      },
-      {
-        title: "shadcn/ui",
-        tags: ["ui", "components"],
-        type: "link",
-        description: "Copy-in React components built on Radix and Tailwind.",
-        url: "https://ui.shadcn.com",
-      },
-      {
-        title: "Material Design 3",
-        tags: ["design", "guidelines"],
-        type: "link",
-        description: "Design system reference for colour, type and motion.",
-        url: "https://m3.material.io",
-      },
-      {
-        title: "Lucide icons",
-        tags: ["icons", "ui"],
-        type: "link",
-        description: "The icon set shadcn/ui uses; searchable catalogue.",
-        url: "https://lucide.dev/icons",
-      },
-    ],
+    title: "Remove stopped containers and dangling images",
+    tags: ["docker", "cleanup"],
+    type: "command",
+    language: "bash",
+    description: "Reclaims disk after a lot of local image churn.",
+    isPinned: true,
+    content: `docker container prune -f && docker image prune -f`,
+  },
+  {
+    title: "Find and kill whatever holds a port",
+    tags: ["shell", "process"],
+    type: "command",
+    language: "bash",
+    description: "For when the dev server says the port is already in use.",
+    content: `lsof -ti :3000 | xargs kill -9`,
+  },
+  {
+    title: "Find outdated and vulnerable packages",
+    tags: ["npm", "security"],
+    type: "command",
+    language: "bash",
+    description: "Quick dependency health check before a release.",
+    content: `npm outdated; npm audit --omit=dev`,
+  },
+  // Design resources
+  {
+    title: "Tailwind CSS documentation",
+    tags: ["css", "tailwind", "docs"],
+    type: "link",
+    description: "Utility class reference and the v4 CSS-first config.",
+    url: "https://tailwindcss.com/docs",
+  },
+  {
+    title: "shadcn/ui",
+    tags: ["ui", "components"],
+    type: "link",
+    description: "Copy-in React components built on Radix and Tailwind.",
+    url: "https://ui.shadcn.com",
+  },
+  {
+    title: "Material Design 3",
+    tags: ["design", "guidelines"],
+    type: "link",
+    description: "Design system reference for colour, type and motion.",
+    url: "https://m3.material.io",
+  },
+  {
+    title: "Lucide icons",
+    tags: ["icons", "ui"],
+    type: "link",
+    description: "The icon set shadcn/ui uses; searchable catalogue.",
+    url: "https://lucide.dev/icons",
   },
 ];
 
@@ -437,6 +437,39 @@ async function clearDemoData(userId: string): Promise<void> {
   }
 }
 
+/** Creates one demo item, in `collectionId` when given. */
+async function seedItem(
+  item: SeedItem,
+  userId: string,
+  typeIds: Map<SystemTypeName, string>,
+  collectionId?: string,
+): Promise<void> {
+  const itemTypeId = typeIds.get(item.type);
+  if (!itemTypeId) throw new Error(`Unknown item type: ${item.type}`);
+
+  await prisma.item.create({
+    data: {
+      title: item.title,
+      description: item.description,
+      contentType: contentTypeFor(item.type),
+      content: item.content ?? null,
+      url: item.url ?? null,
+      language: item.language ?? null,
+      isPinned: item.isPinned ?? false,
+      isFavorite: item.isFavorite ?? false,
+      userId,
+      itemTypeId,
+      ...(collectionId && { collections: { create: { collectionId } } }),
+      tags: {
+        connectOrCreate: item.tags.map((name) => ({
+          where: { name },
+          create: { name },
+        })),
+      },
+    },
+  });
+}
+
 /** Creates one collection and its items, linked through the join table. */
 async function seedCollection(
   collection: SeedCollection,
@@ -454,30 +487,7 @@ async function seedCollection(
   });
 
   for (const item of collection.items) {
-    const itemTypeId = typeIds.get(item.type);
-    if (!itemTypeId) throw new Error(`Unknown item type: ${item.type}`);
-
-    await prisma.item.create({
-      data: {
-        title: item.title,
-        description: item.description,
-        contentType: contentTypeFor(item.type),
-        content: item.content ?? null,
-        url: item.url ?? null,
-        language: item.language ?? null,
-        isPinned: item.isPinned ?? false,
-        isFavorite: item.isFavorite ?? false,
-        userId,
-        itemTypeId,
-        collections: { create: { collectionId: created.id } },
-        tags: {
-          connectOrCreate: item.tags.map((name) => ({
-            where: { name },
-            create: { name },
-          })),
-        },
-      },
-    });
+    await seedItem(item, userId, typeIds, created.id);
   }
 
   return collection.items.length;
@@ -525,12 +535,18 @@ async function main(): Promise<void> {
 
   await clearDemoData(userId);
 
-  let totalItems = 0;
+  let collectedItems = 0;
   for (const collection of COLLECTIONS) {
-    totalItems += await seedCollection(collection, userId, typeIds);
+    collectedItems += await seedCollection(collection, userId, typeIds);
+  }
+  for (const item of UNCOLLECTED_ITEMS) {
+    await seedItem(item, userId, typeIds);
   }
 
-  console.log(`✓ ${COLLECTIONS.length} collections with ${totalItems} items`);
+  console.log(
+    `✓ ${COLLECTIONS.length} collections with ${collectedItems} items, ` +
+      `plus ${UNCOLLECTED_ITEMS.length} items in no collection`,
+  );
   console.log("\nSeed complete.");
 }
 

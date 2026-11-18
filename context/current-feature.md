@@ -1,16 +1,28 @@
-# Current Feature
+# Current Feature: Demo Seed Within Free Limits
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- `prisma/seed.ts` creates exactly **3 collections** for the demo user (the Free plan's `FREE_COLLECTION_LIMIT`), down from 5
+- The demo user ends with **under 50 items** (`FREE_ITEM_LIMIT`); today's 18 already qualifies
+- Proposed default: keep **React Patterns** and **AI Workflows** (both favorites) and **DevOps**, and keep all 18 items by seeding the 4 Terminal Commands and 4 Design Resources items as items in no collection, so every type page (commands, links) still has demo content; the alternative is dropping those 8 items with their collections (10 items)
+- The seed's header comment, counts and log lines match the new shape
+- Run `npm run db:reset-users` (dry run first, then `-- --confirm`) on `development`, deleting every non-demo user (and canceling any test subscription), then `npm run db:seed` to reseed the demo content
+- Afterwards, read-only SQL on `development` shows only the demo user, with 3 collections and under 50 items
+- `npm test`, lint, build and `db:status` pass
 
 ## Notes
 
-<!-- Any extra notes -->
+- Inline requirement: "Change the demo user seed data to only have 3 collections since it is a free user and they are limited to 3. Then run the clear user script, which deletes all users but the demo user and seeds their content. They should also have under 50 items"
+- The "clear user script" is `npm run db:reset-users` (`scripts/reset-users.ts`), which deletes users but does not seed; seeding is the separate `npm run db:seed` (`prisma/seed.ts`)
+- **Destructive, `development` only** (`br-rough-cell-az2ync9n`, `.env`'s host): reset-users deletes every non-demo account and its rows and R2 files; the seed clears **all** of the demo user's items and collections, not just seeded ones, so anything added by hand goes too: the demo's "Angular Patterns" / "Node & Express Patterns" collections, "Create a code scanner agent", the uploaded "Naveen Resume" PDF and "Docker Network" image (and their R2 objects). The dry run's list is shown before `--confirm`
+- Both scripts refuse production (`NODE_ENV` and the `.env.production` host check; the seed's own guard); reset-users also refuses to cancel subscriptions without an `sk_test_` key
+- The seed doesn't clear the demo user's folders or editor preferences; they're left as they are
+- Seed data has no unit tests (not under `src/`); verification is the script output plus SQL
+- Why: with `PRO_GATING_ENABLED` on, the demo account (5 collections today) is already over the Free collection limit, so the seed should model a Free user within its limits
 
 ## History
 
