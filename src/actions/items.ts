@@ -91,8 +91,8 @@ export async function createItem(data: CreateItemInput): Promise<CreateItemResul
 /**
  * Saves the item drawer's edits and returns the saved item, so the drawer can
  * show it without fetching again. Only the signed-in user's own items can be
- * saved: the write is scoped to the session's user, so anyone else's item -
- * including the demo items every account still sees - fails like a missing one.
+ * saved: the write is scoped to the session's user, so anyone else's item
+ * fails like a missing one.
  */
 export async function updateItem(
   itemId: string,

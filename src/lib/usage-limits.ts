@@ -5,8 +5,8 @@ import { prisma } from "@/lib/prisma";
 /**
  * The Pro gating hooks. Gates check `hasProAccess`, never `isPro`, so with
  * `PRO_GATING_ENABLED` unset every account gets everything, as the project
- * spec asks during development. Counts are always for the session user passed
- * in, never `getCurrentUserId()`'s demo account.
+ * spec asks during development. Counts are for the user id passed in: the
+ * session user, the same account every page lists.
  */
 
 /**

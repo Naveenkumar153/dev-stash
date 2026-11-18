@@ -2,29 +2,21 @@ import { cache } from "react";
 
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { getSessionUserId } from "@/lib/session";
 import type { SessionUser } from "@/types/auth";
 
-/**
- * The seeded demo account. Stands in for the signed-in user until NextAuth
- * lands — every query scopes to whatever this returns, so swapping it for the
- * real session is a one-function change.
- */
+/** The seeded demo account (`prisma/seed.ts`), which can't be deleted. */
 export const DEMO_USER_EMAIL = "demo@devstash.io";
 
 /**
- * Owner id for the dashboard's queries. Null when the database is unseeded.
+ * Owner id for the read queries behind every page: the signed-in user, so
+ * each account sees only its own items, collections and folders. Null when
+ * signed out.
  *
  * Cached per request: every db module calls this, and they would otherwise
- * repeat the same lookup once each.
+ * repeat the same session check once each.
  */
-export const getCurrentUserId = cache(async (): Promise<string | null> => {
-  const user = await prisma.user.findUnique({
-    where: { email: DEMO_USER_EMAIL },
-    select: { id: true },
-  });
-
-  return user?.id ?? null;
-});
+export const getCurrentUserId = cache(getSessionUserId);
 
 /**
  * The signed-in user's display details, read from their row rather than the

@@ -10,8 +10,8 @@ const FOLDER_REF_SELECT = { id: true, name: true, parentId: true } as const;
 
 /**
  * Every folder the files page can show, in no particular order - the page
- * sorts them. Scoped through `getCurrentUserId()` like the file list, so the
- * folders always match the files they hold.
+ * sorts them. Scoped through `getCurrentUserId()` (the signed-in user) like
+ * the file list, so the folders always match the files they hold.
  */
 export async function getFolders(): Promise<FolderEntry[]> {
   // Keeps the list out of the build-time prerender.

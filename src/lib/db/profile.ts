@@ -52,9 +52,8 @@ export const getProfileUser = cache(async (): Promise<ProfileUser | null> => {
 });
 
 /**
- * Usage for the profile page. Scoped to `userId` - the signed-in user - not
- * getCurrentUserId(), so it can differ from the dashboard until that switches
- * to the session user too.
+ * Usage for the profile page, for `userId` - the signed-in user, the same
+ * account the dashboard shows.
  */
 export async function getProfileStats(userId: string): Promise<ProfileStats> {
   const [items, collections, types] = await Promise.all([

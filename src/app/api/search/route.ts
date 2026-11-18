@@ -15,9 +15,9 @@ const NO_STORE = { "Cache-Control": "private, no-store" };
  * shell loads and again each time the palette opens; the palette then filters
  * in the browser, so typing makes no requests.
  *
- * Reads scope through `getCurrentUserId()` like the lists and the item drawer,
- * so every result opens something those show. The proxy doesn't cover /api,
- * so the session is checked here and answered with a 401.
+ * Reads scope through `getCurrentUserId()` (the signed-in user) like the lists
+ * and the item drawer, so every result opens something those show. The proxy
+ * doesn't cover /api, so the session is checked here and answered with a 401.
  */
 export async function GET() {
   if (!(await getSessionUserId())) {

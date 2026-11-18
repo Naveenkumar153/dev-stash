@@ -12,9 +12,7 @@ import type { UpdateEditorPreferencesResult } from "@/types/editor-preferences";
 
 /**
  * Saves the signed-in user's editor preferences. The whole set is replaced, so
- * the settings page sends all five values on every change. Preferences belong
- * to the account, so this writes to the session user, not the demo user the
- * dashboard reads.
+ * the settings page sends all five values on every change.
  */
 export async function updateEditorPreferences(
   data: unknown,

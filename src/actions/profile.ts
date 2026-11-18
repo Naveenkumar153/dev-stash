@@ -119,7 +119,7 @@ export async function deleteAccount(): Promise<DeleteAccountResult> {
     if (!user) {
       return { success: false, data: null, error: "Account not found." };
     }
-    // Every dashboard still reads the demo account's data via getCurrentUserId().
+    // The seeded demo account is shared for trying the app, so it stays.
     if (user.email === DEMO_USER_EMAIL) {
       return { success: false, data: null, error: "The demo account can't be deleted." };
     }
