@@ -13,6 +13,7 @@ import {
   isCreatableItemType,
   isFileItemType,
   isProItemType,
+  getProItemTypeForSlug,
   requiresUrl,
 } from "@/lib/item-types";
 
@@ -165,4 +166,20 @@ describe("requiresUrl", () => {
       expect(requiresUrl(name)).toBe(false);
     }
   });
+});
+
+describe("getProItemTypeForSlug", () => {
+  it.each([
+    ["files", "file"],
+    ["images", "image"],
+  ])("maps the Pro list page %s to %s", (slug, name) => {
+    expect(getProItemTypeForSlug(slug)).toBe(name);
+  });
+
+  it.each(["snippets", "links", "notes", "file", "Files", "unknown", ""])(
+    "is null for %j",
+    (slug) => {
+      expect(getProItemTypeForSlug(slug)).toBeNull();
+    },
+  );
 });

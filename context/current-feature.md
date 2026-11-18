@@ -1,16 +1,29 @@
-# Current Feature
+# Current Feature: Pro Upgrade Page for Files & Images
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- A user without Pro access who visits `/items/files` or `/items/images` (any query, including `?folder=` and `?page=`) sees an **upgrade page** instead of the list; Pro users, and everyone while `PRO_GATING_ENABLED` is off, see the pages exactly as today
+- The check is the existing rule: `getSessionEntitlements()`'s `hasProAccess` (`isPro || !isProGatingEnabled()`), decided on the server before any list, folder or file query runs, so a Free user's request loads none of that data
+- Proposed default: the upgrade page renders **in place at the same URL** inside the app shell (sidebar and top bar stay; 200, no redirect), so the link the user followed still reads as Files / Images
+- Upgrade page content (proposed): the type's icon tile and plural name as the heading, a line such as "Files are a Pro feature", what Pro unlocks (from `PRO_PLAN_FEATURES` in `src/lib/homepage.ts`), Pro's price, a primary "Upgrade to Pro" link to the Billing card (`UPGRADE_PATH`, `/settings#billing`) and a secondary link back to the dashboard; no "New File" / "New Image" or folder buttons
+- A small, unit-tested helper decides which type slugs are Pro-only (built on `isProItemType()` / `getItemTypeSlug()` in `src/lib/item-types.ts`), so the page doesn't hard-code `files` / `images`
+- The tab title stays `Files | DevStash` / `Images | DevStash`
+- No horizontal scroll at phone width; `npm test`, lint and build pass
 
 ## Notes
 
-<!-- Any extra notes -->
+- Inline requirement: "I don't want free users to be able to go to the /items/files or /items/images. Let's show an upgrade page if they visit those links"
+- Builds on Stripe Phase 2: uploads are already refused for Free users (New Item callout, 403 `PRO_REQUIRED` from `POST /api/items/upload`); this closes the browsing side
+- Only the two list pages are blocked. Per the billing plan, downgraded users keep what they have: their file and image items stay visible on the dashboard, in collections, in search and in the item drawer, and `GET /api/items/[id]/file` downloads stay open. Gating those too would be a separate change
+- The sidebar keeps its Files / Images rows with the PRO badge; following them leads to the upgrade page
+- Open choices to confirm at start: in-place render vs. redirecting to a dedicated `/upgrade` route; whether the page mentions that existing files stay reachable from the dashboard and search
+- Testing the gated state needs `PRO_GATING_ENABLED=true` in `.env` temporarily (restored afterwards), as in Stripe Phase 2; the demo account is Free
+- Pages and components aren't unit tested; the slug helper is
+- Fixed alongside, at the user's report ("GitHub login: settings shows no items or collections but they show everywhere; at the limit I can still create"): `getCurrentUserId()` in `src/lib/db/user.ts` still returned the seeded demo account's id for every signed-in user, so every page listed the demo's data while the Billing card, writes and limits used the real account; it is now `cache(getSessionUserId)`, so each account sees only its own data (comments that described the demo fallback updated in `user.ts`, `search/route.ts`, `profile.ts`, `usage-limits.ts`, `folders.ts`, `db/profile.ts`, `editor-preferences.ts`, `items.ts`). And `PRO_GATING_ENABLED` was unset, so no limit was enforced; `.env` now sets it to `true` (`.env.production` untouched)
 
 ## History
 

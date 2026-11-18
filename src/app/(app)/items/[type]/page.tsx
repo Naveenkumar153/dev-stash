@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 
+import { ProFeaturePage } from "@/components/billing/ProFeaturePage";
 import { ItemCard } from "@/components/dashboard/ItemCard";
 import { FileList } from "@/components/items/FileList";
 import { ImageCard } from "@/components/items/ImageCard";
@@ -16,6 +17,7 @@ import { formatCount } from "@/lib/format";
 import {
   getItemTypeHref,
   getItemTypePlural,
+  getProItemTypeForSlug,
   getItemTypeSlug,
   getItemTypeStyleByName,
   isCreatableItemType,
@@ -26,6 +28,7 @@ import {
   ITEMS_PER_PAGE,
   parsePageParam,
 } from "@/lib/pagination";
+import { getSessionEntitlements } from "@/lib/usage-limits";
 import { cn } from "@/lib/utils";
 
 export async function generateMetadata({
@@ -62,6 +65,14 @@ export default async function ItemTypePage({
   searchParams,
 }: PageProps<"/items/[type]">) {
   const [{ type: slug }, query] = await Promise.all([params, searchParams]);
+
+  // Files and images are Pro: without access the page offers an upgrade in
+  // place of the list, before any of it (or its folders) is loaded.
+  const proTypeName = getProItemTypeForSlug(slug);
+  if (proTypeName && !(await getSessionEntitlements())?.hasProAccess) {
+    return <ProFeaturePage typeName={proTypeName} />;
+  }
+
   const isFilesPage = slug === getItemTypeSlug("file");
   // The files page isn't paged: its filters, sorting and folders work over
   // every file in the browser. Every other type loads one page of cards.

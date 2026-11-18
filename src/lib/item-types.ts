@@ -142,6 +142,20 @@ export function isProItemType(name: string) {
 }
 
 /**
+ * The Pro-only type whose list page `slug` names, e.g. "files" -> "file", or
+ * null for a free type or an unknown slug. Matched exactly, like the route's
+ * own lookup, so the list page can gate itself before loading anything.
+ */
+export function getProItemTypeForSlug(slug: string): string | null {
+  for (const name of PRO_TYPE_NAMES) {
+    if (getItemTypeSlug(name) === slug) {
+      return name;
+    }
+  }
+  return null;
+}
+
+/**
  * The system types whose payload is typed into the New Item form, created by
  * the `createItem` server action.
  */
