@@ -75,7 +75,7 @@ async function send(request: Request) {
 
 describe("POST /api/items/upload", () => {
   beforeEach(() => {
-    mockAuth.mockResolvedValue({ user: { id: "user-1" }, expires: "2099-01-01T00:00:00.000Z" });
+    mockAuth.mockResolvedValue({ user: { id: "user-1", isPro: false }, expires: "2099-01-01T00:00:00.000Z" });
     vi.spyOn(crypto, "randomUUID").mockReturnValue(UPLOAD_ID);
     vi.mocked(createFileItem).mockResolvedValue(created);
     vi.mocked(ownsCollections).mockResolvedValue(true);

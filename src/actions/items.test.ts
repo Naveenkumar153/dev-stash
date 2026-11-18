@@ -45,7 +45,7 @@ const COLLECTION_A = "cmtg169y00004zzx5collect1";
 const COLLECTION_B = "cmtg169y00005zzx5collect2";
 
 function signInAs(id: string) {
-  mockAuth.mockResolvedValue({ user: { id }, expires: "2099-01-01T00:00:00.000Z" });
+  mockAuth.mockResolvedValue({ user: { id, isPro: false }, expires: "2099-01-01T00:00:00.000Z" });
 }
 
 const input = {

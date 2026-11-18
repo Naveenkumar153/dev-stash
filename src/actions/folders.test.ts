@@ -58,7 +58,7 @@ const TREE: FolderRef[] = [
 ];
 
 function signInAs(id: string) {
-  mockAuth.mockResolvedValue({ user: { id }, expires: "2099-01-01T00:00:00.000Z" });
+  mockAuth.mockResolvedValue({ user: { id, isPro: false }, expires: "2099-01-01T00:00:00.000Z" });
 }
 
 function nameTaken(name: string) {

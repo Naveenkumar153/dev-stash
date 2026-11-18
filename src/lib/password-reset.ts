@@ -1,5 +1,6 @@
+import { getAppUrl } from "@/lib/app-url";
 import { RESET_PASSWORD_PATH } from "@/lib/auth-redirect";
-import { getAppUrl, sendPasswordResetEmail } from "@/lib/email";
+import { sendPasswordResetEmail } from "@/lib/email";
 import { hashPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
 import {

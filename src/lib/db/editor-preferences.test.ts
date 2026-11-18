@@ -13,7 +13,7 @@ const mockAuth = auth as unknown as ReturnType<typeof vi.fn<() => Promise<Sessio
 
 describe("getEditorPreferences", () => {
   beforeEach(() => {
-    mockAuth.mockResolvedValue({ user: { id: "user-1" }, expires: "2099-01-01T00:00:00.000Z" });
+    mockAuth.mockResolvedValue({ user: { id: "user-1", isPro: false }, expires: "2099-01-01T00:00:00.000Z" });
   });
 
   it("reads the session user's stored preferences, filling gaps with defaults", async () => {

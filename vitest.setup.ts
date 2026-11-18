@@ -15,11 +15,20 @@ const SERVICE_VARS = [
   "R2_ACCESS_KEY_ID",
   "R2_SECRET_ACCESS_KEY",
   "R2_BUCKET_NAME",
+  "STRIPE_SECRET_KEY",
+  "STRIPE_WEBHOOK_SECRET",
+  "STRIPE_PRICE_ID_MONTHLY",
+  "STRIPE_PRICE_ID_YEARLY",
 ];
 
 // App settings, cleared so a value exported in the shell can't change a
 // result. Tests that need one set it with `vi.stubEnv()`.
-const SETTING_VARS = ["AUTH_URL", "EMAIL_FROM", "EMAIL_VERIFICATION_ENABLED"];
+const SETTING_VARS = [
+  "AUTH_URL",
+  "EMAIL_FROM",
+  "EMAIL_VERIFICATION_ENABLED",
+  "PRO_GATING_ENABLED",
+];
 
 for (const name of [...SERVICE_VARS, ...SETTING_VARS]) {
   delete process.env[name];

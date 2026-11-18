@@ -1,16 +1,34 @@
-# Current Feature
+# Current Feature: Stripe Phase 1 — Core Infrastructure
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- `stripe@^23.1.0` added; `.env.example` documents `STRIPE_SECRET_KEY`, `STRIPE_WEBHOOK_SECRET`, `STRIPE_PRICE_ID_MONTHLY`, `STRIPE_PRICE_ID_YEARLY` and `PRO_GATING_ENABLED` (no publishable key); `.env` gets test-mode keys only, `.env.production` untouched
+- `vitest.setup.ts` clears the four `STRIPE_*` vars (`SERVICE_VARS`) and `PRO_GATING_ENABLED` (`SETTING_VARS`)
+- `src/lib/plans.ts` (Zod-free, client-safe): `FREE_ITEM_LIMIT = 50`, `FREE_COLLECTION_LIMIT = 3`, `BILLING_INTERVALS` / `BillingInterval`, and `PRO_PRICES` moved here from `src/lib/homepage.ts` with homepage output unchanged
+- `src/lib/usage-limits.ts`: `isProGatingEnabled()` (true only for exactly `"true"`, the only reader of the flag), `getSessionEntitlements()` (`{ userId, isPro, hasProAccess }` or null; `hasProAccess = isPro || !isProGatingEnabled()`), `canCreateItem()` / `canCreateCollection()` (no count with access, otherwise one `count` scoped to the session user, allowed while `count < limit`), `getUsage()` (both counts in one `Promise.all`)
+- `src/lib/stripe.ts`: lazy `getStripe()` (no `apiVersion`, `appInfo: { name: "DevStash" }`, `maxNetworkRetries: 2`, throws `"STRIPE_SECRET_KEY is not set"`), `getWebhookSecret()`, `getPriceId(interval)`, `isProStatus()` (`active` / `trialing` / `past_due`), `toId()`
+- `src/lib/db/billing.ts`, the only writer of billing columns: `getBillingStatus()`, `getOrCreateCustomerId()` (idempotency key `customer-${userId}`, conditional save, re-read on a lost race), `applySubscription()` (grant scoped by customer; revoke scoped by customer **and** the current subscription id; never clears `stripeCustomerId`), `syncSubscription()`
+- Session sync: a `jwt` callback in `src/auth.ts` re-reads `isPro` by `token.sub` on every validation (no `trigger === "update"`); the `session` callback in `src/auth.config.ts` sets `session.user.isPro = token.isPro === true`; `src/types/next-auth.d.ts` augments `Session["user"]` and `JWT`
+- Supporting modules: `src/lib/billing-schemas.ts` (`billingIntervalSchema`, `checkoutSessionIdSchema`), `src/types/billing.ts` (`BillingRedirectResult`), `src/lib/app-url.ts` (`getAppUrl()` moved out of `src/lib/email.ts`, importers updated), and the `ITEM_LIMIT_REACHED`, `COLLECTION_LIMIT_REACHED`, `PRO_REQUIRED`, `CHECKOUT_FAILED`, `BILLING_PORTAL_FAILED` constants in `src/lib/action-result.ts` (kept Zod-free)
+- Unit tests, with `src/lib/usage-limits.test.ts` required: flag parsing (`"true"` only; unset, `""`, `"TRUE"`, `"1"`, `" true"`, `"false"` off), the entitlement matrix, limit boundaries at 49 / 50 / 51 and 2 / 3, no `count` with access, `where` exactly `{ userId }`, `getUsage` scoping and rejection; plus `stripe.test.ts`, `db/billing.test.ts`, `billing-schemas.test.ts`, and `homepage.test.ts` still passing
+- `npm test`, `npm run lint`, `npm run build` and `npm run db:status` pass; the proxy bundle has no Prisma or Stripe import
 
 ## Notes
 
-<!-- Any extra notes -->
+- Spec: `context/features/stripe-phase-1-spec.md`; reference `docs/stripe-integration-plan.md` (§1–§5, §8 steps 1–5). Phase 2 (`context/features/stripe-phase-2-spec.md`) wires these pieces in
+- No user-facing change: no webhook, Checkout, Portal, Billing card or enforced limit in this phase, and no Stripe CLI or real payment needed
+- No migration: `isPro`, `stripeCustomerId` and `stripeSubscriptionId` already exist on `User`
+- The `jwt` callback must live in `src/auth.ts`, not `auth.config.ts`, which the edge proxy loads and which must stay Prisma-free
+- Gates check `hasProAccess`, never `isPro`; with `PRO_GATING_ENABLED` unset every account gets everything (the project spec's dev note)
+- Counts use the session user passed in, never `getCurrentUserId()` (the demo user)
+- Check the `JWT` augmentation module path against `next-auth@5.0.0-beta.32`
+- Session callback test only if it can run without loading the NextAuth runtime; otherwise verify in the browser
+- Browser check: as the demo user, `auth()` returns `isPro: false`; a temporary `UPDATE users SET "isPro" = true WHERE email = 'demo@devstash.io'` on `development` only, **approved first**, then reverted, should show `isPro: true` after a reload without signing out
+- Local production builds must override `DATABASE_URL` (`next start` loads `.env.production`)
 
 ## History
 

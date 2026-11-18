@@ -1,4 +1,5 @@
-import { getAppUrl, sendVerificationEmail } from "@/lib/email";
+import { getAppUrl } from "@/lib/app-url";
+import { sendVerificationEmail } from "@/lib/email";
 import { prisma } from "@/lib/prisma";
 import { checkToken, deleteTokens, replaceToken, wasIssuedWithin } from "@/lib/tokens";
 

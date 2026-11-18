@@ -43,7 +43,7 @@ const created: CollectionSummary = {
 
 describe("createCollection", () => {
   beforeEach(() => {
-    mockAuth.mockResolvedValue({ user: { id: "user-1" }, expires: "2099-01-01T00:00:00.000Z" });
+    mockAuth.mockResolvedValue({ user: { id: "user-1", isPro: false }, expires: "2099-01-01T00:00:00.000Z" });
     vi.mocked(createCollectionRecord).mockResolvedValue(created);
   });
 
@@ -111,7 +111,7 @@ describe("createCollection", () => {
 });
 
 const COLLECTION_ID = "cmtg169y00002zzx5wxanksok";
-const SESSION = { user: { id: "user-1" }, expires: "2099-01-01T00:00:00.000Z" };
+const SESSION = { user: { id: "user-1", isPro: false }, expires: "2099-01-01T00:00:00.000Z" };
 
 describe("updateCollection", () => {
   const saved = { id: COLLECTION_ID, name: "Hooks", description: null, isFavorite: true };

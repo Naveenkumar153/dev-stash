@@ -19,11 +19,15 @@ export default {
   ],
   callbacks: {
     // With the JWT strategy `token.sub` is the database user id, set on
-    // sign-in from the adapter's user row.
+    // sign-in from the adapter's user row. `token.isPro` is re-read by the
+    // `jwt` callback in `auth.ts`. The proxy doesn't run that callback, so its
+    // copy is whatever the cookie last held and may be stale: gate on
+    // `getSessionEntitlements()` server-side, never in the proxy.
     session({ session, token }) {
       if (token.sub) {
         session.user.id = token.sub;
       }
+      session.user.isPro = token.isPro === true;
       return session;
     },
   },

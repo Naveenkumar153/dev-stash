@@ -13,6 +13,7 @@ import {
   REGISTER_PATH,
   SIGN_IN_PATH,
 } from "@/lib/auth-redirect";
+import { PRO_PRICES, type BillingInterval } from "@/lib/plans";
 
 /**
  * Content and rules for the marketing homepage (`src/app/page.tsx`). Copy lives
@@ -164,10 +165,7 @@ export const AI_CODE_SAMPLE: readonly (readonly CodeToken[])[] = [
   ["}"],
 ];
 
-export type BillingPeriod = "monthly" | "yearly";
-
-/** Pro's list prices in dollars, per `context/project-overview.md`. */
-export const PRO_PRICES = { monthly: 8, yearly: 72 } as const;
+export type BillingPeriod = BillingInterval;
 
 function formatDollars(amount: number): string {
   return Number.isInteger(amount) ? `$${amount}` : `$${amount.toFixed(2)}`;

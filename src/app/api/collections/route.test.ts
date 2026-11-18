@@ -22,7 +22,7 @@ async function send() {
 
 describe("GET /api/collections", () => {
   beforeEach(() => {
-    mockAuth.mockResolvedValue({ user: { id: "user-1" }, expires: "2099-01-01T00:00:00.000Z" });
+    mockAuth.mockResolvedValue({ user: { id: "user-1", isPro: false }, expires: "2099-01-01T00:00:00.000Z" });
   });
 
   it("returns the signed-in user's collections, never cached", async () => {

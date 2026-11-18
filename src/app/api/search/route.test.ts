@@ -24,7 +24,7 @@ async function send() {
 
 describe("GET /api/search", () => {
   beforeEach(() => {
-    mockAuth.mockResolvedValue({ user: { id: "user-1" }, expires: "2099-01-01T00:00:00.000Z" });
+    mockAuth.mockResolvedValue({ user: { id: "user-1", isPro: false }, expires: "2099-01-01T00:00:00.000Z" });
   });
 
   it("returns the items and the collections trimmed for the palette, never cached", async () => {

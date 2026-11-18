@@ -29,7 +29,7 @@ vi.mock("@/lib/prisma", () => ({
 const mockAuth = auth as unknown as ReturnType<typeof vi.fn<() => Promise<Session | null>>>;
 
 function signInAs(id: string) {
-  mockAuth.mockResolvedValue({ user: { id }, expires: "2099-01-01T00:00:00.000Z" });
+  mockAuth.mockResolvedValue({ user: { id, isPro: false }, expires: "2099-01-01T00:00:00.000Z" });
 }
 
 function passwordForm(fields: Partial<Record<string, string>> = {}) {

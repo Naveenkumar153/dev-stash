@@ -1,5 +1,7 @@
 import type { z } from "zod";
 
+import { FREE_COLLECTION_LIMIT, FREE_ITEM_LIMIT } from "@/lib/plans";
+
 /**
  * What server actions and API routes share for their `{ success, data, error }`
  * replies: per-field errors and the messages more than one of them returns.
@@ -60,3 +62,18 @@ export const FAVORITE_UPDATE_FAILED = "Couldn't update favorites. Please try aga
 
 /** Pinning / unpinning an item failed for a reason the user can't act on. */
 export const PIN_UPDATE_FAILED = "Couldn't update the pin. Please try again.";
+
+/** A Free account at its item cap tried to create another item. */
+export const ITEM_LIMIT_REACHED = `You've reached the Free plan's limit of ${FREE_ITEM_LIMIT} items. Upgrade to Pro for unlimited items.`;
+
+/** A Free account at its collection cap tried to create another collection. */
+export const COLLECTION_LIMIT_REACHED = `You've reached the Free plan's limit of ${FREE_COLLECTION_LIMIT} collections. Upgrade to Pro for unlimited collections.`;
+
+/** A Free account tried a Pro-only feature (file and image uploads today). */
+export const PRO_REQUIRED = "File and image uploads are a Pro feature.";
+
+/** Starting Stripe Checkout failed for a reason the user can't act on. */
+export const CHECKOUT_FAILED = "Couldn't start checkout. Please try again.";
+
+/** Opening the Stripe Customer Portal failed for a reason the user can't act on. */
+export const BILLING_PORTAL_FAILED = "Couldn't open billing. Please try again.";

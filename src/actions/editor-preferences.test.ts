@@ -17,7 +17,7 @@ const preferences = { fontSize: 16, tabSize: 4, wordWrap: false, minimap: true, 
 
 describe("updateEditorPreferences", () => {
   beforeEach(() => {
-    mockAuth.mockResolvedValue({ user: { id: "user-1" }, expires: "2099-01-01T00:00:00.000Z" });
+    mockAuth.mockResolvedValue({ user: { id: "user-1", isPro: false }, expires: "2099-01-01T00:00:00.000Z" });
     vi.spyOn(console, "error").mockImplementation(() => {});
   });
 

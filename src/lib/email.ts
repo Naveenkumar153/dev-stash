@@ -15,11 +15,6 @@ function getResend(): Resend {
   return resend;
 }
 
-/** Absolute origin for links in emails, e.g. `https://devstash.io`. */
-export function getAppUrl(): string {
-  return (process.env.AUTH_URL ?? "http://localhost:3000").replace(/\/+$/, "");
-}
-
 function escapeHtml(value: string): string {
   return value
     .replaceAll("&", "&amp;")

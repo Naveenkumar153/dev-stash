@@ -89,4 +89,26 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
   providers: authConfig.providers.map((provider) =>
     typeof provider !== "function" && provider.id === "credentials" ? credentials : provider,
   ),
+  callbacks: {
+    ...authConfig.callbacks,
+    // Node-only (Prisma), so it lives here and not in the edge-safe config the
+    // proxy loads. Re-reading `isPro` on every validation means a Stripe
+    // webhook's change shows on the next request, without relying on
+    // `trigger === "update"` from the client.
+    async jwt({ token, user }) {
+      if (user?.id) {
+        token.sub = user.id;
+      }
+
+      if (token.sub) {
+        const dbUser = await prisma.user.findUnique({
+          where: { id: token.sub },
+          select: { isPro: true },
+        });
+        token.isPro = dbUser?.isPro ?? false;
+      }
+
+      return token;
+    },
+  },
 });
