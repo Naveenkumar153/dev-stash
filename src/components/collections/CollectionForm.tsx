@@ -1,13 +1,13 @@
 "use client";
 
 import { useId, useState, type TransitionStartFunction } from "react";
-import { toast } from "sonner";
 
 import { FormField } from "@/components/auth/FormField";
 import { Button } from "@/components/ui/button";
 import { DialogClose, DialogFooter } from "@/components/ui/dialog";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useUpgradeErrorToast } from "@/hooks/use-upgrade-error-toast";
 import type { FieldErrors } from "@/lib/action-result";
 import type { CollectionFormInput } from "@/lib/collection-schemas";
 import {
@@ -60,6 +60,8 @@ export function CollectionForm({
   const descriptionId = `${id}-description`;
   const descriptionErrorId = `${descriptionId}-error`;
 
+  const showError = useUpgradeErrorToast();
+
   function handleSubmit(event: React.FormEvent<HTMLFormElement>) {
     event.preventDefault();
 
@@ -72,7 +74,7 @@ export function CollectionForm({
       }
 
       setFieldErrors(result.fieldErrors);
-      toast.error(result.error ?? fallbackError);
+      showError(result.error, fallbackError);
     });
   }
 

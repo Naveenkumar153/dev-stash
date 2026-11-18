@@ -1,16 +1,36 @@
-# Current Feature
+# Current Feature: Stripe Phase 2 — Integration & UI
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- **Webhook** `POST /api/webhooks/stripe` (`src/app/api/webhooks/stripe/route.ts`): raw body via `request.text()`, `constructEvent` against `stripe-signature` and `getWebhookSecret()`, 400 (`errorResponse`) with no database call for a missing or invalid signature; no session check, rate limit or edge runtime
+  - `checkout.session.completed` with `mode === "subscription"` and `customer.subscription.created` / `.updated` / `.deleted` / `.paused` / `.resumed` call `syncSubscription()` (re-read from Stripe); `invoice.payment_failed` acknowledged with no write; other types 200; a thrown handler logged with event type and id and answered 500 so Stripe retries
+- **`src/actions/billing.ts`**: `createCheckoutSession(interval)` (`SESSION_EXPIRED`, `billingIntervalSchema`, an already-Pro user sent to the Portal instead, `mode: "subscription"` with `getOrCreateCustomerId()`, `client_reference_id`, the interval's price, `subscription_data.metadata.userId`, `allow_promotion_codes`, success / cancel URLs on `/settings` from `getAppUrl()`, `CHECKOUT_FAILED` logged on a throw) and `createPortalSession()` (`return_url` `/settings`, `BILLING_PORTAL_FAILED`), both returning `BillingRedirectResult`; the client opens the URL with `window.location.assign()`
+- **Post-checkout sync**: `syncCheckoutForUser(userId, sessionId)` in `src/lib/db/billing.ts` validates with `checkoutSessionIdSchema`, retrieves the session and syncs its subscription only when `client_reference_id === userId`; failures logged, not thrown; `/settings?checkout=success&session_id=…` runs it before reading `getBillingStatus()`, so Pro shows before the webhook
+- **Gating** (only while `hasProAccess` is false): `createItem` and `createCollection` switch to `getSessionEntitlements()` and check `canCreateItem()` / `canCreateCollection()` inside the `try`, before `ownsCollections()`, returning `ITEM_LIMIT_REACHED` / `COLLECTION_LIMIT_REACHED` with nothing written; `POST /api/items/upload` returns 403 `PRO_REQUIRED` right after the session check (before the body is read), 403 `ITEM_LIMIT_REACHED` after validation and before `checkFolder()` / R2, and a logged 500 `ITEM_CREATE_FAILED` on a failed count; edit, delete, download, favorite, pin, folders and collection edit / delete stay ungated, and downgraded users keep everything
+- **Billing card on `/settings`** (`id="billing"`, after the heading, before Editor preferences): server `BillingCard` with the plan name, Free usage "N / 50 items · N / 3 collections" from `getUsage()` in the page's `Promise.all` ("Unlimited" for Pro), and notices for `?checkout=success` ("Welcome to Pro" or "Finishing up your upgrade… refresh in a moment") and `?checkout=canceled`
+  - Client `UpgradeButtons` ("Upgrade: $8/mo", "Upgrade: $72/yr (save 25%)" from `plans.ts`, `useTransition`, "Redirecting…" and disabled while pending, error toast, `?plan=yearly` emphasizing yearly) and `ManageBillingButton` ("Manage subscription", for Pro users and past subscribers with `hasCustomer`)
+- **New Item dialog**: without Pro access, File / Image stay listed with the PRO badge but show an upgrade callout linking to `/settings#billing` in place of the upload field; `hasProAccess` passed from `(app)/layout.tsx` (`isPro` added to `getSessionUser()` / `SessionUser`, plus `isProGatingEnabled()`), with the server check authoritative
+- **Limit errors**: New Item and New Collection toast `ITEM_LIMIT_REACHED` / `COLLECTION_LIMIT_REACHED` with an "Upgrade" action to `/settings#billing`
+- **Homepage**: signed in, the Pro card's "Upgrade to Pro" goes to `/settings?plan=<period>#billing` through a new, unit-tested `getUpgradeAction()` in `src/lib/homepage.ts`; signed out stays `/register`
+- **Account deletion**: `deleteAccount` cancels a stored `stripeSubscriptionId` with `subscriptions.cancel()` before the transaction, returning "Couldn't cancel your subscription. Please try again." (logged) with nothing deleted on failure and keeping the Stripe customer; `DeleteAccountDialog` adds "This also cancels your Pro subscription immediately." for Pro users; `scripts/reset-users.ts` lists subscribers in the dry run and cancels their test-mode subscriptions before deleting under `--confirm`
+- **Docs**: `CLAUDE.md` Commands gains `stripe listen --forward-to localhost:3000/api/webhooks/stripe`
+- **Unit tests**: the webhook route (signature cases, each event's sync id, one-time checkout ignored, unknown type 200, handler throw 500), `src/actions/billing.test.ts`, `syncCheckoutForUser` (another user's session, malformed id, no subscription, swallowed error), the `createItem` / `createCollection` limit cases, the upload route's 403 / 403 / 500, `deleteAccount`'s cancel ordering and failure, `getUpgradeAction()`; `npm test`, lint, build and `db:status` pass
 
 ## Notes
 
-<!-- Any extra notes -->
+- Spec: `context/features/stripe-phase-2-spec.md`; reference `docs/stripe-integration-plan.md` (§4.5, §4.8, §4.10, §5.4–§5.6, §6, §7). Builds on Stripe Phase 1 (merged in `6e389c3`)
+- Everything stays behind `PRO_GATING_ENABLED`: unset, billing works and `isPro` is recorded but nobody is restricted. `.env` doesn't set it today
+- Needs Stripe test mode and the **Stripe CLI** (`stripe listen`, `stripe trigger`, test clocks, `stripe events resend`); the CLI was not found on this machine at load (`brew install stripe/stripe-cli/stripe`, then `stripe login`)
+- Dashboard (test mode): DevStash Pro with $8 monthly and $72 yearly prices (ids in `.env`), Customer Portal with payment methods, invoices, cancel at period end, switching between the two prices and return URL `/settings`; Smart Retries canceling the subscription when retries fail
+- `.env`'s `STRIPE_WEBHOOK_SECRET` is 17 characters, likely a placeholder; replace it with the `whsec_…` that `stripe listen` prints
+- Browser checks use throwaway test accounts on `development`, each one's test subscription canceled and the account deleted afterwards; test cards `4242 4242 4242 4242`, 3-D Secure `4000 0025 0000 3155`, declined `4000 0000 0000 0002`, failed renewal `4000 0000 0000 0341`
+- Writes check the session user while lists still read `getCurrentUserId()` (the demo user); the limits count the session user, as Phase 1 built
+- From the Phase 1 review: each `auth()` call runs one user lookup; the gates add `getSessionEntitlements()` calls, so watch the query count
+- Out of scope: live mode, the production webhook and `.env.production` (`AUTH_URL` must be set in production before go-live), a renewal-date column, trials, Stripe Tax, payment-failed emails, custom types / AI / export themselves, closing the count-then-create race
 
 ## History
 

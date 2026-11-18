@@ -34,4 +34,5 @@ Read the following files to get the full context of the project:
 - `npm run db:studio` — open Prisma Studio
 - `npm run db:test` — verify the DB connection, applied migrations and all tables, and print the seeded demo data (`scripts/test-db.ts`)
 - `npm run db:seed` — seed dev data: demo user, system item types, collections and items (`prisma/seed.ts`)
-- `npm run db:reset-users` — dry run listing every non-demo user and what they own; add `-- --confirm` to delete them (`scripts/reset-users.ts`, refuses production)
+- `npm run db:reset-users` — dry run listing every non-demo user and what they own, including Stripe subscriptions; add `-- --confirm` to cancel their test subscriptions and delete them (`scripts/reset-users.ts`, refuses production)
+- `stripe listen --forward-to localhost:3000/api/webhooks/stripe` — forward Stripe test-mode webhooks to the dev server (Stripe CLI; put the printed `whsec_…` in `.env` as `STRIPE_WEBHOOK_SECRET`)

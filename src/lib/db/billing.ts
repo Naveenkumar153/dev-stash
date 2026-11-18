@@ -1,5 +1,6 @@
 import type Stripe from "stripe";
 
+import { checkoutSessionIdSchema } from "@/lib/billing-schemas";
 import { prisma } from "@/lib/prisma";
 import { getStripe, isProStatus, toId } from "@/lib/stripe";
 
@@ -93,4 +94,54 @@ export async function applySubscription(subscription: Stripe.Subscription): Prom
 export async function syncSubscription(subscriptionId: string): Promise<void> {
   const subscription = await getStripe().subscriptions.retrieve(subscriptionId);
   await applySubscription(subscription);
+}
+
+/**
+ * Applies a finished Checkout as soon as Stripe redirects back, so `/settings`
+ * shows Pro even before the webhook lands. The session is re-read from Stripe
+ * and must belong to `userId`, so a forged or shared `session_id` changes
+ * nothing. Failures are logged rather than thrown: the webhook still applies
+ * the subscription, and the page shows a "finishing up" notice meanwhile.
+ */
+export async function syncCheckoutForUser(userId: string, sessionId: string): Promise<void> {
+  const parsed = checkoutSessionIdSchema.safeParse(sessionId);
+  if (!parsed.success) {
+    return;
+  }
+
+  try {
+    const session = await getStripe().checkout.sessions.retrieve(parsed.data);
+    const subscriptionId = toId(session.subscription);
+    if (session.client_reference_id !== userId || !subscriptionId) {
+      return;
+    }
+
+    await syncSubscription(subscriptionId);
+  } catch (error) {
+    console.error("Syncing checkout session failed", error);
+  }
+}
+
+/** Statuses after which a subscription can't bill again. */
+const ENDED_STATUSES: ReadonlySet<Stripe.Subscription.Status> = new Set([
+  "canceled",
+  "incomplete_expired",
+]);
+
+/**
+ * Cancels a subscription immediately, before its account is deleted. Stripe
+ * refuses to cancel one that has already ended, which happens when a missed
+ * webhook left its id stored; that counts as done rather than blocking the
+ * delete. Any other failure throws.
+ */
+export async function cancelSubscription(subscriptionId: string): Promise<void> {
+  const stripe = getStripe();
+  try {
+    await stripe.subscriptions.cancel(subscriptionId);
+  } catch (error) {
+    const current = await stripe.subscriptions.retrieve(subscriptionId).catch(() => null);
+    if (!current || !ENDED_STATUSES.has(current.status)) {
+      throw error;
+    }
+  }
 }

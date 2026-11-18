@@ -16,3 +16,19 @@ export const PRO_PRICES = { monthly: 8, yearly: 72 } as const satisfies Record<
   BillingInterval,
   number
 >;
+
+/** How much yearly billing saves over twelve monthly payments, in whole percent. */
+export function getYearlySavingsPercent(): number {
+  return Math.round((1 - PRO_PRICES.yearly / (PRO_PRICES.monthly * 12)) * 100);
+}
+
+/** The Billing card on /settings, where a Free user upgrades. */
+export const UPGRADE_PATH = "/settings#billing";
+
+/**
+ * The Billing card with a billing interval picked, e.g. from the homepage's
+ * Pro card: `/settings?plan=yearly#billing`.
+ */
+export function getUpgradePath(interval: BillingInterval): string {
+  return `/settings?plan=${interval}#billing`;
+}

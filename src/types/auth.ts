@@ -3,6 +3,8 @@ export interface SessionUser {
   name: string;
   email: string;
   image: string | null;
+  /** The stored subscription state, read with the rest of the row. */
+  isPro: boolean;
 }
 
 /** Body returned by `POST /api/auth/register`. */

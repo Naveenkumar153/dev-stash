@@ -5,6 +5,8 @@ import { useId, useState, type TransitionStartFunction } from "react";
 import { toast } from "sonner";
 
 import { createItem } from "@/actions/items";
+import { useProAccess } from "@/components/billing/ProAccessProvider";
+import { UpgradeCallout } from "@/components/billing/UpgradeCallout";
 import { FileUpload, type SelectedFile } from "@/components/items/FileUpload";
 import {
   EMPTY_ITEM_FORM,
@@ -16,6 +18,7 @@ import {
 import { ItemTypeSelector } from "@/components/items/ItemTypeSelector";
 import { Button } from "@/components/ui/button";
 import { DialogClose, DialogFooter } from "@/components/ui/dialog";
+import { useUpgradeErrorToast } from "@/hooks/use-upgrade-error-toast";
 import { ITEM_CREATE_FAILED, type FieldErrors } from "@/lib/action-result";
 import {
   getContentEditorKind,
@@ -46,6 +49,8 @@ export function NewItemForm({
   onCreated,
 }: NewItemFormProps) {
   const router = useRouter();
+  const hasProAccess = useProAccess();
+  const showError = useUpgradeErrorToast();
   const fileInputId = useId();
   const [typeName, setTypeName] = useState<CreatableItemType>(defaultType);
   const [values, setValues] = useState<ItemFormValues>(EMPTY_ITEM_FORM);
@@ -54,6 +59,9 @@ export function NewItemForm({
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const fields = getEditableItemFields(typeName);
   const needsFile = isFileItemType(typeName);
+  // File and image items are Pro: without access the upload field becomes an
+  // upgrade prompt, and Create stays disabled since there's no file.
+  const uploadLocked = needsFile && !hasProAccess;
 
   const handleChange: ItemFormChange = (name, value) => {
     setValues((current) => ({ ...current, [name]: value }));
@@ -100,7 +108,7 @@ export function NewItemForm({
       }
 
       setFieldErrors(result.fieldErrors);
-      toast.error(result.error ?? ITEM_CREATE_FAILED);
+      showError(result.error, ITEM_CREATE_FAILED);
     });
   }
 
@@ -111,7 +119,13 @@ export function NewItemForm({
     <form onSubmit={handleSubmit} onDragOver={ignoreFileDrop} onDrop={ignoreFileDrop} noValidate>
       <div className="flex flex-col gap-5 px-6 pb-6">
         <ItemTypeSelector value={typeName} onChange={handleTypeChange} disabled={pending} />
-        {needsFile && (
+        {uploadLocked && (
+          <UpgradeCallout>
+            {getItemTypeLabel(typeName)} uploads are a Pro feature. Upgrade to save files and
+            images.
+          </UpgradeCallout>
+        )}
+        {needsFile && !uploadLocked && (
           <FileUpload
             // A fresh field per type, so a rejection under File doesn't linger under Image.
             key={typeName}

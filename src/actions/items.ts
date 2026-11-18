@@ -6,6 +6,7 @@ import {
   COLLECTIONS_NOT_FOUND,
   FAVORITE_UPDATE_FAILED,
   ITEM_CREATE_FAILED,
+  ITEM_LIMIT_REACHED,
   ITEM_NOT_FOUND,
   PIN_UPDATE_FAILED,
   SESSION_EXPIRED,
@@ -32,6 +33,7 @@ import {
 } from "@/lib/item-schemas";
 import { getSessionUserId } from "@/lib/session";
 import { discardStoredFiles } from "@/lib/stored-files";
+import { canCreateItem, getSessionEntitlements } from "@/lib/usage-limits";
 import type { SetFavoriteResult } from "@/types/favorites";
 import type {
   CreateItemResult,
@@ -51,14 +53,15 @@ const collectionsFailure = () =>
 /**
  * Creates an item from the New Item dialog for the signed-in user and returns
  * it. The type must be one of the creatable system types; fields that type
- * doesn't use are dropped by the query. Every chosen collection must be the
- * user's, or nothing is written.
+ * doesn't use are dropped by the query. A Free account at its item limit (with
+ * gating on) and a collection that isn't the user's both leave nothing written.
  */
 export async function createItem(data: CreateItemInput): Promise<CreateItemResult> {
-  const userId = await getSessionUserId();
-  if (!userId) {
+  const entitlements = await getSessionEntitlements();
+  if (!entitlements) {
     return failure(SESSION_EXPIRED);
   }
+  const { userId, hasProAccess } = entitlements;
 
   const parsed = createItemSchema.safeParse(data);
   if (!parsed.success) {
@@ -66,6 +69,9 @@ export async function createItem(data: CreateItemInput): Promise<CreateItemResul
   }
 
   try {
+    if (!(await canCreateItem(userId, hasProAccess)).allowed) {
+      return failure(ITEM_LIMIT_REACHED);
+    }
     if (!(await ownsCollections(userId, parsed.data.collectionIds))) {
       return collectionsFailure();
     }

@@ -3,8 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   applySubscription,
+  cancelSubscription,
   getBillingStatus,
   getOrCreateCustomerId,
+  syncCheckoutForUser,
   syncSubscription,
 } from "@/lib/db/billing";
 import { prisma } from "@/lib/prisma";
@@ -12,6 +14,8 @@ import { getStripe } from "@/lib/stripe";
 
 const customersCreate = vi.hoisted(() => vi.fn());
 const subscriptionsRetrieve = vi.hoisted(() => vi.fn());
+const subscriptionsCancel = vi.hoisted(() => vi.fn());
+const checkoutRetrieve = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
@@ -27,7 +31,8 @@ vi.mock("@/lib/stripe", async (importOriginal) => ({
 beforeEach(() => {
   vi.mocked(getStripe).mockReturnValue({
     customers: { create: customersCreate },
-    subscriptions: { retrieve: subscriptionsRetrieve },
+    subscriptions: { retrieve: subscriptionsRetrieve, cancel: subscriptionsCancel },
+    checkout: { sessions: { retrieve: checkoutRetrieve } },
   } as unknown as Stripe);
 });
 
@@ -192,5 +197,104 @@ describe("syncSubscription", () => {
 
     await expect(syncSubscription("sub_1")).rejects.toThrow("stripe down");
     expect(prisma.user.updateMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("syncCheckoutForUser", () => {
+  const SESSION_ID = "cs_test_a1B2c3";
+
+  beforeEach(() => {
+    subscriptionsRetrieve.mockResolvedValue(subscription("active"));
+  });
+
+  it("syncs the subscription of the user's own checkout", async () => {
+    checkoutRetrieve.mockResolvedValue({ client_reference_id: "user-1", subscription: "sub_1" });
+
+    await syncCheckoutForUser("user-1", SESSION_ID);
+
+    expect(checkoutRetrieve).toHaveBeenCalledWith(SESSION_ID);
+    expect(subscriptionsRetrieve).toHaveBeenCalledWith("sub_1");
+    expect(prisma.user.updateMany).toHaveBeenCalledWith({
+      where: { stripeCustomerId: "cus_1" },
+      data: { isPro: true, stripeSubscriptionId: "sub_1" },
+    });
+  });
+
+  it("reads an expanded subscription's id", async () => {
+    checkoutRetrieve.mockResolvedValue({ client_reference_id: "user-1", subscription: { id: "sub_1" } });
+
+    await syncCheckoutForUser("user-1", SESSION_ID);
+
+    expect(subscriptionsRetrieve).toHaveBeenCalledWith("sub_1");
+  });
+
+  it("ignores another user's checkout", async () => {
+    checkoutRetrieve.mockResolvedValue({ client_reference_id: "user-2", subscription: "sub_1" });
+
+    await syncCheckoutForUser("user-1", SESSION_ID);
+
+    expect(subscriptionsRetrieve).not.toHaveBeenCalled();
+    expect(prisma.user.updateMany).not.toHaveBeenCalled();
+  });
+
+  it("ignores a checkout without a subscription", async () => {
+    checkoutRetrieve.mockResolvedValue({ client_reference_id: "user-1", subscription: null });
+
+    await syncCheckoutForUser("user-1", SESSION_ID);
+
+    expect(subscriptionsRetrieve).not.toHaveBeenCalled();
+  });
+
+  it.each(["{CHECKOUT_SESSION_ID}", "cs_", "sub_1", ""])(
+    "makes no Stripe call for the malformed id %j",
+    async (sessionId) => {
+      await syncCheckoutForUser("user-1", sessionId);
+      expect(checkoutRetrieve).not.toHaveBeenCalled();
+    },
+  );
+
+  it("logs a Stripe failure instead of throwing", async () => {
+    checkoutRetrieve.mockRejectedValue(new Error("stripe down"));
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+
+    await expect(syncCheckoutForUser("user-1", SESSION_ID)).resolves.toBeUndefined();
+    expect(log).toHaveBeenCalled();
+    expect(prisma.user.updateMany).not.toHaveBeenCalled();
+  });
+});
+
+describe("cancelSubscription", () => {
+  it("cancels the subscription immediately", async () => {
+    subscriptionsCancel.mockResolvedValue(subscription("canceled"));
+
+    await cancelSubscription("sub_1");
+
+    expect(subscriptionsCancel).toHaveBeenCalledWith("sub_1");
+    expect(subscriptionsRetrieve).not.toHaveBeenCalled();
+  });
+
+  it.each(["canceled", "incomplete_expired"] as const)(
+    "treats a refused cancel of a %s subscription as done",
+    async (status) => {
+      subscriptionsCancel.mockRejectedValue(new Error("already canceled"));
+      subscriptionsRetrieve.mockResolvedValue(subscription(status));
+
+      await expect(cancelSubscription("sub_1")).resolves.toBeUndefined();
+      expect(subscriptionsRetrieve).toHaveBeenCalledWith("sub_1");
+    },
+  );
+
+  it("rethrows when the subscription is still live", async () => {
+    subscriptionsCancel.mockRejectedValue(new Error("stripe down"));
+    subscriptionsRetrieve.mockResolvedValue(subscription("active"));
+
+    await expect(cancelSubscription("sub_1")).rejects.toThrow("stripe down");
+  });
+
+  it("rethrows the cancel error when the subscription can't be read either", async () => {
+    subscriptionsCancel.mockRejectedValue(new Error("stripe down"));
+    subscriptionsRetrieve.mockRejectedValue(new Error("still down"));
+
+    await expect(cancelSubscription("sub_1")).rejects.toThrow("stripe down");
   });
 });

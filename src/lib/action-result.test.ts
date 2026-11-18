@@ -1,7 +1,14 @@
 import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
-import { getFieldErrors } from "@/lib/action-result";
+import {
+  COLLECTION_LIMIT_REACHED,
+  ITEM_CREATE_FAILED,
+  ITEM_LIMIT_REACHED,
+  PRO_REQUIRED,
+  getFieldErrors,
+  isUpgradeError,
+} from "@/lib/action-result";
 
 const schema = z.object({
   name: z.string().min(1, "Name is required").max(3, "Name is too long"),
@@ -38,5 +45,24 @@ describe("getFieldErrors", () => {
     expect(errorsFor({ name: "Ada", email: "bad" })).toEqual({
       email: "Enter a valid email address",
     });
+  });
+});
+
+describe("isUpgradeError", () => {
+  it.each([ITEM_LIMIT_REACHED, COLLECTION_LIMIT_REACHED, PRO_REQUIRED])(
+    "is true for %j",
+    (error) => {
+      expect(isUpgradeError(error)).toBe(true);
+    },
+  );
+
+  it("is false for other errors and none", () => {
+    expect(isUpgradeError(ITEM_CREATE_FAILED)).toBe(false);
+    expect(isUpgradeError(null)).toBe(false);
+  });
+
+  it("names the Free limits in the limit messages", () => {
+    expect(ITEM_LIMIT_REACHED).toContain("limit of 50 items");
+    expect(COLLECTION_LIMIT_REACHED).toContain("limit of 3 collections");
   });
 });

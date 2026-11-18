@@ -5,8 +5,8 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ArrowRight, ChevronDown, Folder, Star } from "lucide-react";
 
+import { ProBadge } from "@/components/billing/ProBadge";
 import { FAVORITES_PATH } from "@/components/dashboard/FavoritesLink";
-import { Badge } from "@/components/ui/badge";
 import { Separator } from "@/components/ui/separator";
 import {
   Tooltip,
@@ -127,18 +127,6 @@ function GroupLabel({ children }: Readonly<{ children: React.ReactNode }>) {
     <p className="px-3 pt-3 pb-1 text-xs font-medium uppercase tracking-wider text-muted-foreground">
       {children}
     </p>
-  );
-}
-
-/** Marks an item type that a Pro subscription unlocks. */
-function ProBadge() {
-  return (
-    <Badge
-      variant="outline"
-      className="h-4 px-1.5 text-[10px] tracking-wide text-muted-foreground"
-    >
-      PRO
-    </Badge>
   );
 }
 

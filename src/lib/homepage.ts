@@ -13,7 +13,7 @@ import {
   REGISTER_PATH,
   SIGN_IN_PATH,
 } from "@/lib/auth-redirect";
-import { PRO_PRICES, type BillingInterval } from "@/lib/plans";
+import { PRO_PRICES, getUpgradePath, type BillingInterval } from "@/lib/plans";
 
 /**
  * Content and rules for the marketing homepage (`src/app/page.tsx`). Copy lives
@@ -42,6 +42,17 @@ const DASHBOARD_ACTION: HomeLink = { label: "Go to Dashboard", href: DASHBOARD_P
  */
 export function getStartAction(isSignedIn: boolean, signedOutLabel: string): HomeLink {
   return isSignedIn ? DASHBOARD_ACTION : { label: signedOutLabel, href: REGISTER_PATH };
+}
+
+/**
+ * The Pro card's button: registration when signed out, and when signed in the
+ * Billing card on /settings with the period picked on the pricing switch.
+ */
+export function getUpgradeAction(isSignedIn: boolean, period: BillingPeriod): HomeLink {
+  return {
+    label: "Upgrade to Pro",
+    href: isSignedIn ? getUpgradePath(period) : REGISTER_PATH,
+  };
 }
 
 export interface FooterColumn {
@@ -180,11 +191,6 @@ export function getProPrice(period: BillingPeriod): { amount: string; billed: st
     };
   }
   return { amount: formatDollars(PRO_PRICES.monthly), billed: "billed monthly" };
-}
-
-/** How much yearly billing saves over twelve monthly payments, in whole percent. */
-export function getYearlySavingsPercent(): number {
-  return Math.round((1 - PRO_PRICES.yearly / (PRO_PRICES.monthly * 12)) * 100);
 }
 
 export interface PlanFeature {

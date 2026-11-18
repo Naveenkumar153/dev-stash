@@ -2,6 +2,8 @@ import {
   COLLECTIONS_NOT_FOUND,
   FOLDER_NOT_FOUND,
   ITEM_CREATE_FAILED,
+  ITEM_LIMIT_REACHED,
+  PRO_REQUIRED,
   SESSION_EXPIRED,
   getFieldErrors,
   type FieldErrors,
@@ -13,8 +15,8 @@ import { createFileItem } from "@/lib/db/items";
 import { MAX_UPLOAD_BYTES, buildFileKey, validateUpload } from "@/lib/file-upload";
 import { createFileItemSchema, type CreateFileItemData } from "@/lib/item-schemas";
 import { putFile } from "@/lib/r2";
-import { getSessionUserId } from "@/lib/session";
 import { discardStoredFiles } from "@/lib/stored-files";
+import { canCreateItem, getSessionEntitlements } from "@/lib/usage-limits";
 import type { UploadItemResponse } from "@/types/items";
 
 /** Room for the multipart boundaries and the text fields sent with the file. */
@@ -32,9 +34,15 @@ function uploadFailure(error: string, status: number, fieldErrors: FieldErrors =
  * /api, so the session is checked here and answered with a 401.
  */
 export async function POST(request: Request) {
-  const userId = await getSessionUserId();
-  if (!userId) {
+  const entitlements = await getSessionEntitlements();
+  if (!entitlements) {
     return uploadFailure(SESSION_EXPIRED, 401);
+  }
+  const { userId, hasProAccess } = entitlements;
+
+  // File and image items are Pro-only: refused before the body is read.
+  if (!hasProAccess) {
+    return uploadFailure(PRO_REQUIRED, 403);
   }
 
   // Refuse an oversized body before buffering it. The file's own size is
@@ -72,8 +80,12 @@ export async function POST(request: Request) {
     return uploadFailure(check.error, 400, { file: check.error });
   }
 
-  // Checked before the file is stored, so a missing folder or collection
-  // costs no R2 write.
+  // Checked before the file is stored, so a refused upload costs no R2 write.
+  const limitError = await checkItemLimit(userId, hasProAccess);
+  if (limitError) {
+    return limitError;
+  }
+
   const folderError = parsed.data.folderId && (await checkFolder(userId, parsed.data.folderId));
   if (folderError) {
     return folderError;
@@ -85,6 +97,25 @@ export async function POST(request: Request) {
   }
 
   return storeAndCreate(userId, parsed.data, file, check.contentType);
+}
+
+/**
+ * An error response when the user is at the Free item limit; null when they
+ * may create another item. Every upload is Pro today, so this only bites if a
+ * future rule lets Free accounts upload, but it keeps the item limit in force
+ * on every create path.
+ */
+async function checkItemLimit(userId: string, hasProAccess: boolean): Promise<Response | null> {
+  try {
+    if ((await canCreateItem(userId, hasProAccess)).allowed) {
+      return null;
+    }
+  } catch (error) {
+    console.error("Checking the item limit failed", error);
+    return uploadFailure(ITEM_CREATE_FAILED, 500);
+  }
+
+  return uploadFailure(ITEM_LIMIT_REACHED, 403);
 }
 
 /**

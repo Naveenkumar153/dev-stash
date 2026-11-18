@@ -17,7 +17,12 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 
-export function DeleteAccountDialog() {
+interface DeleteAccountDialogProps {
+  /** A Pro subscriber's subscription is canceled with the account. */
+  isPro: boolean;
+}
+
+export function DeleteAccountDialog({ isPro }: Readonly<DeleteAccountDialogProps>) {
   const [pending, startTransition] = useTransition();
 
   // A successful delete signs out and redirects, so only failures come back.
@@ -42,6 +47,7 @@ export function DeleteAccountDialog() {
           <AlertDialogDescription>
             This permanently deletes your account with all of its items and collections. It
             can&apos;t be undone.
+            {isPro && " This also cancels your Pro subscription immediately."}
           </AlertDialogDescription>
         </AlertDialogHeader>
 

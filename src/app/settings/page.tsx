@@ -3,6 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 
+import { BillingCard, type CheckoutOutcome } from "@/components/settings/BillingCard";
 import { EditorPreferencesForm } from "@/components/settings/EditorPreferencesForm";
 import { ChangePasswordForm } from "@/components/profile/ChangePasswordForm";
 import { DeleteAccountDialog } from "@/components/profile/DeleteAccountDialog";
@@ -14,8 +15,11 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import { SIGN_IN_PATH } from "@/lib/auth-redirect";
+import { getBillingStatus, syncCheckoutForUser } from "@/lib/db/billing";
 import { getEditorPreferences } from "@/lib/db/editor-preferences";
 import { getProfileUser } from "@/lib/db/profile";
+import type { BillingInterval } from "@/lib/plans";
+import { getUsage } from "@/lib/usage-limits";
 
 export const metadata: Metadata = {
   title: "Settings | DevStash",
@@ -23,14 +27,41 @@ export const metadata: Metadata = {
 
 const SIGN_IN_TO_SETTINGS = `${SIGN_IN_PATH}?callbackUrl=%2Fsettings`;
 
-export default async function SettingsPage() {
-  const [user, editorPreferences] = await Promise.all([getProfileUser(), getEditorPreferences()]);
+/** A query parameter's value, ignoring a repeated one. */
+function firstParam(value: string | string[] | undefined): string | undefined {
+  return typeof value === "string" ? value : undefined;
+}
+
+function toCheckoutOutcome(value: string | undefined): CheckoutOutcome | null {
+  return value === "success" || value === "canceled" ? value : null;
+}
+
+export default async function SettingsPage({ searchParams }: PageProps<"/settings">) {
+  const [user, editorPreferences, query] = await Promise.all([
+    getProfileUser(),
+    getEditorPreferences(),
+    searchParams,
+  ]);
 
   // The proxy already redirects signed-out requests; this also catches a
   // still-valid session whose user row has been deleted.
   if (!user) {
     redirect(SIGN_IN_TO_SETTINGS);
   }
+
+  // Stripe's return from Checkout: apply the subscription now rather than
+  // waiting for the webhook, so the card below already reads Pro.
+  const checkout = toCheckoutOutcome(firstParam(query.checkout));
+  const sessionId = firstParam(query.session_id);
+  if (checkout === "success" && sessionId) {
+    await syncCheckoutForUser(user.id, sessionId);
+  }
+
+  const [billing, usage] = await Promise.all([getBillingStatus(user.id), getUsage(user.id)]);
+  // Picked on the homepage's Pro card (`?plan=yearly`).
+  const preferredInterval: BillingInterval =
+    firstParam(query.plan) === "yearly" ? "yearly" : "monthly";
+  const isPro = billing?.isPro ?? false;
 
   return (
     <main className="mx-auto flex w-full max-w-3xl flex-col gap-6 p-4 sm:p-6">
@@ -43,6 +74,13 @@ export default async function SettingsPage() {
       </Link>
 
       <h1 className="font-heading text-3xl font-semibold">Settings</h1>
+
+      <BillingCard
+        billing={billing ?? { isPro: false, hasCustomer: false }}
+        usage={usage}
+        checkout={checkout}
+        preferredInterval={preferredInterval}
+      />
 
       <Card>
         <CardHeader>
@@ -77,7 +115,7 @@ export default async function SettingsPage() {
           </CardDescription>
         </CardHeader>
         <CardContent>
-          <DeleteAccountDialog />
+          <DeleteAccountDialog isPro={isPro} />
         </CardContent>
       </Card>
     </main>

@@ -6,12 +6,14 @@ import { auth, signOut } from "@/auth";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
 import { deleteFile, listFileKeys } from "@/lib/r2";
+import { cancelSubscription } from "@/lib/db/billing";
 
 // Server actions are tested with every outside dependency mocked: the session,
 // the database, bcrypt and R2. Nothing here reaches a real service.
 vi.mock("@/auth", () => ({ auth: vi.fn(), signOut: vi.fn() }));
 vi.mock("@/lib/r2", () => ({ deleteFile: vi.fn(), listFileKeys: vi.fn() }));
 vi.mock("@/lib/password", () => ({ hashPassword: vi.fn(), verifyPassword: vi.fn() }));
+vi.mock("@/lib/db/billing", () => ({ cancelSubscription: vi.fn() }));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     user: { findUnique: vi.fn(), update: vi.fn(), delete: vi.fn() },
@@ -166,6 +168,56 @@ describe("deleteAccount", () => {
       where: { id: { in: ["tag-1"] }, items: { none: {} } },
     });
     expect(signOut).toHaveBeenCalledWith({ redirectTo: "/sign-in?deleted=1" });
+  });
+
+  describe("with a Pro subscription", () => {
+    const cancel = vi.mocked(cancelSubscription);
+
+    beforeEach(() => {
+      vi.mocked(prisma.user.findUnique).mockResolvedValue({
+        email: "ada@example.com",
+        stripeSubscriptionId: "sub_1",
+      } as never);
+      vi.mocked(prisma.tag.findMany).mockResolvedValue([] as never);
+    });
+
+    it("cancels the subscription before deleting anything", async () => {
+      cancel.mockResolvedValue();
+
+      await deleteAccount();
+
+      expect(cancel).toHaveBeenCalledWith("sub_1");
+      expect(cancel.mock.invocationCallOrder[0]).toBeLessThan(
+        vi.mocked(prisma.$transaction).mock.invocationCallOrder[0],
+      );
+      expect(signOut).toHaveBeenCalled();
+    });
+
+    it("deletes nothing and stays signed in when the cancel fails", async () => {
+      cancel.mockRejectedValue(new Error("stripe down"));
+      vi.spyOn(console, "error").mockImplementation(() => {});
+
+      await expect(deleteAccount()).resolves.toEqual({
+        success: false,
+        data: null,
+        error: "Couldn't cancel your subscription. Please try again.",
+      });
+      expect(prisma.$transaction).not.toHaveBeenCalled();
+      expect(signOut).not.toHaveBeenCalled();
+    });
+  });
+
+  it("doesn't call Stripe without a subscription", async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      email: "ada@example.com",
+      stripeSubscriptionId: null,
+    } as never);
+    vi.mocked(prisma.tag.findMany).mockResolvedValue([] as never);
+
+    await deleteAccount();
+
+    expect(cancelSubscription).not.toHaveBeenCalled();
+    expect(prisma.$transaction).toHaveBeenCalledOnce();
   });
 
   it("stays signed in when the transaction fails", async () => {

@@ -6,9 +6,11 @@
  *
  * Removes each other user's items, folders, collections, custom item types,
  * accounts, sessions, verification and password-reset tokens, plus any tag
- * left with no items, then each user's uploads from R2. The demo
- * user (`demo@devstash.io`) and its rows are untouched, as are system item
- * types. Point this at the development branch only, never production.
+ * left with no items, then each user's uploads from R2. Users with a Stripe
+ * subscription have it canceled first (test-mode keys only); if a cancel
+ * fails nothing is deleted. The demo user (`demo@devstash.io`) and its rows
+ * are untouched, as are system item types. Point this at the development
+ * branch only, never production.
  */
 
 // Prisma 7 does not load .env automatically, and this runs outside Next.js.
@@ -30,6 +32,12 @@ async function loadPrisma() {
 }
 
 /** Imported lazily for the same reason: the module loads the Prisma client. */
+async function loadCancelSubscription() {
+  const { cancelSubscription } = await import("@/lib/db/billing");
+  return cancelSubscription;
+}
+
+/** Imported lazily for the same reason: the module loads the Prisma client. */
 async function loadResetIdentifier() {
   const { resetIdentifier } = await import("@/lib/password-reset");
   return resetIdentifier;
@@ -39,6 +47,24 @@ type Db = Awaited<ReturnType<typeof loadPrisma>>;
 
 const DEMO_EMAIL = "demo@devstash.io";
 const CONFIRM_FLAG = "--confirm";
+
+/**
+ * Cancels the users' subscriptions before their rows go, so Stripe stops
+ * billing them. Refuses a live key: this script only ever runs against test
+ * data. Throws on the first failure, before anything is deleted.
+ */
+async function cancelSubscriptions(subscriptionIds: string[]): Promise<void> {
+  if (subscriptionIds.length === 0) {
+    return;
+  }
+  if (!process.env.STRIPE_SECRET_KEY?.startsWith("sk_test_")) {
+    throw new Error("Refusing to cancel subscriptions without a test-mode STRIPE_SECRET_KEY.");
+  }
+  const cancelSubscription = await loadCancelSubscription();
+  for (const subscriptionId of subscriptionIds) {
+    await cancelSubscription(subscriptionId);
+  }
+}
 
 /** Host only - the connection string carries credentials that must not be logged. */
 function databaseHost(url: string): string {
@@ -94,7 +120,7 @@ async function main(): Promise<void> {
 
     const users = await db.user.findMany({
       where: { id: { not: demo.id } },
-      select: { id: true, email: true },
+      select: { id: true, email: true, stripeSubscriptionId: true },
       orderBy: { email: "asc" },
     });
     if (users.length === 0) {
@@ -121,20 +147,28 @@ async function main(): Promise<void> {
         db.verificationToken.count({ where: { identifier: tokenIdentifiers } }),
       ]);
 
+    const subscriptionIds = users.flatMap((user) =>
+      user.stripeSubscriptionId ? [user.stripeSubscriptionId] : [],
+    );
+
     console.log(`\nUsers to delete (${users.length}):`);
-    for (const email of emails) {
-      console.log(`  - ${email}`);
+    for (const user of users) {
+      const subscription = user.stripeSubscriptionId ? ` (subscription ${user.stripeSubscriptionId})` : "";
+      console.log(`  - ${user.email}${subscription}`);
     }
     console.log(
       `\nWith ${items} items (${files} with a stored file), ${folders} folders, ` +
         `${collections} collections, ${itemTypes} custom item types, ${accounts} accounts, ` +
-        `${sessions} sessions and ${tokens} verification and reset tokens.`,
+        `${sessions} sessions and ${tokens} verification and reset tokens. ` +
+        `${subscriptionIds.length} Stripe subscriptions will be canceled.`,
     );
 
     if (!confirmed) {
       console.log(`\nDry run - nothing deleted. Re-run with ${CONFIRM_FLAG} to delete.`);
       return;
     }
+
+    await cancelSubscriptions(subscriptionIds);
 
     // One transaction, so a failure leaves the database as it was. Items go
     // before users because `Item.itemType` has no cascade: deleting a custom
@@ -156,8 +190,9 @@ async function main(): Promise<void> {
     }
 
     console.log(
-      `\n✓ Deleted ${deletedUsers.count} users, ${deletedTokens.count} verification and reset ` +
-        `tokens, ${deletedTags.count} orphaned tags and their stored files. ${DEMO_EMAIL} kept.`,
+      `\n✓ Canceled ${subscriptionIds.length} subscriptions. Deleted ${deletedUsers.count} users, ` +
+        `${deletedTokens.count} verification and reset tokens, ${deletedTags.count} orphaned tags ` +
+        `and their stored files. ${DEMO_EMAIL} kept.`,
     );
   } finally {
     await db.$disconnect();

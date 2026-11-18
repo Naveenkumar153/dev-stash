@@ -5,6 +5,7 @@ import { refresh } from "next/cache";
 import {
   COLLECTION_CREATE_FAILED,
   COLLECTION_DELETE_FAILED,
+  COLLECTION_LIMIT_REACHED,
   COLLECTION_NOT_FOUND,
   COLLECTION_UPDATE_FAILED,
   FAVORITE_UPDATE_FAILED,
@@ -27,6 +28,7 @@ import {
 } from "@/lib/db/collections";
 import { isFavoriteSchema } from "@/lib/favorite-schemas";
 import { getSessionUserId } from "@/lib/session";
+import { canCreateCollection, getSessionEntitlements } from "@/lib/usage-limits";
 import type {
   CreateCollectionResult,
   DeleteCollectionResult,
@@ -48,15 +50,17 @@ function deleteFailure(error: string): DeleteCollectionResult {
 
 /**
  * Creates a collection from the New Collection dialog for the signed-in user
- * and returns it as a card.
+ * and returns it as a card. A Free account at its collection limit (with
+ * gating on) gets the limit error and nothing is written.
  */
 export async function createCollection(
   data: CreateCollectionInput,
 ): Promise<CreateCollectionResult> {
-  const userId = await getSessionUserId();
-  if (!userId) {
+  const entitlements = await getSessionEntitlements();
+  if (!entitlements) {
     return failure(SESSION_EXPIRED);
   }
+  const { userId, hasProAccess } = entitlements;
 
   const parsed = createCollectionSchema.safeParse(data);
   if (!parsed.success) {
@@ -64,6 +68,9 @@ export async function createCollection(
   }
 
   try {
+    if (!(await canCreateCollection(userId, hasProAccess)).allowed) {
+      return failure(COLLECTION_LIMIT_REACHED);
+    }
     const collection = await createCollectionRecord(userId, parsed.data);
     return { success: true, data: collection, error: null, fieldErrors: {} };
   } catch (error) {

@@ -39,12 +39,12 @@ export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
 
   const user = await prisma.user.findUnique({
     where: { id: session.user.id },
-    select: { name: true, email: true, image: true },
+    select: { name: true, email: true, image: true, isPro: true },
   });
   if (!user) {
     return null;
   }
 
   // GitHub accounts may have no display name, so fall back to the email.
-  return { name: user.name ?? user.email, email: user.email, image: user.image };
+  return { name: user.name ?? user.email, email: user.email, image: user.image, isPro: user.isPro };
 });

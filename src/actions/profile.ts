@@ -4,6 +4,7 @@ import { signOut } from "@/auth";
 import { SESSION_EXPIRED, getFieldErrors, type FieldErrors } from "@/lib/action-result";
 import { SIGN_IN_PATH } from "@/lib/auth-redirect";
 import { changePasswordSchema } from "@/lib/auth-schemas";
+import { cancelSubscription } from "@/lib/db/billing";
 import { DEMO_USER_EMAIL } from "@/lib/db/user";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { resetIdentifier } from "@/lib/password-reset";
@@ -87,6 +88,19 @@ async function getUserTagIds(userId: string): Promise<string[]> {
   return tags.map((tag) => tag.id);
 }
 
+const SUBSCRIPTION_CANCEL_FAILED = "Couldn't cancel your subscription. Please try again.";
+
+/** Cancels the account's subscription; false (logged) when Stripe refuses. */
+async function tryCancelSubscription(subscriptionId: string): Promise<boolean> {
+  try {
+    await cancelSubscription(subscriptionId);
+    return true;
+  } catch (error) {
+    console.error("Canceling subscription before account delete failed", error);
+    return false;
+  }
+}
+
 /**
  * Deletes the signed-in user and everything they own, then signs them out.
  * On success this redirects and never returns.
@@ -98,13 +112,24 @@ export async function deleteAccount(): Promise<DeleteAccountResult> {
   }
 
   try {
-    const user = await prisma.user.findUnique({ where: { id: userId }, select: { email: true } });
+    const user = await prisma.user.findUnique({
+      where: { id: userId },
+      select: { email: true, stripeSubscriptionId: true },
+    });
     if (!user) {
       return { success: false, data: null, error: "Account not found." };
     }
     // Every dashboard still reads the demo account's data via getCurrentUserId().
     if (user.email === DEMO_USER_EMAIL) {
       return { success: false, data: null, error: "The demo account can't be deleted." };
+    }
+
+    // Stripe would keep billing a deleted account, so the subscription is
+    // canceled first and nothing is deleted if that fails. The customer stays
+    // for invoices and refunds; its later subscription.deleted webhook finds
+    // no user and changes nothing.
+    if (user.stripeSubscriptionId && !(await tryCancelSubscription(user.stripeSubscriptionId))) {
+      return { success: false, data: null, error: SUBSCRIPTION_CANCEL_FAILED };
     }
 
     const tagIds = await getUserTagIds(userId);

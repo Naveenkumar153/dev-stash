@@ -1,5 +1,6 @@
 import { useId } from "react";
 
+import { ProBadge } from "@/components/billing/ProBadge";
 import { Label } from "@/components/ui/label";
 import {
   Select,
@@ -12,6 +13,7 @@ import {
   CREATABLE_ITEM_TYPES,
   getItemTypeLabel,
   getItemTypeStyleByName,
+  isProItemType,
   type CreatableItemType,
 } from "@/lib/item-types";
 import { cn } from "@/lib/utils";
@@ -54,7 +56,10 @@ export function ItemTypeSelector({ value, onChange, disabled }: ItemTypeSelector
   );
 }
 
-/** A type's colored icon and label, shown in the trigger and in each option. */
+/**
+ * A type's colored icon and label, shown in the trigger and in each option,
+ * with the PRO badge on file and image.
+ */
 function ItemTypeOption({ type }: { type: CreatableItemType }) {
   const { icon: Icon, colorClass } = getItemTypeStyleByName(type);
 
@@ -62,6 +67,7 @@ function ItemTypeOption({ type }: { type: CreatableItemType }) {
     <>
       <Icon aria-hidden className={cn("size-4", colorClass)} />
       {getItemTypeLabel(type)}
+      {isProItemType(type) && <ProBadge />}
     </>
   );
 }

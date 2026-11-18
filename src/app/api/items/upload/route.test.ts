@@ -7,6 +7,7 @@ import { ownsCollections } from "@/lib/db/collections";
 import { findFolder } from "@/lib/db/folders";
 import { createFileItem } from "@/lib/db/items";
 import { deleteFile, putFile } from "@/lib/r2";
+import { canCreateItem } from "@/lib/usage-limits";
 import type { ItemDetail } from "@/types/items";
 
 // The session, the query and R2 are mocked; the upload rules and the Zod
@@ -16,6 +17,14 @@ vi.mock("@/lib/db/items", () => ({ createFileItem: vi.fn() }));
 vi.mock("@/lib/db/folders", () => ({ findFolder: vi.fn() }));
 vi.mock("@/lib/db/collections", () => ({ ownsCollections: vi.fn() }));
 vi.mock("@/lib/r2", () => ({ putFile: vi.fn(), deleteFile: vi.fn() }));
+// The entitlements and the Pro gate run for real against the mocked session;
+// only the item-limit count is stubbed, since it can only refuse an account
+// the Pro gate has already let through.
+vi.mock("@/lib/prisma", () => ({ prisma: {} }));
+vi.mock("@/lib/usage-limits", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/usage-limits")>()),
+  canCreateItem: vi.fn(),
+}));
 
 /** `auth` is overloaded (it doubles as middleware), so its mock is typed by hand. */
 const mockAuth = auth as unknown as ReturnType<typeof vi.fn<() => Promise<Session | null>>>;
@@ -79,6 +88,7 @@ describe("POST /api/items/upload", () => {
     vi.spyOn(crypto, "randomUUID").mockReturnValue(UPLOAD_ID);
     vi.mocked(createFileItem).mockResolvedValue(created);
     vi.mocked(ownsCollections).mockResolvedValue(true);
+    vi.mocked(canCreateItem).mockResolvedValue({ allowed: true });
   });
 
   it("stores the file in R2 under the user, then creates the item pointing at it", async () => {
@@ -109,6 +119,53 @@ describe("POST /api/items/upload", () => {
     expect(status).toBe(401);
     expect(body.error).toBe("Your session has expired. Sign in again.");
     expect(request.bodyUsed).toBe(false);
+    expect(putFile).not.toHaveBeenCalled();
+  });
+
+  it("refuses a Free account with a 403 before reading the body while gating is on", async () => {
+    vi.stubEnv("PRO_GATING_ENABLED", "true");
+    const request = uploadRequest();
+
+    const { status, body } = await send(request);
+
+    expect(status).toBe(403);
+    expect(body).toMatchObject({ success: false, error: "File and image uploads are a Pro feature." });
+    expect(request.bodyUsed).toBe(false);
+    expect(putFile).not.toHaveBeenCalled();
+    expect(createFileItem).not.toHaveBeenCalled();
+  });
+
+  it("lets a Pro account upload while gating is on", async () => {
+    vi.stubEnv("PRO_GATING_ENABLED", "true");
+    mockAuth.mockResolvedValue({ user: { id: "user-1", isPro: true }, expires: "2099-01-01T00:00:00.000Z" });
+
+    expect((await send(uploadRequest())).status).toBe(201);
+    expect(canCreateItem).toHaveBeenCalledWith("user-1", true);
+  });
+
+  it("refuses an account at the item limit with a 403 before storing anything", async () => {
+    vi.mocked(canCreateItem).mockResolvedValue({ allowed: false, limit: 50 });
+
+    const { status, body } = await send(
+      uploadRequest({ fields: { folderId: "cmfolderdocs000000000001" } }),
+    );
+
+    expect(status).toBe(403);
+    expect(body.error).toBe(
+      "You've reached the Free plan's limit of 50 items. Upgrade to Pro for unlimited items.",
+    );
+    expect(findFolder).not.toHaveBeenCalled();
+    expect(putFile).not.toHaveBeenCalled();
+  });
+
+  it("answers a failed limit check with a 500 before storing anything", async () => {
+    vi.mocked(canCreateItem).mockRejectedValue(new Error("connection reset"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    const { status, body } = await send(uploadRequest());
+
+    expect(status).toBe(500);
+    expect(body.error).toBe(CREATE_FAILED);
     expect(putFile).not.toHaveBeenCalled();
   });
 

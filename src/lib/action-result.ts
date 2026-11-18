@@ -77,3 +77,14 @@ export const CHECKOUT_FAILED = "Couldn't start checkout. Please try again.";
 
 /** Opening the Stripe Customer Portal failed for a reason the user can't act on. */
 export const BILLING_PORTAL_FAILED = "Couldn't open billing. Please try again.";
+
+/** Errors a Free account can fix by upgrading, so their toast offers an Upgrade action. */
+const UPGRADE_ERRORS: ReadonlySet<string> = new Set([
+  ITEM_LIMIT_REACHED,
+  COLLECTION_LIMIT_REACHED,
+  PRO_REQUIRED,
+]);
+
+export function isUpgradeError(error: string | null): boolean {
+  return error !== null && UPGRADE_ERRORS.has(error);
+}

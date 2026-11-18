@@ -9,6 +9,7 @@ import {
   updateCollection,
 } from "@/actions/collections";
 import { auth } from "@/auth";
+import { COLLECTION_LIMIT_REACHED } from "@/lib/action-result";
 import {
   createCollection as createCollectionRecord,
   deleteCollection as deleteCollectionRecord,
@@ -16,6 +17,7 @@ import {
   updateCollection as updateCollectionRecord,
   type CollectionSummary,
 } from "@/lib/db/collections";
+import { prisma } from "@/lib/prisma";
 
 // The session and the query are mocked; the Zod schema runs for real, so these
 // tests also cover what the action sends to the database.
@@ -27,6 +29,9 @@ vi.mock("@/lib/db/collections", () => ({
   deleteCollection: vi.fn(),
   setCollectionFavorite: vi.fn(),
 }));
+// The real usage limits run against this count; with PRO_GATING_ENABLED unset
+// (as in every test that doesn't stub it) nothing is counted.
+vi.mock("@/lib/prisma", () => ({ prisma: { collection: { count: vi.fn() } } }));
 
 /** `auth` is overloaded (it doubles as middleware), so its mock is typed by hand. */
 const mockAuth = auth as unknown as ReturnType<typeof vi.fn<() => Promise<Session | null>>>;
@@ -58,6 +63,44 @@ describe("createCollection", () => {
       name: "React Patterns",
       description: "Hooks and components",
     });
+  });
+
+  it("doesn't count collections while gating is off", async () => {
+    await createCollection({ name: "React Patterns", description: "" });
+    expect(prisma.collection.count).not.toHaveBeenCalled();
+  });
+
+  it("refuses a Free account at the collection limit without writing", async () => {
+    vi.stubEnv("PRO_GATING_ENABLED", "true");
+    vi.mocked(prisma.collection.count).mockResolvedValue(3);
+
+    expect(await createCollection({ name: "React Patterns", description: "" })).toEqual({
+      success: false,
+      data: null,
+      error: COLLECTION_LIMIT_REACHED,
+      fieldErrors: {},
+    });
+    expect(prisma.collection.count).toHaveBeenCalledWith({ where: { userId: "user-1" } });
+    expect(createCollectionRecord).not.toHaveBeenCalled();
+  });
+
+  it("creates for a Free account under the limit", async () => {
+    vi.stubEnv("PRO_GATING_ENABLED", "true");
+    vi.mocked(prisma.collection.count).mockResolvedValue(2);
+
+    expect(await createCollection({ name: "React Patterns", description: "" })).toMatchObject({
+      success: true,
+    });
+  });
+
+  it("doesn't count collections for a Pro account while gating is on", async () => {
+    vi.stubEnv("PRO_GATING_ENABLED", "true");
+    mockAuth.mockResolvedValue({ user: { id: "user-1", isPro: true }, expires: "2099-01-01T00:00:00.000Z" });
+
+    expect(await createCollection({ name: "React Patterns", description: "" })).toMatchObject({
+      success: true,
+    });
+    expect(prisma.collection.count).not.toHaveBeenCalled();
   });
 
   it("saves a blank description as null", async () => {

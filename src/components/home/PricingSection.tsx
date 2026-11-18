@@ -1,7 +1,7 @@
 import { Check, X } from "lucide-react";
 import type { ReactNode } from "react";
 
-import { BillingProvider, BillingToggle, ProPrice } from "@/components/home/Billing";
+import { BillingProvider, BillingToggle, ProPrice, ProUpgradeLink } from "@/components/home/Billing";
 import { HomeButtonLink } from "@/components/home/HomeButtonLink";
 import { HomeSection } from "@/components/home/HomeSection";
 import { PlanPrice } from "@/components/home/PlanPrice";
@@ -23,7 +23,8 @@ interface PlanCardProps {
   price: ReactNode;
   description: string;
   features: readonly PlanFeature[];
-  action: HomeLink;
+  /** The card's button, at full width. */
+  action: ReactNode;
   /** The recommended plan: outlined, glowing and badged "Most Popular". */
   highlighted?: boolean;
 }
@@ -57,10 +58,16 @@ function PlanCard({ name, price, description, features, action, highlighted }: R
           </li>
         ))}
       </ul>
-      <HomeButtonLink href={action.href} tone={highlighted ? "brand" : "outline"} className="w-full">
-        {action.label}
-      </HomeButtonLink>
+      {action}
     </Card>
+  );
+}
+
+function FreeAction({ action }: Readonly<{ action: HomeLink }>) {
+  return (
+    <HomeButtonLink href={action.href} tone="outline" className="w-full">
+      {action.label}
+    </HomeButtonLink>
   );
 }
 
@@ -87,7 +94,7 @@ export function PricingSection({ isSignedIn }: Readonly<{ isSignedIn: boolean }>
               price={<PlanPrice amount="$0" />}
               description="Perfect for getting started"
               features={FREE_PLAN_FEATURES}
-              action={getStartAction(isSignedIn, "Get Started")}
+              action={<FreeAction action={getStartAction(isSignedIn, "Get Started")} />}
             />
           </Reveal>
           <Reveal className="sm:delay-100">
@@ -96,7 +103,7 @@ export function PricingSection({ isSignedIn }: Readonly<{ isSignedIn: boolean }>
               price={<ProPrice />}
               description="For serious developers"
               features={PRO_PLAN_FEATURES}
-              action={getStartAction(isSignedIn, "Upgrade to Pro")}
+              action={<ProUpgradeLink isSignedIn={isSignedIn} />}
               highlighted
             />
           </Reveal>

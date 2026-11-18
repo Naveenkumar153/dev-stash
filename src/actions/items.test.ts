@@ -10,7 +10,9 @@ import {
   updateItem,
 } from "@/actions/items";
 import { auth } from "@/auth";
+import { ITEM_CREATE_FAILED, ITEM_LIMIT_REACHED } from "@/lib/action-result";
 import { ownsCollections } from "@/lib/db/collections";
+import { prisma } from "@/lib/prisma";
 import {
   createItem as createItemRecord,
   deleteItem as deleteItemRecord,
@@ -34,6 +36,9 @@ vi.mock("@/lib/db/items", () => ({
 }));
 vi.mock("@/lib/r2", () => ({ deleteFile: vi.fn() }));
 vi.mock("@/lib/db/collections", () => ({ ownsCollections: vi.fn() }));
+// The real usage limits run against this count; with PRO_GATING_ENABLED unset
+// (as in every test that doesn't stub it) nothing is counted.
+vi.mock("@/lib/prisma", () => ({ prisma: { item: { count: vi.fn() } } }));
 
 /** `auth` is overloaded (it doubles as middleware), so its mock is typed by hand. */
 const mockAuth = auth as unknown as ReturnType<typeof vi.fn<() => Promise<Session | null>>>;
@@ -295,6 +300,51 @@ describe("createItem", () => {
     signInAs("user-1");
     vi.mocked(createItemRecord).mockResolvedValue(saved);
     vi.mocked(ownsCollections).mockResolvedValue(true);
+  });
+
+  it("doesn't count items while gating is off", async () => {
+    expect(await createItem(newItem)).toMatchObject({ success: true });
+    expect(prisma.item.count).not.toHaveBeenCalled();
+  });
+
+  it("refuses a Free account at the item limit without creating", async () => {
+    vi.stubEnv("PRO_GATING_ENABLED", "true");
+    vi.mocked(prisma.item.count).mockResolvedValue(50);
+
+    expect(await createItem(newItem)).toEqual({
+      success: false,
+      data: null,
+      error: ITEM_LIMIT_REACHED,
+      fieldErrors: {},
+    });
+    expect(prisma.item.count).toHaveBeenCalledWith({ where: { userId: "user-1" } });
+    expect(ownsCollections).not.toHaveBeenCalled();
+    expect(createItemRecord).not.toHaveBeenCalled();
+  });
+
+  it("creates for a Free account under the limit", async () => {
+    vi.stubEnv("PRO_GATING_ENABLED", "true");
+    vi.mocked(prisma.item.count).mockResolvedValue(49);
+
+    expect(await createItem(newItem)).toMatchObject({ success: true });
+    expect(createItemRecord).toHaveBeenCalled();
+  });
+
+  it("doesn't count items for a Pro account while gating is on", async () => {
+    vi.stubEnv("PRO_GATING_ENABLED", "true");
+    mockAuth.mockResolvedValue({ user: { id: "user-1", isPro: true }, expires: "2099-01-01T00:00:00.000Z" });
+
+    expect(await createItem(newItem)).toMatchObject({ success: true });
+    expect(prisma.item.count).not.toHaveBeenCalled();
+  });
+
+  it("reports a failed limit check without creating", async () => {
+    vi.stubEnv("PRO_GATING_ENABLED", "true");
+    vi.mocked(prisma.item.count).mockRejectedValue(new Error("connection lost"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    expect(await createItem(newItem)).toMatchObject({ success: false, error: ITEM_CREATE_FAILED });
+    expect(createItemRecord).not.toHaveBeenCalled();
   });
 
   it("refuses a collection that isn't the user's, on the Collections field, without creating", async () => {

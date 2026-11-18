@@ -5,7 +5,7 @@ import {
   getFooterColumns,
   getProPrice,
   getStartAction,
-  getYearlySavingsPercent,
+  getUpgradeAction,
   PREVIEW_CARDS,
   PREVIEW_QUERY,
   previewCardMatches,
@@ -58,10 +58,6 @@ describe("getProPrice", () => {
   it("shows the yearly price per month and the yearly total", () => {
     expect(getProPrice("yearly")).toEqual({ amount: "$6", billed: "billed $72/year" });
   });
-
-  it("works out the yearly saving", () => {
-    expect(getYearlySavingsPercent()).toBe(25);
-  });
 });
 
 describe("previewCardMatches", () => {
@@ -94,4 +90,20 @@ describe("formatPreviewCount", () => {
     expect(formatPreviewCount("d", 2, 6)).toBe("2 results");
     expect(formatPreviewCount("zzz", 0, 6)).toBe("0 results");
   });
+});
+
+describe("getUpgradeAction", () => {
+  it("sends a signed-out visitor to registration", () => {
+    expect(getUpgradeAction(false, "yearly")).toEqual({ label: "Upgrade to Pro", href: "/register" });
+  });
+
+  it.each(["monthly", "yearly"] as const)(
+    "sends a signed-in user to the Billing card with %s picked",
+    (period) => {
+      expect(getUpgradeAction(true, period)).toEqual({
+        label: "Upgrade to Pro",
+        href: `/settings?plan=${period}#billing`,
+      });
+    },
+  );
 });

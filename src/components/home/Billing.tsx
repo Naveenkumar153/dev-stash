@@ -2,9 +2,11 @@
 
 import { createContext, useContext, useState, type ReactNode } from "react";
 
+import { HomeButtonLink } from "@/components/home/HomeButtonLink";
 import { PlanPrice } from "@/components/home/PlanPrice";
 import { Switch } from "@/components/ui/switch";
-import { getProPrice, getYearlySavingsPercent, type BillingPeriod } from "@/lib/homepage";
+import { getProPrice, getUpgradeAction, type BillingPeriod } from "@/lib/homepage";
+import { getYearlySavingsPercent } from "@/lib/plans";
 
 interface BillingContextValue {
   period: BillingPeriod;
@@ -73,4 +75,16 @@ export function ProPrice() {
   const { amount, billed } = getProPrice(period);
 
   return <PlanPrice amount={amount} billed={billed} animationKey={period} />;
+}
+
+/** The Pro card's button, carrying the period picked on the switch to /settings. */
+export function ProUpgradeLink({ isSignedIn }: Readonly<{ isSignedIn: boolean }>) {
+  const { period } = useBilling();
+  const action = getUpgradeAction(isSignedIn, period);
+
+  return (
+    <HomeButtonLink href={action.href} tone="brand" className="w-full">
+      {action.label}
+    </HomeButtonLink>
+  );
 }
