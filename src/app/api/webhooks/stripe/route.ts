@@ -65,6 +65,10 @@ async function handleEvent(event: Stripe.Event): Promise<void> {
       // The status change to past_due / unpaid arrives as
       // customer.subscription.updated, so there is nothing to store here.
       return;
+    case "invoice.payment_succeeded":
+      // The status change to active arrives as customer.subscription.updated,
+      // so there is nothing to store here.
+      return;
     default:
       // Acknowledged, so Stripe doesn't retry types this endpoint ignores.
       return;

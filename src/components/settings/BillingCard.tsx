@@ -1,6 +1,7 @@
 import { FormMessage } from "@/components/auth/FormMessage";
 import { ManageBillingButton } from "@/components/settings/ManageBillingButton";
 import { UpgradeButtons } from "@/components/settings/UpgradeButtons";
+import { Badge } from "@/components/ui/badge";
 import {
   Card,
   CardContent,
@@ -65,7 +66,15 @@ export function BillingCard({
 
         <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
           <dt className="text-muted-foreground">Plan</dt>
-          <dd className="font-medium">{billing.isPro ? "Pro" : "Free"}</dd>
+          <dd>
+            {billing.isPro ? (
+              <Badge className="border-type-prompt/50 bg-type-prompt/15 font-semibold tracking-wide text-violet-200">
+                Pro
+              </Badge>
+            ) : (
+              <Badge variant="outline">Free</Badge>
+            )}
+          </dd>
           <dt className="text-muted-foreground">Usage</dt>
           <dd>
             {billing.isPro
