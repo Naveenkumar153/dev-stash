@@ -58,9 +58,9 @@ _Description: Infrastructure and deployment resources_
 - 1 command (deployment scripts)
 - 2 links (documentation URLs - use real URLs)
 
-#### Terminal Commands
+### Items in no collection
 
-_Description: Useful shell commands for everyday development_
+The demo account models a Free account inside the plan's limits (3 collections, 50 items), so these 8 items belong to no collection and keep the Commands and Links pages populated.
 
 4 commands:
 
@@ -69,13 +69,11 @@ _Description: Useful shell commands for everyday development_
 - Process management
 - Package manager utilities
 
-#### Design Resources
-
-_Description: UI/UX resources and references_
-
 4 links (use real URLs):
 
 - CSS/Tailwind references
 - Component libraries
 - Design systems
 - Icon libraries
+
+Totals: 3 collections holding 10 items, plus 8 items in no collection (18 items).
