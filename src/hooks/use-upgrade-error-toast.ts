@@ -8,7 +8,7 @@ import { UPGRADE_PATH } from "@/lib/plans";
 
 /**
  * Toasts a failed create. A Free-plan limit or a Pro-only feature gets an
- * Upgrade action that opens the Billing card on /settings.
+ * Upgrade action that opens the upgrade page.
  */
 export function useUpgradeErrorToast() {
   const router = useRouter();

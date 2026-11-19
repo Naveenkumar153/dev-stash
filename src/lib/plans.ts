@@ -22,13 +22,21 @@ export function getYearlySavingsPercent(): number {
   return Math.round((1 - PRO_PRICES.yearly / (PRO_PRICES.monthly * 12)) * 100);
 }
 
-/** The Billing card on /settings, where a Free user upgrades. */
-export const UPGRADE_PATH = "/settings#billing";
+/** The upgrade page, where a Free user picks monthly or yearly and starts Checkout. */
+export const UPGRADE_PATH = "/upgrade";
+
+/** The Billing card on /settings, where a Pro user manages their subscription. */
+export const BILLING_SETTINGS_PATH = "/settings#billing";
 
 /**
- * The Billing card with a billing interval picked, e.g. from the homepage's
- * Pro card: `/settings?plan=yearly#billing`.
+ * The upgrade page with a billing interval picked, e.g. from the homepage's
+ * Pro card: `/upgrade?plan=yearly`.
  */
 export function getUpgradePath(interval: BillingInterval): string {
-  return `/settings?plan=${interval}#billing`;
+  return `${UPGRADE_PATH}?plan=${interval}`;
+}
+
+/** A `?plan=` value as an interval: yearly only when asked for, else monthly. */
+export function parseBillingInterval(value: unknown): BillingInterval {
+  return value === "yearly" ? "yearly" : "monthly";
 }

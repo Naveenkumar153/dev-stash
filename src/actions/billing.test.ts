@@ -57,7 +57,7 @@ describe("createCheckoutSession", () => {
         subscription_data: { metadata: { userId: "user-1" } },
         allow_promotion_codes: true,
         success_url: `${SETTINGS}?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
-        cancel_url: `${SETTINGS}?checkout=canceled`,
+        cancel_url: "http://localhost:3000/upgrade?checkout=canceled",
       });
     },
   );
@@ -68,7 +68,10 @@ describe("createCheckoutSession", () => {
     await createCheckoutSession("monthly");
 
     expect(checkoutCreate).toHaveBeenCalledWith(
-      expect.objectContaining({ cancel_url: "https://devstash.io/settings?checkout=canceled" }),
+      expect.objectContaining({
+        success_url: "https://devstash.io/settings?checkout=success&session_id={CHECKOUT_SESSION_ID}",
+        cancel_url: "https://devstash.io/upgrade?checkout=canceled",
+      }),
     );
   });
 

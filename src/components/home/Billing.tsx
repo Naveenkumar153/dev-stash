@@ -77,7 +77,7 @@ export function ProPrice() {
   return <PlanPrice amount={amount} billed={billed} animationKey={period} />;
 }
 
-/** The Pro card's button, carrying the period picked on the switch to /settings. */
+/** The Pro card's button, carrying the period picked on the switch to /upgrade. */
 export function ProUpgradeLink({ isSignedIn }: Readonly<{ isSignedIn: boolean }>) {
   const { period } = useBilling();
   const action = getUpgradeAction(isSignedIn, period);

@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 
-import { ProFeaturePage } from "@/components/billing/ProFeaturePage";
 import { ItemCard } from "@/components/dashboard/ItemCard";
 import { FileList } from "@/components/items/FileList";
 import { ImageCard } from "@/components/items/ImageCard";
@@ -28,6 +27,7 @@ import {
   ITEMS_PER_PAGE,
   parsePageParam,
 } from "@/lib/pagination";
+import { UPGRADE_PATH } from "@/lib/plans";
 import { getSessionEntitlements } from "@/lib/usage-limits";
 import { cn } from "@/lib/utils";
 
@@ -66,11 +66,10 @@ export default async function ItemTypePage({
 }: PageProps<"/items/[type]">) {
   const [{ type: slug }, query] = await Promise.all([params, searchParams]);
 
-  // Files and images are Pro: without access the page offers an upgrade in
-  // place of the list, before any of it (or its folders) is loaded.
-  const proTypeName = getProItemTypeForSlug(slug);
-  if (proTypeName && !(await getSessionEntitlements())?.hasProAccess) {
-    return <ProFeaturePage typeName={proTypeName} />;
+  // Files and images are Pro: without access the page sends the user to
+  // /upgrade before any of the list (or its folders) is loaded.
+  if (getProItemTypeForSlug(slug) && !(await getSessionEntitlements())?.hasProAccess) {
+    redirect(UPGRADE_PATH);
   }
 
   const isFilesPage = slug === getItemTypeSlug("file");

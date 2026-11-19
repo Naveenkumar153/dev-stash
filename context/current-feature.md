@@ -1,16 +1,36 @@
-# Current Feature
+# Current Feature: Upgrade Page & Header Upgrade Button
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- Free users see an **Upgrade** button in the app top bar (`TopBar`), styled as a **ghost** button so it's quieter than the filled "+ New" button; Pro users don't see it
+- The button links to a new protected `/upgrade` page instead of starting Stripe Checkout directly
+- `/upgrade` shows the Pro plan's features much like the homepage pricing section (`PRO_PLAN_FEATURES`, the plan card look), so users see what they get before paying
+- The user can pick **$8 / month** or **$72 / year** (yearly showing its "save 25%"), with monthly selected by default and `?plan=yearly` preselecting yearly
+- An Upgrade button on the page starts Checkout for the chosen interval through the existing `createCheckoutSession(interval)` action, with a pending state and an error toast on failure (the existing `useBillingRedirect()` hook)
+- `/upgrade` is covered by the `src/proxy.ts` matcher, so signed-out visitors are sent to `/sign-in` with a callback
+- Works at phone width: no horizontal scroll, and the top bar still fits at 320px
+- Unit tests for any new or changed utility (e.g. upgrade paths in `src/lib/plans.ts`); `npm test`, lint and build pass
 
 ## Notes
 
-<!-- Any extra notes -->
+- **Existing pieces to reuse:** `createCheckoutSession()` / `createPortalSession()` in `src/actions/billing.ts`; `useBillingRedirect()` (`src/hooks/`), already used by `UpgradeButtons` on the settings Billing card; `PRO_PRICES`, `getYearlySavingsPercent()`, `UPGRADE_PATH` and `getUpgradePath()` in `src/lib/plans.ts`; `PRO_PLAN_FEATURES` / `FREE_PLAN_FEATURES` and `getProPrice()` in `src/lib/homepage.ts`; the private `PlanCard` in `src/components/home/PricingSection.tsx`; `ProAccessProvider` / `getSessionUser()` (which carries `isPro`) in the `(app)` layout.
+- **Defaults proposed at load (confirm or change at start):**
+  - `/upgrade` lives inside the `(app)` shell (sidebar + top bar), since it's reached from the top bar; `src/app/(app)/upgrade/page.tsx`.
+  - The header button shows when the stored plan is Free (`user.isPro === false`), whether or not `PRO_GATING_ENABLED` is on, since the plan is what it advertises. It's hidden on `/upgrade` itself, or marked `aria-current`.
+  - On narrow top bars the button collapses to an icon (`Sparkles`) with `aria-label="Upgrade"`, using the bar's existing `@container/topbar` queries, so the 320px layout from Top Bar Declutter still fits.
+  - Interval picker: two selectable plan options (a radio group, Monthly $8/mo and Yearly $72/yr "save 25%") above one "Upgrade to Pro" button, rather than the homepage's switch, so both prices are visible at once.
+  - A Pro user who opens `/upgrade` is redirected to `/settings#billing`, where "Manage subscription" lives.
+  - Every existing upgrade CTA (`UPGRADE_PATH` / `getUpgradePath()`: the item-limit toast, the New Item upload callout, the files/images `ProFeaturePage`, the homepage Pro card when signed in) points to `/upgrade` instead of `/settings#billing`, so there's one upgrade page. The settings Billing card keeps its own upgrade buttons and "Manage subscription".
+  - Checkout's `success_url` stays `/settings?checkout=success…` (the post-checkout sync lives there); `cancel_url` changes to `/upgrade?checkout=canceled`, which shows "Checkout canceled" on the upgrade page.
+  - The shared plan card is extracted from `PricingSection` so the homepage and `/upgrade` render one copy, rather than duplicating its markup.
+- **Changed after review at the user's request:** `/items/files` and `/items/images` no longer render their own in-place Pro page for users without Pro access; they `redirect()` to `/upgrade` (any query, e.g. `?folder=` or `?page=2`), and `src/components/billing/ProFeaturePage.tsx` was deleted. Then, at the user's report that clicking Files or Images flashed the list page before the redirect, the sidebar's Files / Images rows link straight to `/upgrade` while `useProAccess()` is false (`NavRow` gained `activePath`, so neither row highlights on `/upgrade`); the server redirect stays as the fallback for typed URLs.
+- **For the History entry (from the 2026-11-19 cleanup):** it supersedes "Pro Upgrade Page for Files & Images" (its `ProFeaturePage` is gone in favor of the `/upgrade` redirect), and corrects that entry's and Stripe Phase 2's open item: `.env.production` and Vercel's Production environment now set `PRO_GATING_ENABLED=true`, and `.env.production` sets `AUTH_URL` to the Vercel URL.
+- **Out of scope:** changes to Stripe itself, the webhook, coupons or trials, a comparison table against Free, a light theme.
+- **Before start:** the working tree on `fix/settings-pro-plan-badge` has the uncommitted settings Pro badge fix and the user's own webhook edit (a duplicate `checkout.session.completed` case); the badge fix should be committed or set aside before branching for this feature.
 
 ## History
 

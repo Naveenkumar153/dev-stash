@@ -18,7 +18,7 @@ import { SIGN_IN_PATH } from "@/lib/auth-redirect";
 import { getBillingStatus, syncCheckoutForUser } from "@/lib/db/billing";
 import { getEditorPreferences } from "@/lib/db/editor-preferences";
 import { getProfileUser } from "@/lib/db/profile";
-import type { BillingInterval } from "@/lib/plans";
+import { parseBillingInterval } from "@/lib/plans";
 import { getUsage } from "@/lib/usage-limits";
 
 export const metadata: Metadata = {
@@ -58,9 +58,8 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
   }
 
   const [billing, usage] = await Promise.all([getBillingStatus(user.id), getUsage(user.id)]);
-  // Picked on the homepage's Pro card (`?plan=yearly`).
-  const preferredInterval: BillingInterval =
-    firstParam(query.plan) === "yearly" ? "yearly" : "monthly";
+  // `?plan=yearly` makes the yearly button the primary one.
+  const preferredInterval = parseBillingInterval(firstParam(query.plan));
   const isPro = billing?.isPro ?? false;
 
   return (

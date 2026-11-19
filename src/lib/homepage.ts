@@ -46,7 +46,7 @@ export function getStartAction(isSignedIn: boolean, signedOutLabel: string): Hom
 
 /**
  * The Pro card's button: registration when signed out, and when signed in the
- * Billing card on /settings with the period picked on the pricing switch.
+ * upgrade page with the period picked on the pricing switch.
  */
 export function getUpgradeAction(isSignedIn: boolean, period: BillingPeriod): HomeLink {
   return {

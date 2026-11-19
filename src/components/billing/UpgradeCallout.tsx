@@ -9,7 +9,7 @@ interface UpgradeCalloutProps {
   children: React.ReactNode;
 }
 
-/** An inline "this is a Pro feature" box with a link to the Billing card. */
+/** An inline "this is a Pro feature" box with a link to the upgrade page. */
 export function UpgradeCallout({ children }: Readonly<UpgradeCalloutProps>) {
   return (
     <div

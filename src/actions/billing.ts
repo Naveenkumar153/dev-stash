@@ -4,11 +4,12 @@ import { BILLING_PORTAL_FAILED, CHECKOUT_FAILED, SESSION_EXPIRED } from "@/lib/a
 import { getAppUrl } from "@/lib/app-url";
 import { billingIntervalSchema } from "@/lib/billing-schemas";
 import { getBillingStatus, getOrCreateCustomerId } from "@/lib/db/billing";
+import { UPGRADE_PATH } from "@/lib/plans";
 import { getSessionUserId } from "@/lib/session";
 import { getPriceId, getStripe } from "@/lib/stripe";
 import type { BillingRedirectResult } from "@/types/billing";
 
-/** Where Checkout and the Portal return to. */
+/** Where Checkout's success and the Portal return to: the Billing card syncs there. */
 function getSettingsUrl(): string {
   return `${getAppUrl()}/settings`;
 }
@@ -48,7 +49,8 @@ export async function createCheckoutSession(interval: unknown): Promise<BillingR
       subscription_data: { metadata: { userId } },
       allow_promotion_codes: true,
       success_url: `${settingsUrl}?checkout=success&session_id={CHECKOUT_SESSION_ID}`,
-      cancel_url: `${settingsUrl}?checkout=canceled`,
+      // Back to the plan picker, which says checkout was canceled.
+      cancel_url: `${getAppUrl()}${UPGRADE_PATH}?checkout=canceled`,
     });
     if (!session.url) {
       throw new Error(`Checkout session ${session.id} has no URL`);

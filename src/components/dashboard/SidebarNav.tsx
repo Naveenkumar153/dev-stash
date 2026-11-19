@@ -5,6 +5,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ArrowRight, ChevronDown, Folder, Star } from "lucide-react";
 
+import { useProAccess } from "@/components/billing/ProAccessProvider";
 import { ProBadge } from "@/components/billing/ProBadge";
 import { FAVORITES_PATH } from "@/components/dashboard/FavoritesLink";
 import { Separator } from "@/components/ui/separator";
@@ -22,10 +23,13 @@ import {
   getItemTypeStyleByName,
   isProItemType,
 } from "@/lib/item-types";
+import { UPGRADE_PATH } from "@/lib/plans";
 import { cn } from "@/lib/utils";
 
 interface NavRowProps {
   href: string;
+  /** The path that highlights the row, when it isn't `href` (a locked type row links to /upgrade). */
+  activePath?: string;
   label: string;
   icon: React.ReactNode;
   /** Shown right after the label, before the trailing meta. */
@@ -38,6 +42,7 @@ interface NavRowProps {
 
 function NavRow({
   href,
+  activePath = href,
   label,
   icon,
   badge,
@@ -46,7 +51,7 @@ function NavRow({
   onNavigate,
 }: NavRowProps) {
   const pathname = usePathname();
-  const isActive = pathname === href;
+  const isActive = pathname === activePath;
 
   const row = (
     <Link
@@ -163,6 +168,7 @@ export function SidebarNav({
 }: SidebarNavProps) {
   const { favorites, recent } = collections;
   const hasCollections = favorites.length > 0 || recent.length > 0;
+  const hasProAccess = useProAccess();
 
   return (
     <TooltipProvider>
@@ -184,13 +190,18 @@ export function SidebarNav({
         <NavGroup title="Types" collapsed={collapsed}>
           {itemTypes.map((type) => {
             const { icon: Icon, colorClass } = getItemTypeStyleByName(type.name);
+            const isPro = isProItemType(type.name);
+            const listHref = getItemTypeHref(type.name);
 
             return (
               <NavRow
                 key={type.id}
-                href={getItemTypeHref(type.name)}
+                // Straight to /upgrade when locked, so the list page never
+                // starts loading before the server redirects away from it.
+                href={isPro && !hasProAccess ? UPGRADE_PATH : listHref}
+                activePath={listHref}
                 label={getItemTypePlural(type.name)}
-                badge={isProItemType(type.name) ? <ProBadge /> : undefined}
+                badge={isPro ? <ProBadge /> : undefined}
                 meta={type.count}
                 collapsed={collapsed}
                 onNavigate={onNavigate}

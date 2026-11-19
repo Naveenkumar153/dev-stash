@@ -102,7 +102,7 @@ describe("getUpgradeAction", () => {
     (period) => {
       expect(getUpgradeAction(true, period)).toEqual({
         label: "Upgrade to Pro",
-        href: `/settings?plan=${period}#billing`,
+        href: `/upgrade?plan=${period}`,
       });
     },
   );
