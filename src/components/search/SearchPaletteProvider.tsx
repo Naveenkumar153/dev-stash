@@ -54,7 +54,7 @@ function isOtherModalOpen(): boolean {
 
 /**
  * Owns the one command palette for the signed-in app shell: its data, loaded
- * when the shell mounts; the Cmd/Ctrl+K shortcut; and what a result does when
+ * on each open (the first open included); the Cmd/Ctrl+K shortcut; and what a result does when
  * picked. Sits inside `ItemDrawerProvider`, so an item opens in the drawer.
  * The shortcut uses the platform's own modifier and does nothing while another
  * modal, the drawer included, is open.

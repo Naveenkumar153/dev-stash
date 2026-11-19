@@ -3,7 +3,6 @@ import { describe, expect, it } from "vitest";
 import {
   formatPreviewCount,
   getFooterColumns,
-  getProPrice,
   getStartAction,
   getUpgradeAction,
   PREVIEW_CARDS,
@@ -47,16 +46,6 @@ describe("getFooterColumns", () => {
   it("offers the signed-in pages when signed in", () => {
     const account = getFooterColumns(true)[1];
     expect(account.links.map((link) => link.href)).toEqual(["/dashboard", "/profile", "/settings"]);
-  });
-});
-
-describe("getProPrice", () => {
-  it("shows $8 billed monthly", () => {
-    expect(getProPrice("monthly")).toEqual({ amount: "$8", billed: "billed monthly" });
-  });
-
-  it("shows the yearly price per month and the yearly total", () => {
-    expect(getProPrice("yearly")).toEqual({ amount: "$6", billed: "billed $72/year" });
   });
 });
 

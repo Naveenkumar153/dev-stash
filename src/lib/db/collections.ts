@@ -1,8 +1,9 @@
 import { connection } from "next/server";
+import { cache } from "react";
 
 import { Prisma } from "@/generated/prisma/client";
 import type { CreateCollectionData, UpdateCollectionData } from "@/lib/collection-schemas";
-import { getAvailableTypes, type ItemTypeRow } from "@/lib/db/item-types";
+import { getAvailableTypes } from "@/lib/db/item-types";
 import { getCurrentUserId } from "@/lib/db/user";
 import { compareItemTypeOrder } from "@/lib/item-types";
 import {
@@ -63,35 +64,15 @@ const COLLECTION_SUMMARY_SELECT = {
 /** How many items of each type a collection holds, keyed by collection id. */
 type TypeCounts = Map<string, Map<string, number>>;
 
-/**
- * The type breakdown behind the cards, aggregated by the database rather than
- * by loading every membership row.
- *
- * One grouped query per item type: `groupBy` only groups on a model's own
- * scalar fields, and item_collections carries no type column, so the split has
- * to come from the filter instead. That trades row volume for query count,
- * which is the right way round here - types are a small fixed set (7 system
- * ones), while items per collection grows without limit. The queries are
- * independent, so they cost about one round trip in total.
- *
- * Worth revisiting if custom types ever arrive in bulk: this scales with the
- * number of types a user has, not with the number of items.
- */
-async function getTypeCounts(
-  collectionIds: string[],
-  types: ItemTypeRow[],
-): Promise<TypeCounts> {
-  const counts: TypeCounts = new Map(collectionIds.map((id) => [id, new Map()]));
-
-  if (collectionIds.length === 0) {
-    return counts;
-  }
+const getUserTypeCounts = cache(async (userId: string): Promise<TypeCounts> => {
+  const types = await getAvailableTypes(userId);
+  const counts: TypeCounts = new Map();
 
   const groups = await Promise.all(
     types.map((type) =>
       prisma.itemCollection.groupBy({
         by: ["collectionId"],
-        where: { collectionId: { in: collectionIds }, item: { itemTypeId: type.id } },
+        where: { collection: { userId }, item: { itemTypeId: type.id } },
         _count: { _all: true },
       }),
     ),
@@ -101,18 +82,37 @@ async function getTypeCounts(
     const typeName = types[index].name;
 
     for (const row of rows) {
-      const collectionCounts = counts.get(row.collectionId);
-
+      const collectionCounts = counts.get(row.collectionId) ?? new Map<string, number>();
       // Added rather than set: a custom type can share a system type's name,
       // and setting would drop whichever was counted first.
-      collectionCounts?.set(
-        typeName,
-        (collectionCounts.get(typeName) ?? 0) + row._count._all,
-      );
+      collectionCounts.set(typeName, (collectionCounts.get(typeName) ?? 0) + row._count._all);
+      counts.set(row.collectionId, collectionCounts);
     }
   });
 
   return counts;
+});
+
+/**
+ * Item counts per type for `collectionIds`, from one breakdown of all the
+ * user's collections that is computed once per request: the dashboard's cards
+ * and the sidebar both need it, and would otherwise each run a grouped query
+ * per type.
+ *
+ * One grouped query per item type: `groupBy` only groups on a model's own
+ * scalar fields, and item_collections carries no type column, so the split has
+ * to come from the filter instead. That trades row volume for query count,
+ * which is the right way round here - types are a small fixed set (7 system
+ * ones), and the rows returned are one per collection and type, never one per
+ * item. The queries are independent, so they cost about one round trip.
+ */
+async function getTypeCounts(userId: string, collectionIds: string[]): Promise<TypeCounts> {
+  if (collectionIds.length === 0) {
+    return new Map();
+  }
+
+  const all = await getUserTypeCounts(userId);
+  return new Map(collectionIds.map((id) => [id, all.get(id) ?? new Map()]));
 }
 
 /**
@@ -185,10 +185,10 @@ async function withTypeCounts<T extends CollectionRow>(
   userId: string,
   findRows: Promise<T[]>,
 ): Promise<{ rows: T[]; typeCounts: TypeCounts }> {
-  const [rows, types] = await Promise.all([findRows, getAvailableTypes(userId)]);
+  const rows = await findRows;
   const typeCounts = await getTypeCounts(
+    userId,
     rows.map((row) => row.id),
-    types,
   );
 
   return { rows, typeCounts };
@@ -394,7 +394,7 @@ export async function getSidebarCollections(
     return EMPTY_SIDEBAR_COLLECTIONS;
   }
 
-  const [favorites, recent, types] = await Promise.all([
+  const [favorites, recent] = await Promise.all([
     prisma.collection.findMany({
       where: { userId, isFavorite: true },
       orderBy: [...NEWEST_FIRST],
@@ -407,13 +407,11 @@ export async function getSidebarCollections(
       take: limit,
       select: COLLECTION_SUMMARY_SELECT,
     }),
-    getAvailableTypes(userId),
   ]);
 
-  // Both lists in one pass, so the sidebar counts the types once.
   const typeCounts = await getTypeCounts(
+    userId,
     [...favorites, ...recent].map((collection) => collection.id),
-    types,
   );
 
   return {
@@ -425,12 +423,14 @@ export async function getSidebarCollections(
 /**
  * Creates a collection owned by `userId` and returns it as a card. A new
  * collection holds no items, so its type breakdown is empty without a query.
+ * `db` is a transaction client when the Free collection limit is checked with it.
  */
 export async function createCollection(
   userId: string,
   data: CreateCollectionData,
+  db: Prisma.TransactionClient = prisma,
 ): Promise<CollectionSummary> {
-  const collection = await prisma.collection.create({
+  const collection = await db.collection.create({
     data: { userId, name: data.name, description: data.description },
     select: COLLECTION_SUMMARY_SELECT,
   });

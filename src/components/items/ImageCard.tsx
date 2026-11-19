@@ -6,7 +6,7 @@ import { OpenItemButton } from "@/components/items/OpenItemButton";
 import { Badge } from "@/components/ui/badge";
 import { Card } from "@/components/ui/card";
 import type { ItemSummary } from "@/lib/db/items";
-import { getItemFileUrl, isImageFileName } from "@/lib/file-upload";
+import { getItemThumbnailUrl, isImageFileName } from "@/lib/file-upload";
 import { formatShortDate } from "@/lib/format";
 import { toDrawerSummary } from "@/lib/item-summary";
 import { getItemTypeStyleByName } from "@/lib/item-types";
@@ -27,7 +27,7 @@ export function ImageCard({ item }: Readonly<{ item: ItemSummary }>) {
       <div className={cn("relative aspect-video overflow-hidden", !hasImage && bgClass)}>
         {hasImage ? (
           <Image
-            src={getItemFileUrl(item.id)}
+            src={getItemThumbnailUrl(item.id)}
             alt={`Preview of ${item.fileName}`}
             fill
             unoptimized

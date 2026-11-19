@@ -1,6 +1,9 @@
 import { Prisma } from "@/generated/prisma/client";
 import { errorResponse } from "@/lib/api-response";
+import { getAppUrl } from "@/lib/app-url";
+import { FORGOT_PASSWORD_PATH, SIGN_IN_PATH } from "@/lib/auth-redirect";
 import { registerSchema } from "@/lib/auth-schemas";
+import { sendAccountExistsEmail } from "@/lib/email";
 import { hashPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
 import {
@@ -41,19 +44,27 @@ export async function POST(request: Request) {
   }
 
   const { name, email, password } = parsed.data;
+  const verificationRequired = isEmailVerificationEnabled();
+  // The same reply whether or not the email was free, while verification is
+  // on: the inbox then hears which it was, not whoever sent the form.
+  const checkYourEmail = () =>
+    Response.json(
+      { success: true, data: { name, email, verificationRequired: true }, error: null },
+      { status: 201 },
+    );
 
   try {
+    // Hashed before the lookup so both paths cost the same bcrypt time.
+    const passwordHash = await hashPassword(password);
     const existing = await prisma.user.findUnique({ where: { email }, select: { id: true } });
     if (existing) {
-      return errorResponse(EMAIL_TAKEN, 409);
+      return verificationRequired ? notifyExisting(email, checkYourEmail) : emailTaken();
     }
 
     const user = await prisma.user.create({
-      data: { name, email, passwordHash: await hashPassword(password) },
-      select: { id: true, name: true, email: true },
+      data: { name, email, passwordHash },
+      select: { name: true, email: true },
     });
-
-    const verificationRequired = isEmailVerificationEnabled();
 
     // The account exists either way; if the email fails, the user can ask
     // for another from the check-your-email screen or the sign-in page.
@@ -73,9 +84,39 @@ export async function POST(request: Request) {
     // Two requests for the same email can both pass the lookup above; the
     // unique constraint on `email` rejects the second.
     if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2002") {
-      return errorResponse(EMAIL_TAKEN, 409);
+      return verificationRequired ? checkYourEmail() : emailTaken();
     }
     console.error("Registration failed", error);
     return errorResponse("Something went wrong. Please try again.", 500);
   }
+}
+
+/**
+ * With verification off there's no inbox step to hide behind - the form signs
+ * the user straight in - so a taken email has to be said plainly.
+ */
+function emailTaken(): Response {
+  return errorResponse(EMAIL_TAKEN, 409);
+}
+
+/**
+ * Tells the owner of an existing account that someone tried to register with
+ * their email, at most once an hour per address, then gives the same reply as
+ * a new registration. A failed send is logged, not shown, for the same reason.
+ */
+async function notifyExisting(email: string, reply: () => Response): Promise<Response> {
+  const notice = await rateLimit("accountExistsNotice", email);
+  if (notice.success) {
+    const appUrl = getAppUrl();
+    try {
+      await sendAccountExistsEmail({
+        to: email,
+        signInUrl: `${appUrl}${SIGN_IN_PATH}`,
+        resetUrl: `${appUrl}${FORGOT_PASSWORD_PATH}`,
+      });
+    } catch (error) {
+      console.error("Account-exists notice failed", error);
+    }
+  }
+  return reply();
 }

@@ -120,21 +120,16 @@ export async function resendVerificationEmail(
       where: { email: parsed.data },
       select: { name: true, passwordHash: true, emailVerified: true },
     });
+    // A cooldown or a failed send gets the same reply as a sent email: a
+    // different one would answer only for real unverified accounts, and so
+    // reveal them. A request inside the cooldown simply sends nothing.
     if (user?.passwordHash && !user.emailVerified) {
-      const sent = await issueVerificationEmail(parsed.data, user.name);
-      if (!sent) {
-        return {
-          success: false,
-          data: null,
-          error: "An email was just sent. Wait a minute before requesting another.",
-        };
-      }
+      await issueVerificationEmail(parsed.data, user.name);
     }
-    return { success: true, data: null, error: null };
   } catch (error) {
     console.error("Resending verification email failed", error);
-    return { success: false, data: null, error: "Could not send the email. Please try again." };
   }
+  return { success: true, data: null, error: null };
 }
 
 export interface ForgotPasswordState {

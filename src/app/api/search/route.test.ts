@@ -4,11 +4,11 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import { GET } from "@/app/api/search/route";
 import { auth } from "@/auth";
 import { getCollections } from "@/lib/db/collections";
-import { getSearchItems } from "@/lib/db/items";
+import { getSearchItems } from "@/lib/db/search-items";
 
 vi.mock("@/auth", () => ({ auth: vi.fn() }));
 vi.mock("@/lib/db/collections", () => ({ getCollections: vi.fn() }));
-vi.mock("@/lib/db/items", () => ({ getSearchItems: vi.fn() }));
+vi.mock("@/lib/db/search-items", () => ({ getSearchItems: vi.fn() }));
 
 /** `auth` is overloaded (it doubles as middleware), so its mock is typed by hand. */
 const mockAuth = auth as unknown as ReturnType<typeof vi.fn<() => Promise<Session | null>>>;

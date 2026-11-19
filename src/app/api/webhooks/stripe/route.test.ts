@@ -49,6 +49,51 @@ describe("POST /api/webhooks/stripe", () => {
     expect(syncSubscription).not.toHaveBeenCalled();
   });
 
+  it("answers a missing webhook secret as a configuration error, not a bad signature", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.stubEnv("STRIPE_WEBHOOK_SECRET", "");
+
+    const { status, body } = await send(
+      signedRequest(event("customer.subscription.updated", { id: "sub_1" })),
+    );
+
+    expect(status).toBe(500);
+    expect(body).toMatchObject({ success: false, error: "Webhook is not configured." });
+    expect(log).toHaveBeenCalledWith("Stripe webhook is not configured", expect.any(Error));
+    expect(syncSubscription).not.toHaveBeenCalled();
+  });
+
+  it("refuses a declared body over 1 MB before reading it", async () => {
+    const request = new Request("http://localhost/api/webhooks/stripe", {
+      method: "POST",
+      headers: { "stripe-signature": "t=1,v1=x", "content-length": String(1024 * 1024 + 1) },
+      body: "{}",
+    });
+
+    const { status, body } = await send(request);
+
+    expect(status).toBe(413);
+    expect(body).toMatchObject({ success: false });
+    expect(syncSubscription).not.toHaveBeenCalled();
+  });
+
+  it("refuses an undeclared body once it passes 1 MB", async () => {
+    const big = new Uint8Array(1024 * 1024 + 10);
+    const request = new Request("http://localhost/api/webhooks/stripe", {
+      method: "POST",
+      headers: { "stripe-signature": "t=1,v1=x" },
+      body: new ReadableStream({
+        start(controller) {
+          controller.enqueue(big);
+          controller.close();
+        },
+      }),
+      duplex: "half",
+    } as RequestInit);
+
+    expect((await send(request)).status).toBe(413);
+  });
+
   it("refuses a payload signed with another secret", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
 

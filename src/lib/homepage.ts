@@ -13,7 +13,7 @@ import {
   REGISTER_PATH,
   SIGN_IN_PATH,
 } from "@/lib/auth-redirect";
-import { PRO_PRICES, getUpgradePath, type BillingInterval } from "@/lib/plans";
+import { getUpgradePath, type BillingInterval } from "@/lib/plans";
 
 /**
  * Content and rules for the marketing homepage (`src/app/page.tsx`). Copy lives
@@ -178,43 +178,6 @@ export const AI_CODE_SAMPLE: readonly (readonly CodeToken[])[] = [
 
 export type BillingPeriod = BillingInterval;
 
-function formatDollars(amount: number): string {
-  return Number.isInteger(amount) ? `$${amount}` : `$${amount.toFixed(2)}`;
-}
-
-/** Pro's per-month amount and billing note for a billing period. */
-export function getProPrice(period: BillingPeriod): { amount: string; billed: string } {
-  if (period === "yearly") {
-    return {
-      amount: formatDollars(PRO_PRICES.yearly / 12),
-      billed: `billed ${formatDollars(PRO_PRICES.yearly)}/year`,
-    };
-  }
-  return { amount: formatDollars(PRO_PRICES.monthly), billed: "billed monthly" };
-}
-
-export interface PlanFeature {
-  label: string;
-  included: boolean;
-}
-
-export const FREE_PLAN_FEATURES: readonly PlanFeature[] = [
-  { label: "50 items", included: true },
-  { label: "3 collections", included: true },
-  { label: "Snippets, Prompts, Commands, Notes, Links", included: true },
-  { label: "Basic search", included: true },
-  { label: "File & image uploads", included: false },
-  { label: "AI features", included: false },
-];
-
-export const PRO_PLAN_FEATURES: readonly PlanFeature[] = [
-  { label: "Unlimited items", included: true },
-  { label: "Unlimited collections", included: true },
-  { label: "All item types including Files & Images", included: true },
-  { label: "AI auto-tagging & summaries", included: true },
-  { label: 'AI "Explain This Code"', included: true },
-  { label: "Data export (JSON/ZIP)", included: true },
-];
 
 /** The hero's dashboard preview: sidebar type rows with made-up counts. */
 export const PREVIEW_TYPE_COUNTS: readonly { typeName: string; count: number }[] = [

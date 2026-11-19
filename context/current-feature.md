@@ -1,16 +1,59 @@
-# Current Feature
+# Current Feature: Code Scan Fixes 2 (2026-11-20)
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+Fix all 35 findings of `docs/audit-results/CODE_SCAN_REVIEW.md` (2026-11-20), in three phases, with unit tests for every changed action and utility.
+
+### Phase A - quick fixes (no migration)
+- [x] M1 No second Checkout while a subscription is live; account deletion cancels every live subscription
+- [x] M2 One `auth()` per request (`cache()`d `getSession()`), editor preferences folded into the shell's user read
+- [x] M3 Free limits checked and written in one serializable transaction (items, collections, uploads)
+- [x] M6 Per-email sign-in rate limit beside the IP + email one
+- [x] M7 `changePassword` rate-limited per user
+- [x] L1 One upgrade path: the settings Billing card links to `/upgrade`; dead `?plan=` / canceled handling removed
+- [x] L2 `/settings` refreshes while "Finishing up your upgrade" until the subscription lands
+- [x] L3 / L4 Webhook body capped (413) and a missing secret answered as a configuration error (500)
+- [x] L5 `createFolder` requires Pro access
+- [x] L6 A subscription canceled during a failed account delete is recorded and the error says so
+- [x] L7 Demo account can't change its password or open billing
+- [x] L8 Collection page queries in parallel
+- [x] L11 Reset links single-use under concurrency
+- [x] L12 Sign-in timing and resend wording no longer reveal accounts
+- [x] L14 `Cache-Control: private, no-store` on `GET /api/items/[id]`
+- [x] L15 Double-click no longer closes the drawer it opened
+- [x] L16 Dropped connections in dialogs toast instead of hitting the error boundary
+- [x] L17 R2 deletes in chunks of 50
+- [x] L18 Uploads without `Content-Length` refused
+- [x] L20 Quick copy pending state
+- [x] L21 File filter count announced the first time
+- [x] L22 Invalid editor ring has a width
+- [x] L23 `getTypeCounts` once per request
+- [x] L24 (part) Upload rate limit
+
+### Phase B - migrations
+- [x] H1 `Item.preview` column (written on create / update, backfilled), search reads it, loads on first open, capped
+- [x] M8 `User.sessionVersion` bumped by reset and change password, checked in the `jwt` callback
+
+### Phase C - redesigns
+- [x] M4 Image thumbnails generated at upload, served with `?thumb=1`, falling back to the original
+- [x] M5 Files page loads only the open folder's files, folder counts from `groupBy`, filters on the server
+- [x] M9 Register no longer reveals existing emails while verification is on
+- [x] L13 Length limits on item title, description, content and tags
+- [x] L19 Orphaned tags removed on item update and delete
+- [x] L24 (part) Per-user storage quota
+- [x] L9 Plan data moved to `src/lib/plans.ts`
+- [x] L10 `src/lib/db/items.ts` split into reads, writes and search
+- [x] L25 `SidebarNav.tsx` and `prisma/seed.ts` split
 
 ## Notes
 
-<!-- Any extra notes -->
+- Scope decided by the user: all three phases ("Everything (A + B + C)").
+- Migrations go through `npm run db:migrate` on `development` only; production picks them up through `npm run db:deploy` on the next Vercel build.
+- Real Stripe calls aren't made in verification; Stripe is mocked in unit tests.
 
 ## History
 

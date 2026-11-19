@@ -31,7 +31,13 @@ vi.mock("@/lib/db/collections", () => ({
 }));
 // The real usage limits run against this count; with PRO_GATING_ENABLED unset
 // (as in every test that doesn't stub it) nothing is counted.
-vi.mock("@/lib/prisma", () => ({ prisma: { collection: { count: vi.fn() } } }));
+vi.mock("@/lib/prisma", () => ({ prisma: { collection: { count: vi.fn() }, $transaction: vi.fn() } }));
+
+/** Runs an interactive transaction's callback against the mocked client. */
+function runTransactions() {
+  vi.mocked(prisma.$transaction).mockImplementation((async (run: (tx: unknown) => unknown) =>
+    run(prisma)) as never);
+}
 
 /** `auth` is overloaded (it doubles as middleware), so its mock is typed by hand. */
 const mockAuth = auth as unknown as ReturnType<typeof vi.fn<() => Promise<Session | null>>>;
@@ -50,6 +56,7 @@ describe("createCollection", () => {
   beforeEach(() => {
     mockAuth.mockResolvedValue({ user: { id: "user-1", isPro: false }, expires: "2099-01-01T00:00:00.000Z" });
     vi.mocked(createCollectionRecord).mockResolvedValue(created);
+    runTransactions();
   });
 
   it("creates the normalized collection for the signed-in user and returns it", async () => {
@@ -59,10 +66,11 @@ describe("createCollection", () => {
     });
 
     expect(result).toEqual({ success: true, data: created, error: null, fieldErrors: {} });
-    expect(createCollectionRecord).toHaveBeenCalledWith("user-1", {
-      name: "React Patterns",
-      description: "Hooks and components",
-    });
+    expect(createCollectionRecord).toHaveBeenCalledWith(
+      "user-1",
+      { name: "React Patterns", description: "Hooks and components" },
+      prisma,
+    );
   });
 
   it("doesn't count collections while gating is off", async () => {
@@ -106,10 +114,11 @@ describe("createCollection", () => {
   it("saves a blank description as null", async () => {
     await createCollection({ name: "React Patterns", description: "   " });
 
-    expect(createCollectionRecord).toHaveBeenCalledWith("user-1", {
-      name: "React Patterns",
-      description: null,
-    });
+    expect(createCollectionRecord).toHaveBeenCalledWith(
+      "user-1",
+      { name: "React Patterns", description: null },
+      prisma,
+    );
   });
 
   it("refuses a signed-out request without writing", async () => {

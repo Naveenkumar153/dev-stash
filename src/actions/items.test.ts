@@ -19,7 +19,7 @@ import {
   setItemFavorite as setItemFavoriteRecord,
   setItemPinned,
   updateItem as updateItemRecord,
-} from "@/lib/db/items";
+} from "@/lib/db/item-writes";
 import { deleteFile } from "@/lib/r2";
 import type { ItemDetail } from "@/types/items";
 
@@ -27,18 +27,12 @@ import type { ItemDetail } from "@/types/items";
 // tests also cover what the action sends to the database.
 vi.mock("@/auth", () => ({ auth: vi.fn() }));
 vi.mock("next/cache", () => ({ refresh: vi.fn() }));
-vi.mock("@/lib/db/items", () => ({
-  createItem: vi.fn(),
-  updateItem: vi.fn(),
-  deleteItem: vi.fn(),
-  setItemFavorite: vi.fn(),
-  setItemPinned: vi.fn(),
-}));
+vi.mock("@/lib/db/item-writes", () => ({ createItem: vi.fn(), updateItem: vi.fn(), deleteItem: vi.fn(), setItemFavorite: vi.fn(), setItemPinned: vi.fn() }));
 vi.mock("@/lib/r2", () => ({ deleteFile: vi.fn() }));
 vi.mock("@/lib/db/collections", () => ({ ownsCollections: vi.fn() }));
 // The real usage limits run against this count; with PRO_GATING_ENABLED unset
 // (as in every test that doesn't stub it) nothing is counted.
-vi.mock("@/lib/prisma", () => ({ prisma: { item: { count: vi.fn() } } }));
+vi.mock("@/lib/prisma", () => ({ prisma: { item: { count: vi.fn() }, $transaction: vi.fn() } }));
 
 /** `auth` is overloaded (it doubles as middleware), so its mock is typed by hand. */
 const mockAuth = auth as unknown as ReturnType<typeof vi.fn<() => Promise<Session | null>>>;
@@ -265,6 +259,8 @@ describe("deleteItem", () => {
 
     expect(result).toEqual({ success: true, data: { id: ITEM_ID }, error: null });
     expect(deleteFile).toHaveBeenCalledWith("user-1/abc-notes.md");
+    // A thumbnail is removed too in case the item was an image; a missing key is a no-op.
+    expect(deleteFile).toHaveBeenCalledWith("user-1/abc-notes.md.thumb.webp");
     expect(vi.mocked(deleteItemRecord).mock.invocationCallOrder[0]).toBeLessThan(
       vi.mocked(deleteFile).mock.invocationCallOrder[0],
     );
@@ -300,6 +296,9 @@ describe("createItem", () => {
     signInAs("user-1");
     vi.mocked(createItemRecord).mockResolvedValue(saved);
     vi.mocked(ownsCollections).mockResolvedValue(true);
+    // Runs the interactive transaction's callback against the mocked client.
+    vi.mocked(prisma.$transaction).mockImplementation((async (run: (tx: unknown) => unknown) =>
+      run(prisma)) as never);
   });
 
   it("doesn't count items while gating is off", async () => {
@@ -318,7 +317,10 @@ describe("createItem", () => {
       fieldErrors: {},
     });
     expect(prisma.item.count).toHaveBeenCalledWith({ where: { userId: "user-1" } });
-    expect(ownsCollections).not.toHaveBeenCalled();
+    // The count and the insert share one serializable transaction.
+    expect(prisma.$transaction).toHaveBeenCalledWith(expect.any(Function), {
+      isolationLevel: "Serializable",
+    });
     expect(createItemRecord).not.toHaveBeenCalled();
   });
 
@@ -327,7 +329,8 @@ describe("createItem", () => {
     vi.mocked(prisma.item.count).mockResolvedValue(49);
 
     expect(await createItem(newItem)).toMatchObject({ success: true });
-    expect(createItemRecord).toHaveBeenCalled();
+    // Written with the transaction's client, inside the same transaction as the count.
+    expect(createItemRecord).toHaveBeenCalledWith("user-1", expect.anything(), prisma);
   });
 
   it("doesn't count items for a Pro account while gating is on", async () => {
@@ -375,7 +378,8 @@ describe("createItem", () => {
     const result = await createItem(newItem);
 
     expect(result).toEqual({ success: true, data: saved, error: null, fieldErrors: {} });
-    expect(createItemRecord).toHaveBeenCalledWith("user-1", {
+    expect(vi.mocked(createItemRecord).mock.calls[0][0]).toBe("user-1");
+    expect(vi.mocked(createItemRecord).mock.calls[0][1]).toEqual({
       typeName: "snippet",
       title: "useDebounce hook",
       description: null,

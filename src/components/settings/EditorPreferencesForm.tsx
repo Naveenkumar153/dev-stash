@@ -20,6 +20,7 @@ import {
   EDITOR_THEME_LABELS,
   type EditorPreferences,
 } from "@/lib/editor-preferences";
+import { callAction } from "@/lib/action-call";
 
 interface EditorPreferencesFormProps {
   initialPreferences: EditorPreferences;
@@ -43,15 +44,17 @@ export function EditorPreferencesForm({
     setPreferences(next);
 
     startSave(async () => {
-      const result = await updateEditorPreferences(next);
-      if (result.success) {
+      const result = await callAction(() => updateEditorPreferences(next));
+      if (result?.success) {
         toast.success("Editor preferences saved");
         return;
       }
 
       // Put back what the server still has, unless a newer change replaced it.
       setPreferences((current) => (current === next ? previous : current));
-      toast.error(result.error ?? Object.values(result.fieldErrors)[0] ?? "Couldn't save.");
+      if (result) {
+        toast.error(result.error ?? Object.values(result.fieldErrors)[0] ?? "Couldn't save.");
+      }
     });
   }
 

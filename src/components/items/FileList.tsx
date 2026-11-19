@@ -1,5 +1,6 @@
 "use client";
 
+import { useRouter } from "next/navigation";
 import { useState } from "react";
 
 import { FILE_ROW_ACTIONS, FILE_ROW_COLUMNS, FileRow } from "@/components/items/FileRow";
@@ -15,6 +16,8 @@ import {
   DEFAULT_FILE_FILTERS,
   FILE_DATE_FILTERS,
   FILE_TYPE_FILTERS,
+  getFilteredFilesHref,
+  type FileFilters,
   type FileTypeFilter,
 } from "@/lib/file-filters";
 import {
@@ -22,18 +25,25 @@ import {
   getFolderHref,
   getFolderPath,
   type FolderEntry,
+  type FolderFileCounts,
 } from "@/lib/folders";
 import { formatCount } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import type { FileListItem } from "@/types/items";
 
 interface FileListProps {
-  /** Every file, in every folder. */
+  /** The open folder's files, or with a filter on, the matches in every folder. */
   items: FileListItem[];
+  /** Every file the user has, for "N of M files". */
+  total: number;
+  /** Files directly in each folder, for folder rows and the delete warning. */
+  folderCounts: FolderFileCounts;
   /** Every folder. */
   folders: FolderEntry[];
   /** The open folder; null at the top level. */
   folderId: string | null;
+  /** The Type and Uploaded filters, read from the URL. */
+  filters: FileFilters;
 }
 
 /**
@@ -41,16 +51,30 @@ interface FileListProps {
  * breadcrumb, then its sub-folders, then its files. With a Type or Uploaded
  * filter on, folders hide and every matching file in every folder shows, each
  * with its folder path. Sort applies to folders and files separately, folders
- * first. Everything is derived from the folders and files the page already
- * loaded, so filtering and sorting need no request. Both reset on reload; the
- * sort carries over between folders, since moving between them keeps this
- * mounted, while the filters clear.
+ * first. The filters are part of the URL, so the server loads only what they
+ * match; opening a folder (whose link carries none) clears them, and Clear
+ * filters goes back to the folder that was open. The sort is browser state:
+ * it needs no request, resets on reload and carries over between folders.
  */
-export function FileList({ items, folders, folderId }: Readonly<FileListProps>) {
-  const view = useFileListView(items, folders, folderId);
+export function FileList({
+  items,
+  total,
+  folderCounts,
+  folders,
+  folderId,
+  filters,
+}: Readonly<FileListProps>) {
+  const router = useRouter();
+  const view = useFileListView(items, folders, folderCounts, folderId, filters);
   const [dialog, setDialog] = useState<RowDialog | null>(null);
   const [dialogOpen, setDialogOpen] = useState(false);
-  const { filters, filtering, shownFiles, shownFolders } = view;
+  const { filtering, shownFiles, shownFolders } = view;
+
+  function updateFilters(next: Partial<FileFilters>) {
+    router.push(getFilteredFilesHref(getFolderHref(folderId), { ...filters, ...next }), {
+      scroll: false,
+    });
+  }
   const isEmpty = shownFiles.length === 0 && shownFolders.length === 0;
 
   function openDialog(next: RowDialog) {
@@ -88,7 +112,7 @@ export function FileList({ items, folders, folderId }: Readonly<FileListProps>) 
           options={FILE_TYPE_FILTERS}
           value={filters.type}
           defaultValue={DEFAULT_FILE_FILTERS.type}
-          onChange={(type) => view.updateFilters({ type })}
+          onChange={(type) => updateFilters({ type })}
           renderIcon={renderFileTypeIcon}
         />
         <FilterSelect
@@ -97,19 +121,19 @@ export function FileList({ items, folders, folderId }: Readonly<FileListProps>) 
           options={FILE_DATE_FILTERS}
           value={filters.date}
           defaultValue={DEFAULT_FILE_FILTERS.date}
-          onChange={(date) => view.updateFilters({ date })}
+          onChange={(date) => updateFilters({ date })}
         />
         <FileSortControl sort={view.sort} onChange={view.setSort} />
         {filtering && (
-          <>
-            <Button variant="ghost" size="sm" onClick={view.clearFilters}>
-              Clear filters
-            </Button>
-            <p role="status" className="ml-auto text-sm text-muted-foreground">
-              {shownFiles.length} of {formatCount(items.length, "file")}
-            </p>
-          </>
+          <Button variant="ghost" size="sm" onClick={() => updateFilters(DEFAULT_FILE_FILTERS)}>
+            Clear filters
+          </Button>
         )}
+        {/* Always in the DOM, filled only while filtering: a live region that
+            mounts together with its text isn't announced. */}
+        <p role="status" className="ml-auto text-sm text-muted-foreground empty:hidden">
+          {filtering ? `${shownFiles.length} of ${formatCount(total, "file")}` : ""}
+        </p>
       </div>
 
       {isEmpty ? (
@@ -164,7 +188,7 @@ export function FileList({ items, folders, folderId }: Readonly<FileListProps>) 
         dialog={dialog}
         open={dialogOpen}
         onOpenChange={setDialogOpen}
-        items={items}
+        folderCounts={folderCounts}
         folders={folders}
       />
     </div>

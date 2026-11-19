@@ -5,13 +5,8 @@ import { HomeSection } from "@/components/home/HomeSection";
 import { PlanPrice } from "@/components/home/PlanPrice";
 import { Reveal } from "@/components/home/Reveal";
 import { SectionHeader } from "@/components/home/SectionHeader";
-import {
-  FREE_PLAN_FEATURES,
-  getStartAction,
-  PRICING_ANCHOR,
-  PRO_PLAN_FEATURES,
-  type HomeLink,
-} from "@/lib/homepage";
+import { getStartAction, PRICING_ANCHOR, type HomeLink } from "@/lib/homepage";
+import { FREE_PLAN_FEATURES, PRO_PLAN_FEATURES } from "@/lib/plans";
 
 function FreeAction({ action }: Readonly<{ action: HomeLink }>) {
   return (

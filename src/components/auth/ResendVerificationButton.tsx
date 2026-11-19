@@ -5,6 +5,7 @@ import { toast } from "sonner";
 
 import { resendVerificationEmail } from "@/actions/auth";
 import { Button } from "@/components/ui/button";
+import { callAction } from "@/lib/action-call";
 
 interface ResendVerificationButtonProps {
   email: string;
@@ -15,7 +16,10 @@ export function ResendVerificationButton({ email }: ResendVerificationButtonProp
 
   function handleClick() {
     startTransition(async () => {
-      const result = await resendVerificationEmail(email);
+      const result = await callAction(() => resendVerificationEmail(email));
+      if (!result) {
+        return;
+      }
       if (result.success) {
         toast.success("Verification email sent", { description: `Check ${email} for the link.` });
       } else {

@@ -1,5 +1,6 @@
 "use client";
 
+import type { Dialog } from "@base-ui/react/dialog";
 import { useState } from "react";
 
 import { ItemDrawerActions } from "@/components/items/ItemDrawerActions";
@@ -16,7 +17,7 @@ import type { ItemDetail, ItemDrawerSummary } from "@/types/items";
 
 interface ItemDrawerProps {
   open: boolean;
-  onOpenChange: (open: boolean) => void;
+  onOpenChange: (open: boolean, details: Dialog.Root.ChangeEventDetails) => void;
   /** The card that was clicked. Null until the first item is opened. */
   summary: ItemDrawerSummary | null;
   detail: ItemDetailState;

@@ -9,18 +9,16 @@ import {
   getFileCategory,
   getSortOrderLabel,
   isFileFilterActive,
-  matchesFileFilters,
   sortFiles,
   sortFolders,
   type FileFilters,
+  getFilterExtensions,
+  getFilteredFilesHref,
+  parseFileFilters,
 } from "@/lib/file-filters";
 import { UPLOAD_CONSTRAINTS } from "@/lib/file-upload";
 
 const NOW = new Date("2026-11-14T15:30:00.000Z");
-
-function file(fileName: string | null, createdAt = NOW) {
-  return { fileName, createdAt };
-}
 
 function filters(overrides: Partial<FileFilters>): FileFilters {
   return { ...DEFAULT_FILE_FILTERS, ...overrides };
@@ -80,50 +78,6 @@ describe("getDateFilterStart", () => {
     expect(getDateFilterStart("7d", new Date("2027-01-03T08:00:00.000Z"))?.toISOString()).toBe(
       "2026-12-28T00:00:00.000Z",
     );
-  });
-});
-
-describe("matchesFileFilters", () => {
-  it("keeps everything with the default filters, including a missing file name", () => {
-    expect(matchesFileFilters(file("a.pdf", new Date(0)), DEFAULT_FILE_FILTERS, NOW)).toBe(true);
-    expect(matchesFileFilters(file(null), DEFAULT_FILE_FILTERS, NOW)).toBe(true);
-  });
-
-  it.each([
-    ["pdf", "Report.PDF"],
-    ["document", "notes.md"],
-    ["document", "readme.txt"],
-    ["spreadsheet", "data.csv"],
-    ["data", "package.json"],
-    ["data", "feed.xml"],
-    ["config", "docker-compose.yml"],
-    ["config", "settings.ini"],
-  ] as const)("type %s keeps %s", (type, fileName) => {
-    expect(matchesFileFilters(file(fileName), filters({ type }), NOW)).toBe(true);
-  });
-
-  it("drops other categories, names without an extension and missing names", () => {
-    const pdfOnly = filters({ type: "pdf" });
-
-    expect(matchesFileFilters(file("notes.md"), pdfOnly, NOW)).toBe(false);
-    expect(matchesFileFilters(file("pdf"), pdfOnly, NOW)).toBe(false);
-    expect(matchesFileFilters(file(null), pdfOnly, NOW)).toBe(false);
-  });
-
-  it("keeps a file uploaded exactly at the range start and drops one a millisecond earlier", () => {
-    const today = filters({ date: "today" });
-
-    expect(matchesFileFilters(file("a.pdf", new Date("2026-11-14T00:00:00.000Z")), today, NOW)).toBe(true);
-    expect(matchesFileFilters(file("a.pdf", new Date("2026-11-13T23:59:59.999Z")), today, NOW)).toBe(false);
-  });
-
-  it("needs both filters to match", () => {
-    const recentPdfs = filters({ type: "pdf", date: "7d" });
-    const tenDaysAgo = new Date("2026-11-04T12:00:00.000Z");
-
-    expect(matchesFileFilters(file("a.pdf", new Date("2026-11-10T12:00:00.000Z")), recentPdfs, NOW)).toBe(true);
-    expect(matchesFileFilters(file("a.pdf", tenDaysAgo), recentPdfs, NOW)).toBe(false);
-    expect(matchesFileFilters(file("a.csv", NOW), recentPdfs, NOW)).toBe(false);
   });
 });
 
@@ -217,5 +171,41 @@ describe("sortFolders", () => {
   it("sorts by creation time for Uploaded", () => {
     expect(ids(sortFolders(folders, { field: "uploaded", direction: "desc" }))).toEqual(["b", "a", "c"]);
     expect(ids(sortFolders(folders, { field: "uploaded", direction: "asc" }))).toEqual(["c", "a", "b"]);
+  });
+});
+
+describe("parseFileFilters", () => {
+  it("reads both filters from their parameters", () => {
+    expect(parseFileFilters({ fileType: "pdf", uploaded: "7d" })).toEqual({ type: "pdf", date: "7d" });
+  });
+
+  it.each([
+    { label: "nothing set", query: {} },
+    { label: "unknown values", query: { fileType: "exe", uploaded: "1y" } },
+    { label: "repeated parameters", query: { fileType: ["pdf", "data"], uploaded: ["7d"] } },
+  ])("falls back to the defaults for $label", ({ query }) => {
+    expect(parseFileFilters(query)).toEqual({ type: "all", date: "any" });
+  });
+});
+
+describe("getFilteredFilesHref", () => {
+  it("adds only the filters that aren't at their defaults", () => {
+    expect(getFilteredFilesHref("/items/files", { type: "pdf", date: "any" })).toBe(
+      "/items/files?fileType=pdf",
+    );
+    expect(getFilteredFilesHref("/items/files", { type: "all", date: "any" })).toBe("/items/files");
+  });
+
+  it("keeps the open folder", () => {
+    expect(getFilteredFilesHref("/items/files?folder=abc", { type: "data", date: "30d" })).toBe(
+      "/items/files?folder=abc&fileType=data&uploaded=30d",
+    );
+  });
+});
+
+describe("getFilterExtensions", () => {
+  it("lists a category's extensions, and none for all types", () => {
+    expect(getFilterExtensions("config")).toEqual(["yaml", "yml", "toml", "ini"]);
+    expect(getFilterExtensions("all")).toEqual([]);
   });
 });

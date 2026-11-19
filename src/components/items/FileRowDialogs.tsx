@@ -4,8 +4,7 @@ import { renameFolder } from "@/actions/folders";
 import { FolderDeleteDialog } from "@/components/items/FolderDeleteDialog";
 import { FolderNameDialog } from "@/components/items/FolderNameDialog";
 import { MoveToDialog, type MoveSubject } from "@/components/items/MoveToDialog";
-import { countSubtree, type FolderEntry } from "@/lib/folders";
-import type { FileListItem } from "@/types/items";
+import { countSubtree, type FolderEntry, type FolderFileCounts } from "@/lib/folders";
 
 /** The dialog a row's menu opened. Kept after closing, so the dialog has content while it animates out. */
 export type RowDialog =
@@ -17,13 +16,20 @@ interface FileRowDialogsProps {
   dialog: RowDialog | null;
   open: boolean;
   onOpenChange: (open: boolean) => void;
-  /** Every file and folder, for the Move picker and the delete dialog's counts. */
-  items: readonly FileListItem[];
+  /** Files directly in each folder, for the delete dialog's counts. */
+  folderCounts: FolderFileCounts;
+  /** Every folder, for the Move picker and the delete dialog's counts. */
   folders: FolderEntry[];
 }
 
 /** The Rename, Move to... and Delete dialogs the files list's row menus open. */
-export function FileRowDialogs({ dialog, open, onOpenChange, items, folders }: Readonly<FileRowDialogsProps>) {
+export function FileRowDialogs({
+  dialog,
+  open,
+  onOpenChange,
+  folderCounts,
+  folders,
+}: Readonly<FileRowDialogsProps>) {
   const rowFolder = dialog?.kind === "rename" || dialog?.kind === "delete" ? dialog.folder : null;
 
   return (
@@ -51,7 +57,7 @@ export function FileRowDialogs({ dialog, open, onOpenChange, items, folders }: R
         open={open && dialog?.kind === "delete"}
         onOpenChange={onOpenChange}
         folder={rowFolder}
-        contents={rowFolder ? countSubtree(folders, items, rowFolder.id) : { folders: 0, files: 0 }}
+        contents={rowFolder ? countSubtree(folders, folderCounts, rowFolder.id) : { folders: 0, files: 0 }}
       />
     </>
   );

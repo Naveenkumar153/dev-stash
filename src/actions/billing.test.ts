@@ -4,15 +4,22 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { createCheckoutSession, createPortalSession } from "@/actions/billing";
 import { auth } from "@/auth";
-import { getBillingStatus, getOrCreateCustomerId } from "@/lib/db/billing";
+import {
+  findLiveSubscriptionId,
+  getBillingStatus,
+  getOrCreateCustomerId,
+  syncSubscription,
+} from "@/lib/db/billing";
 import { getPriceId, getStripe } from "@/lib/stripe";
 
 // The session, the billing data layer and Stripe are mocked; the interval
 // schema runs for real.
 vi.mock("@/auth", () => ({ auth: vi.fn() }));
 vi.mock("@/lib/db/billing", () => ({
+  findLiveSubscriptionId: vi.fn(),
   getBillingStatus: vi.fn(),
   getOrCreateCustomerId: vi.fn(),
+  syncSubscription: vi.fn(),
 }));
 vi.mock("@/lib/stripe", () => ({ getStripe: vi.fn(), getPriceId: vi.fn() }));
 
@@ -32,8 +39,9 @@ beforeEach(() => {
     checkout: { sessions: { create: checkoutCreate } },
     billingPortal: { sessions: { create: portalCreate } },
   } as unknown as Stripe);
-  vi.mocked(getBillingStatus).mockResolvedValue({ isPro: false, hasCustomer: false });
+  vi.mocked(getBillingStatus).mockResolvedValue({ isPro: false, hasCustomer: false, isDemo: false });
   vi.mocked(getOrCreateCustomerId).mockResolvedValue("cus_1");
+  vi.mocked(findLiveSubscriptionId).mockResolvedValue(null);
   vi.mocked(getPriceId).mockImplementation((interval) => `price_${interval}`);
   checkoutCreate.mockResolvedValue({ id: "cs_test_1", url: "https://checkout.stripe.com/c/1" });
   portalCreate.mockResolvedValue({ url: "https://billing.stripe.com/p/1" });
@@ -96,7 +104,7 @@ describe("createCheckoutSession", () => {
   });
 
   it("sends a Pro user to the Portal instead of a second subscription", async () => {
-    vi.mocked(getBillingStatus).mockResolvedValue({ isPro: true, hasCustomer: true });
+    vi.mocked(getBillingStatus).mockResolvedValue({ isPro: true, hasCustomer: true, isDemo: false });
 
     expect(await createCheckoutSession("yearly")).toEqual({
       success: true,
@@ -105,6 +113,43 @@ describe("createCheckoutSession", () => {
     });
     expect(checkoutCreate).not.toHaveBeenCalled();
     expect(portalCreate).toHaveBeenCalledWith({ customer: "cus_1", return_url: SETTINGS });
+  });
+
+  it("sends a stored-Free user with a live subscription at Stripe to the Portal, syncing it", async () => {
+    // The webhook and the post-checkout sync haven't landed, so isPro still reads false.
+    vi.mocked(findLiveSubscriptionId).mockResolvedValue("sub_live");
+
+    expect(await createCheckoutSession("yearly")).toEqual({
+      success: true,
+      data: { url: "https://billing.stripe.com/p/1" },
+      error: null,
+    });
+    expect(findLiveSubscriptionId).toHaveBeenCalledWith("cus_1");
+    expect(syncSubscription).toHaveBeenCalledWith("sub_live");
+    expect(checkoutCreate).not.toHaveBeenCalled();
+  });
+
+  it("refuses the shared demo account without touching Stripe", async () => {
+    vi.mocked(getBillingStatus).mockResolvedValue({ isPro: false, hasCustomer: false, isDemo: true });
+
+    expect(await createCheckoutSession("monthly")).toEqual({
+      success: false,
+      data: null,
+      error: "The demo account is shared, so its billing can't be changed.",
+    });
+    expect(getOrCreateCustomerId).not.toHaveBeenCalled();
+    expect(checkoutCreate).not.toHaveBeenCalled();
+  });
+
+  it("returns a generic error when the subscription lookup fails", async () => {
+    vi.mocked(findLiveSubscriptionId).mockRejectedValue(new Error("stripe down"));
+    vi.spyOn(console, "error").mockImplementation(() => {});
+
+    expect(await createCheckoutSession("monthly")).toMatchObject({
+      success: false,
+      error: "Couldn't start checkout. Please try again.",
+    });
+    expect(checkoutCreate).not.toHaveBeenCalled();
   });
 
   it("returns a generic error when Stripe fails", async () => {
@@ -148,6 +193,17 @@ describe("createPortalSession", () => {
       error: null,
     });
     expect(portalCreate).toHaveBeenCalledWith({ customer: "cus_1", return_url: SETTINGS });
+  });
+
+  it("refuses the shared demo account, so one visitor can't open another's invoices", async () => {
+    vi.mocked(getBillingStatus).mockResolvedValue({ isPro: true, hasCustomer: true, isDemo: true });
+
+    expect(await createPortalSession()).toEqual({
+      success: false,
+      data: null,
+      error: "The demo account is shared, so its billing can't be changed.",
+    });
+    expect(portalCreate).not.toHaveBeenCalled();
   });
 
   it("refuses a signed-out request without calling Stripe", async () => {

@@ -25,9 +25,10 @@ describe("getEditorPreferences", () => {
       ...DEFAULT_EDITOR_PREFERENCES,
       theme: "github-dark",
     });
+    // The app shell's one row read, shared with getSessionUser().
     expect(prisma.user.findUnique).toHaveBeenCalledWith({
       where: { id: "user-1" },
-      select: { editorPreferences: true },
+      select: { name: true, email: true, image: true, isPro: true, editorPreferences: true },
     });
   });
 

@@ -14,6 +14,23 @@ describe("discardStoredFiles", () => {
     expect(deleteFile).toHaveBeenCalledWith("user-1/b.md");
   });
 
+  it("keeps at most 50 deletes in flight at once", async () => {
+    let inFlight = 0;
+    let peak = 0;
+    vi.mocked(deleteFile).mockImplementation(async () => {
+      inFlight += 1;
+      peak = Math.max(peak, inFlight);
+      await new Promise((resolve) => setTimeout(resolve, 0));
+      inFlight -= 1;
+    });
+    const keys = Array.from({ length: 120 }, (_, index) => `user-1/file-${index}`);
+
+    await discardStoredFiles(keys);
+
+    expect(deleteFile).toHaveBeenCalledTimes(120);
+    expect(peak).toBe(50);
+  });
+
   it("does nothing for no files", async () => {
     await discardStoredFiles([]);
 

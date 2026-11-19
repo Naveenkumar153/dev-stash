@@ -7,10 +7,11 @@ import { PlanCard } from "@/components/billing/PlanCard";
 import { PlanPrice } from "@/components/home/PlanPrice";
 import { Button } from "@/components/ui/button";
 import { useBillingRedirect } from "@/hooks/use-billing-redirect";
-import { PRO_PLAN_FEATURES, getProPrice } from "@/lib/homepage";
 import {
   BILLING_INTERVALS,
+  PRO_PLAN_FEATURES,
   PRO_PRICES,
+  getProPrice,
   getYearlySavingsPercent,
   type BillingInterval,
 } from "@/lib/plans";

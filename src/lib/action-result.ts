@@ -1,6 +1,6 @@
 import type { z } from "zod";
 
-import { FREE_COLLECTION_LIMIT, FREE_ITEM_LIMIT } from "@/lib/plans";
+import { FREE_COLLECTION_LIMIT, FREE_ITEM_LIMIT, STORAGE_QUOTA_BYTES } from "@/lib/plans";
 
 /**
  * What server actions and API routes share for their `{ success, data, error }`
@@ -88,3 +88,8 @@ const UPGRADE_ERRORS: ReadonlySet<string> = new Set([
 export function isUpgradeError(error: string | null): boolean {
   return error !== null && UPGRADE_ERRORS.has(error);
 }
+
+/** An upload that would take the account past its storage allowance. */
+export const STORAGE_QUOTA_REACHED = `This upload would go over your ${
+  STORAGE_QUOTA_BYTES / 1024 ** 3
+} GB of storage. Delete some files to make room.`;

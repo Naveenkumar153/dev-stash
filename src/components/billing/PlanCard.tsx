@@ -2,7 +2,7 @@ import { Check, X } from "lucide-react";
 import type { ReactNode } from "react";
 
 import { Card } from "@/components/ui/card";
-import type { PlanFeature } from "@/lib/homepage";
+import type { PlanFeature } from "@/lib/plans";
 import { cn } from "@/lib/utils";
 
 interface PlanCardProps {

@@ -5,7 +5,7 @@ import Credentials from "next-auth/providers/credentials";
 import authConfig from "@/auth.config";
 import { EMAIL_NOT_VERIFIED, RATE_LIMITED } from "@/lib/auth-redirect";
 import { signInSchema } from "@/lib/auth-schemas";
-import { verifyPassword } from "@/lib/password";
+import { checkPassword } from "@/lib/password";
 import { prisma } from "@/lib/prisma";
 import { getClientIp, rateLimit } from "@/lib/rate-limit";
 import { isEmailVerificationEnabled } from "@/lib/verification";
@@ -15,7 +15,7 @@ export class EmailNotVerified extends CredentialsSignin {
   code = EMAIL_NOT_VERIFIED;
 }
 
-/** Too many sign-in attempts for this IP and email. */
+/** Too many sign-in attempts for this IP and email, or for this email alone. */
 export class TooManyAttempts extends CredentialsSignin {
   code = RATE_LIMITED;
   /** Unix time in milliseconds when another attempt is allowed. */
@@ -41,10 +41,16 @@ const credentials = Credentials({
       return null;
     }
 
-    const ip = getClientIp(request.headers);
-    const limit = await rateLimit("signIn", `${ip}:${parsed.data.email}`);
-    if (!limit.success) {
-      throw new TooManyAttempts(limit.reset);
+    // Per IP + email, and per email alone so rotating IPs can't keep
+    // guessing at one account. Blocked by either, retry when both allow.
+    const { email } = parsed.data;
+    const limits = await Promise.all([
+      rateLimit("signIn", `${getClientIp(request.headers)}:${email}`),
+      rateLimit("signInEmail", email),
+    ]);
+    const blocked = limits.filter((limit) => !limit.success);
+    if (blocked.length > 0) {
+      throw new TooManyAttempts(Math.max(...blocked.map((limit) => limit.reset)));
     }
 
     const user = await prisma.user.findUnique({
@@ -59,13 +65,10 @@ const credentials = Credentials({
       },
     });
 
-    // OAuth-only accounts have no password to check against.
-    if (!user?.passwordHash) {
-      return null;
-    }
-
-    const valid = await verifyPassword(parsed.data.password, user.passwordHash);
-    if (!valid) {
+    // Unknown emails and OAuth-only accounts have no password to check, but
+    // still pay for one bcrypt compare so timing can't reveal them.
+    const valid = await checkPassword(parsed.data.password, user?.passwordHash ?? null);
+    if (!user || !valid) {
       return null;
     }
 
@@ -95,6 +98,10 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
     // proxy loads. Re-reading `isPro` on every validation means a Stripe
     // webhook's change shows on the next request, without relying on
     // `trigger === "update"` from the client.
+    //
+    // The same lookup reads `sessionVersion`: a password reset or change bumps
+    // it, and a token issued before that comes back null here, which signs that
+    // session out on its next request. A fresh sign-in records the current one.
     async jwt({ token, user }) {
       if (user?.id) {
         token.sub = user.id;
@@ -103,8 +110,13 @@ export const { handlers, auth, signIn, signOut } = NextAuth({
       if (token.sub) {
         const dbUser = await prisma.user.findUnique({
           where: { id: token.sub },
-          select: { isPro: true },
+          select: { isPro: true, sessionVersion: true },
         });
+        if (dbUser && user?.id) {
+          token.sessionVersion = dbUser.sessionVersion;
+        } else if (dbUser && (token.sessionVersion ?? 0) !== dbUser.sessionVersion) {
+          return null;
+        }
         token.isPro = dbUser?.isPro ?? false;
       }
 

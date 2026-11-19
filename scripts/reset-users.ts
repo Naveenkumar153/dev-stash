@@ -32,9 +32,9 @@ async function loadPrisma() {
 }
 
 /** Imported lazily for the same reason: the module loads the Prisma client. */
-async function loadCancelSubscription() {
-  const { cancelSubscription } = await import("@/lib/db/billing");
-  return cancelSubscription;
+async function loadBilling() {
+  const { cancelCustomerSubscriptions, cancelSubscription } = await import("@/lib/db/billing");
+  return { cancelCustomerSubscriptions, cancelSubscription };
 }
 
 /** Imported lazily for the same reason: the module loads the Prisma client. */
@@ -45,25 +45,40 @@ async function loadResetIdentifier() {
 
 type Db = Awaited<ReturnType<typeof loadPrisma>>;
 
+interface BillingUser {
+  stripeCustomerId: string | null;
+  stripeSubscriptionId: string | null;
+}
+
 const DEMO_EMAIL = "demo@devstash.io";
 const CONFIRM_FLAG = "--confirm";
 
 /**
- * Cancels the users' subscriptions before their rows go, so Stripe stops
- * billing them. Refuses a live key: this script only ever runs against test
- * data. Throws on the first failure, before anything is deleted.
+ * Cancels every live subscription of the users' Stripe customers (not only the
+ * stored one, which is whichever was applied last) before their rows go, so
+ * Stripe stops billing them. A user with a stored subscription but no customer
+ * has that one canceled. Refuses a live key: this script only ever runs
+ * against test data. Throws on the first failure, before anything is deleted.
  */
-async function cancelSubscriptions(subscriptionIds: string[]): Promise<void> {
-  if (subscriptionIds.length === 0) {
-    return;
+async function cancelSubscriptions(users: readonly BillingUser[]): Promise<number> {
+  const billable = users.filter((user) => user.stripeCustomerId || user.stripeSubscriptionId);
+  if (billable.length === 0) {
+    return 0;
   }
   if (!process.env.STRIPE_SECRET_KEY?.startsWith("sk_test_")) {
     throw new Error("Refusing to cancel subscriptions without a test-mode STRIPE_SECRET_KEY.");
   }
-  const cancelSubscription = await loadCancelSubscription();
-  for (const subscriptionId of subscriptionIds) {
-    await cancelSubscription(subscriptionId);
+  const { cancelCustomerSubscriptions, cancelSubscription } = await loadBilling();
+  let canceled = 0;
+  for (const user of billable) {
+    if (user.stripeCustomerId) {
+      canceled += await cancelCustomerSubscriptions(user.stripeCustomerId);
+    } else if (user.stripeSubscriptionId) {
+      await cancelSubscription(user.stripeSubscriptionId);
+      canceled += 1;
+    }
   }
+  return canceled;
 }
 
 /** Host only - the connection string carries credentials that must not be logged. */
@@ -120,7 +135,7 @@ async function main(): Promise<void> {
 
     const users = await db.user.findMany({
       where: { id: { not: demo.id } },
-      select: { id: true, email: true, stripeSubscriptionId: true },
+      select: { id: true, email: true, stripeCustomerId: true, stripeSubscriptionId: true },
       orderBy: { email: "asc" },
     });
     if (users.length === 0) {
@@ -147,20 +162,22 @@ async function main(): Promise<void> {
         db.verificationToken.count({ where: { identifier: tokenIdentifiers } }),
       ]);
 
-    const subscriptionIds = users.flatMap((user) =>
-      user.stripeSubscriptionId ? [user.stripeSubscriptionId] : [],
-    );
+    const customers = users.filter((user) => user.stripeCustomerId).length;
 
     console.log(`\nUsers to delete (${users.length}):`);
     for (const user of users) {
-      const subscription = user.stripeSubscriptionId ? ` (subscription ${user.stripeSubscriptionId})` : "";
+      const subscription = user.stripeCustomerId
+        ? ` (customer ${user.stripeCustomerId})`
+        : user.stripeSubscriptionId
+          ? ` (subscription ${user.stripeSubscriptionId})`
+          : "";
       console.log(`  - ${user.email}${subscription}`);
     }
     console.log(
       `\nWith ${items} items (${files} with a stored file), ${folders} folders, ` +
         `${collections} collections, ${itemTypes} custom item types, ${accounts} accounts, ` +
         `${sessions} sessions and ${tokens} verification and reset tokens. ` +
-        `${subscriptionIds.length} Stripe subscriptions will be canceled.`,
+        `Every live subscription of ${customers} Stripe customers will be canceled.`,
     );
 
     if (!confirmed) {
@@ -168,7 +185,7 @@ async function main(): Promise<void> {
       return;
     }
 
-    await cancelSubscriptions(subscriptionIds);
+    const canceled = await cancelSubscriptions(users);
 
     // One transaction, so a failure leaves the database as it was. Items go
     // before users because `Item.itemType` has no cascade: deleting a custom
@@ -190,7 +207,7 @@ async function main(): Promise<void> {
     }
 
     console.log(
-      `\n✓ Canceled ${subscriptionIds.length} subscriptions. Deleted ${deletedUsers.count} users, ` +
+      `\n✓ Canceled ${canceled} subscriptions. Deleted ${deletedUsers.count} users, ` +
         `${deletedTokens.count} verification and reset tokens, ${deletedTags.count} orphaned tags ` +
         `and their stored files. ${DEMO_EMAIL} kept.`,
     );

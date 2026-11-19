@@ -1,6 +1,7 @@
 "use client";
 
-import { createContext, useCallback, useContext, useMemo, useState } from "react";
+import type { Dialog } from "@base-ui/react/dialog";
+import { createContext, useCallback, useContext, useMemo, useRef, useState } from "react";
 
 import { ItemDrawer } from "@/components/items/ItemDrawer";
 import { useItemDetail } from "@/hooks/use-item-detail";
@@ -12,6 +13,13 @@ interface ItemDrawerContextValue {
 }
 
 const ItemDrawerContext = createContext<ItemDrawerContextValue | null>(null);
+
+/**
+ * How soon after opening a press on the backdrop is taken as the second click
+ * of the double-click that opened it, rather than a wish to close. The
+ * backdrop appears under the pointer between the two clicks.
+ */
+const DOUBLE_CLICK_GRACE_MS = 500;
 
 export function useItemDrawer() {
   const context = useContext(ItemDrawerContext);
@@ -35,9 +43,11 @@ export function ItemDrawerProvider({
   // Kept after closing, so the drawer still has content while it animates out.
   const [summary, setSummary] = useState<ItemDrawerSummary | null>(null);
   const { detail, load, replace, patch } = useItemDetail();
+  const openedAt = useRef(0);
 
   const openItem = useCallback(
     (item: ItemDrawerSummary) => {
+      openedAt.current = performance.now();
       setSummary(item);
       setOpen(true);
       void load(item.id);
@@ -50,12 +60,23 @@ export function ItemDrawerProvider({
   // The summary stays, so the drawer animates out with the deleted item's header.
   const closeDrawer = useCallback(() => setOpen(false), []);
 
+  const handleOpenChange = useCallback(
+    (nextOpen: boolean, details: Dialog.Root.ChangeEventDetails) => {
+      const justOpened = performance.now() - openedAt.current < DOUBLE_CLICK_GRACE_MS;
+      if (!nextOpen && details.reason === "outside-press" && justOpened) {
+        return;
+      }
+      setOpen(nextOpen);
+    },
+    [],
+  );
+
   return (
     <ItemDrawerContext value={value}>
       {children}
       <ItemDrawer
         open={open}
-        onOpenChange={setOpen}
+        onOpenChange={handleOpenChange}
         summary={summary}
         detail={detail}
         onItemSaved={replace}

@@ -16,6 +16,7 @@ import {
   AlertDialogTitle,
 } from "@/components/ui/alert-dialog";
 import { formatCount } from "@/lib/format";
+import { callAction } from "@/lib/action-call";
 
 interface FolderDeleteDialogProps {
   open: boolean;
@@ -60,7 +61,10 @@ export function FolderDeleteDialog({ open, onOpenChange, folder, contents }: Fol
     if (!folder) return;
 
     startTransition(async () => {
-      const result = await deleteFolder(folder.id);
+      const result = await callAction(() => deleteFolder(folder.id));
+      if (!result) {
+        return;
+      }
 
       if (!result.success) {
         toast.error(result.error ?? "Couldn't delete this folder. Please try again.");

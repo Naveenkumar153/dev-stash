@@ -5,8 +5,8 @@ import { createContext, useContext, useState, type ReactNode } from "react";
 import { HomeButtonLink } from "@/components/home/HomeButtonLink";
 import { PlanPrice } from "@/components/home/PlanPrice";
 import { Switch } from "@/components/ui/switch";
-import { getProPrice, getUpgradeAction, type BillingPeriod } from "@/lib/homepage";
-import { getYearlySavingsPercent } from "@/lib/plans";
+import { getUpgradeAction, type BillingPeriod } from "@/lib/homepage";
+import { getProPrice, getYearlySavingsPercent } from "@/lib/plans";
 
 interface BillingContextValue {
   period: BillingPeriod;

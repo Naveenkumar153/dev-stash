@@ -3,7 +3,10 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import {
   applySubscription,
+  cancelCustomerSubscriptions,
   cancelSubscription,
+  clearSubscription,
+  findLiveSubscriptionId,
   getBillingStatus,
   getOrCreateCustomerId,
   syncCheckoutForUser,
@@ -15,11 +18,17 @@ import { getStripe } from "@/lib/stripe";
 const customersCreate = vi.hoisted(() => vi.fn());
 const subscriptionsRetrieve = vi.hoisted(() => vi.fn());
 const subscriptionsCancel = vi.hoisted(() => vi.fn());
+const subscriptionsList = vi.hoisted(() => vi.fn());
 const checkoutRetrieve = vi.hoisted(() => vi.fn());
 
 vi.mock("@/lib/prisma", () => ({
   prisma: {
-    user: { findUnique: vi.fn(), findUniqueOrThrow: vi.fn(), updateMany: vi.fn() },
+    user: {
+      findUnique: vi.fn(),
+      findUniqueOrThrow: vi.fn(),
+      update: vi.fn(),
+      updateMany: vi.fn(),
+    },
   },
 }));
 
@@ -31,7 +40,11 @@ vi.mock("@/lib/stripe", async (importOriginal) => ({
 beforeEach(() => {
   vi.mocked(getStripe).mockReturnValue({
     customers: { create: customersCreate },
-    subscriptions: { retrieve: subscriptionsRetrieve, cancel: subscriptionsCancel },
+    subscriptions: {
+      retrieve: subscriptionsRetrieve,
+      cancel: subscriptionsCancel,
+      list: subscriptionsList,
+    },
     checkout: { sessions: { retrieve: checkoutRetrieve } },
   } as unknown as Stripe);
 });
@@ -39,31 +52,56 @@ beforeEach(() => {
 function subscription(
   status: Stripe.Subscription.Status,
   customer: Stripe.Subscription["customer"] | null = "cus_1",
+  id = "sub_1",
 ): Stripe.Subscription {
-  return { id: "sub_1", status, customer } as Stripe.Subscription;
+  return { id, status, customer } as Stripe.Subscription;
+}
+
+function listed(...subscriptions: Stripe.Subscription[]) {
+  return { data: subscriptions };
 }
 
 describe("getBillingStatus", () => {
   it("reports the plan and whether a customer exists", async () => {
     vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      email: "ada@example.com",
       isPro: true,
       stripeCustomerId: "cus_1",
     } as never);
 
-    expect(await getBillingStatus("user-1")).toEqual({ isPro: true, hasCustomer: true });
+    expect(await getBillingStatus("user-1")).toEqual({
+      isPro: true,
+      hasCustomer: true,
+      isDemo: false,
+    });
     expect(prisma.user.findUnique).toHaveBeenCalledWith({
       where: { id: "user-1" },
-      select: { isPro: true, stripeCustomerId: true },
+      select: { email: true, isPro: true, stripeCustomerId: true },
     });
   });
 
   it("reports no customer for a user who never checked out", async () => {
     vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      email: "ada@example.com",
       isPro: false,
       stripeCustomerId: null,
     } as never);
 
-    expect(await getBillingStatus("user-1")).toEqual({ isPro: false, hasCustomer: false });
+    expect(await getBillingStatus("user-1")).toEqual({
+      isPro: false,
+      hasCustomer: false,
+      isDemo: false,
+    });
+  });
+
+  it("flags the shared demo account", async () => {
+    vi.mocked(prisma.user.findUnique).mockResolvedValue({
+      email: "demo@devstash.io",
+      isPro: false,
+      stripeCustomerId: null,
+    } as never);
+
+    expect(await getBillingStatus("user-1")).toMatchObject({ isDemo: true });
   });
 
   it("is null when the user is gone", async () => {
@@ -296,5 +334,80 @@ describe("cancelSubscription", () => {
     subscriptionsRetrieve.mockRejectedValue(new Error("still down"));
 
     await expect(cancelSubscription("sub_1")).rejects.toThrow("stripe down");
+  });
+});
+
+describe("findLiveSubscriptionId", () => {
+  it("lists every status and returns the first that hasn't ended", async () => {
+    subscriptionsList.mockResolvedValue(
+      listed(
+        subscription("canceled", "cus_1", "sub_old"),
+        subscription("incomplete_expired", "cus_1", "sub_expired"),
+        subscription("incomplete", "cus_1", "sub_live"),
+      ),
+    );
+
+    expect(await findLiveSubscriptionId("cus_1")).toBe("sub_live");
+    expect(subscriptionsList).toHaveBeenCalledWith({ customer: "cus_1", status: "all", limit: 100 });
+  });
+
+  it.each(["active", "trialing", "past_due", "unpaid", "paused"] as const)(
+    "counts a %s subscription as live",
+    async (status) => {
+      subscriptionsList.mockResolvedValue(listed(subscription(status)));
+      expect(await findLiveSubscriptionId("cus_1")).toBe("sub_1");
+    },
+  );
+
+  it("is null when every subscription has ended", async () => {
+    subscriptionsList.mockResolvedValue(listed(subscription("canceled")));
+    expect(await findLiveSubscriptionId("cus_1")).toBeNull();
+  });
+
+  it("is null for a customer with no subscriptions", async () => {
+    subscriptionsList.mockResolvedValue(listed());
+    expect(await findLiveSubscriptionId("cus_1")).toBeNull();
+  });
+});
+
+describe("cancelCustomerSubscriptions", () => {
+  it("cancels every live subscription, skipping ended ones", async () => {
+    subscriptionsList.mockResolvedValue(
+      listed(
+        subscription("active", "cus_1", "sub_monthly"),
+        subscription("canceled", "cus_1", "sub_old"),
+        subscription("trialing", "cus_1", "sub_yearly"),
+      ),
+    );
+    subscriptionsCancel.mockResolvedValue(subscription("canceled"));
+
+    expect(await cancelCustomerSubscriptions("cus_1")).toBe(2);
+    expect(subscriptionsCancel.mock.calls).toEqual([["sub_monthly"], ["sub_yearly"]]);
+  });
+
+  it("cancels nothing for a customer with none live", async () => {
+    subscriptionsList.mockResolvedValue(listed(subscription("canceled")));
+
+    expect(await cancelCustomerSubscriptions("cus_1")).toBe(0);
+    expect(subscriptionsCancel).not.toHaveBeenCalled();
+  });
+
+  it("throws when a cancel fails", async () => {
+    subscriptionsList.mockResolvedValue(listed(subscription("active")));
+    subscriptionsCancel.mockRejectedValue(new Error("stripe down"));
+    subscriptionsRetrieve.mockResolvedValue(subscription("active"));
+
+    await expect(cancelCustomerSubscriptions("cus_1")).rejects.toThrow("stripe down");
+  });
+});
+
+describe("clearSubscription", () => {
+  it("ends Pro and clears the stored subscription for that user", async () => {
+    await clearSubscription("user-1");
+
+    expect(prisma.user.update).toHaveBeenCalledWith({
+      where: { id: "user-1" },
+      data: { isPro: false, stripeSubscriptionId: null },
+    });
   });
 });

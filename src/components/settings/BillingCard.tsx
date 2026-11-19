@@ -1,7 +1,10 @@
+import Link from "next/link";
+
 import { FormMessage } from "@/components/auth/FormMessage";
+import { CheckoutPendingRefresh } from "@/components/settings/CheckoutPendingRefresh";
 import { ManageBillingButton } from "@/components/settings/ManageBillingButton";
-import { UpgradeButtons } from "@/components/settings/UpgradeButtons";
 import { Badge } from "@/components/ui/badge";
+import { buttonVariants } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -10,47 +13,33 @@ import {
   CardTitle,
 } from "@/components/ui/card";
 import type { BillingStatus } from "@/lib/db/billing";
-import { FREE_COLLECTION_LIMIT, FREE_ITEM_LIMIT, type BillingInterval } from "@/lib/plans";
+import { FREE_COLLECTION_LIMIT, FREE_ITEM_LIMIT, UPGRADE_PATH } from "@/lib/plans";
 import type { Usage } from "@/lib/usage-limits";
-
-/** The `?checkout=` value Stripe redirects back with. */
-export type CheckoutOutcome = "success" | "canceled";
 
 interface BillingCardProps {
   billing: BillingStatus;
   usage: Usage;
-  checkout: CheckoutOutcome | null;
-  preferredInterval: BillingInterval;
+  /** Stripe redirected back here from a finished Checkout. */
+  checkoutSucceeded: boolean;
 }
 
-interface CheckoutNoticeProps {
-  checkout: CheckoutOutcome;
-  isPro: boolean;
-}
-
-function CheckoutNotice({ checkout, isPro }: Readonly<CheckoutNoticeProps>) {
-  if (checkout === "canceled") {
-    return (
-      <FormMessage tone="info">Checkout canceled. You&apos;re still on the Free plan.</FormMessage>
-    );
-  }
+function CheckoutNotice({ isPro }: Readonly<{ isPro: boolean }>) {
   return isPro ? (
     <FormMessage tone="success">Welcome to Pro! Everything is unlocked.</FormMessage>
   ) : (
-    <FormMessage tone="info">Finishing up your upgrade… refresh in a moment.</FormMessage>
+    <>
+      <FormMessage tone="info">Finishing up your upgrade… refresh in a moment.</FormMessage>
+      <CheckoutPendingRefresh />
+    </>
   );
 }
 
 /**
- * Plan & billing on /settings: the plan, usage against the Free limits and the
- * Stripe buttons. Past subscribers keep "Manage subscription" for their invoices.
+ * Plan & billing on /settings: the plan, usage against the Free limits, a link
+ * to /upgrade for Free users and the Customer Portal for subscribers. Past
+ * subscribers keep "Manage subscription" for their invoices.
  */
-export function BillingCard({
-  billing,
-  usage,
-  checkout,
-  preferredInterval,
-}: Readonly<BillingCardProps>) {
+export function BillingCard({ billing, usage, checkoutSucceeded }: Readonly<BillingCardProps>) {
   return (
     <Card id="billing" className="scroll-mt-6">
       <CardHeader>
@@ -62,7 +51,7 @@ export function BillingCard({
         </CardDescription>
       </CardHeader>
       <CardContent className="flex flex-col gap-4">
-        {checkout && <CheckoutNotice checkout={checkout} isPro={billing.isPro} />}
+        {checkoutSucceeded && <CheckoutNotice isPro={billing.isPro} />}
 
         <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-1 text-sm">
           <dt className="text-muted-foreground">Plan</dt>
@@ -83,8 +72,21 @@ export function BillingCard({
           </dd>
         </dl>
 
-        {!billing.isPro && <UpgradeButtons preferred={preferredInterval} />}
-        {(billing.isPro || billing.hasCustomer) && <ManageBillingButton />}
+        {billing.isDemo ? (
+          <p className="text-sm text-muted-foreground">
+            Billing is closed on the shared demo account. Register your own account to upgrade.
+          </p>
+        ) : (
+          <>
+            {/* /upgrade is the one place to pick a plan and start Checkout. */}
+            {!billing.isPro && (
+              <Link href={UPGRADE_PATH} className={buttonVariants({ size: "lg", className: "w-fit" })}>
+                See plans and upgrade
+              </Link>
+            )}
+            {(billing.isPro || billing.hasCustomer) && <ManageBillingButton />}
+          </>
+        )}
       </CardContent>
     </Card>
   );

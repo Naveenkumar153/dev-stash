@@ -3,6 +3,7 @@ import { connection } from "next/server";
 import { Prisma } from "@/generated/prisma/client";
 import { getCurrentUserId } from "@/lib/db/user";
 import { getSubtreeIds, type FolderEntry } from "@/lib/folders";
+import { deleteOrphanedTags } from "@/lib/db/tags";
 import { prisma } from "@/lib/prisma";
 import type { FolderRef } from "@/types/folders";
 
@@ -118,11 +119,16 @@ export function deleteFolderTree(
     const folderIds = getSubtreeIds(links, folderId);
     const items = await tx.item.findMany({
       where: { userId, folderId: { in: folderIds } },
-      select: { id: true, fileUrl: true },
+      select: { id: true, fileUrl: true, tags: { select: { id: true } } },
     });
 
     await tx.item.deleteMany({ where: { userId, id: { in: items.map((item) => item.id) } } });
     await tx.folder.deleteMany({ where: { userId, id: { in: folderIds } } });
+    // The deleted files' tags, if nothing else uses them now.
+    await deleteOrphanedTags(
+      [...new Set(items.flatMap((item) => item.tags.map((tag) => tag.id)))],
+      tx,
+    );
 
     return {
       folders: folderIds.length - 1,

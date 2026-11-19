@@ -5,6 +5,7 @@ import type { z } from "zod";
 import {
   FILE_NOT_FOUND,
   FOLDER_NOT_FOUND,
+  PRO_REQUIRED,
   SESSION_EXPIRED,
   getFieldErrors,
   type FieldErrors,
@@ -32,6 +33,7 @@ import {
 import { hasNameClash, wouldCreateCycle } from "@/lib/folders";
 import { getSessionUserId } from "@/lib/session";
 import { discardStoredFiles } from "@/lib/stored-files";
+import { getSessionEntitlements } from "@/lib/usage-limits";
 import type { DeleteFolderResult, FolderRef, FolderResult, MoveItemResult } from "@/types/folders";
 
 const DESTINATION_NOT_FOUND = "The folder you picked doesn't exist or has been deleted.";
@@ -56,12 +58,21 @@ function saved(folder: FolderRef): FolderResult {
   return { success: true, data: folder, error: null, fieldErrors: {} };
 }
 
-/** Creates a folder for the signed-in user inside `parentId`, or at the top level for null. */
+/**
+ * Creates a folder for the signed-in user inside `parentId`, or at the top
+ * level for null. Folders hold files, a Pro feature, so creating one needs Pro
+ * access; renaming, moving and deleting don't, so a downgraded account can
+ * still tidy up what it has.
+ */
 export async function createFolder(input: CreateFolderInput): Promise<FolderResult> {
-  const userId = await getSessionUserId();
-  if (!userId) {
+  const entitlements = await getSessionEntitlements();
+  if (!entitlements) {
     return failure(SESSION_EXPIRED);
   }
+  if (!entitlements.hasProAccess) {
+    return failure(PRO_REQUIRED);
+  }
+  const { userId } = entitlements;
 
   const parsed = createFolderSchema.safeParse(input);
   if (!parsed.success) {

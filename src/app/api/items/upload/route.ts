@@ -5,17 +5,28 @@ import {
   ITEM_LIMIT_REACHED,
   PRO_REQUIRED,
   SESSION_EXPIRED,
+  STORAGE_QUOTA_REACHED,
   getFieldErrors,
   type FieldErrors,
 } from "@/lib/action-result";
 import { errorResponse } from "@/lib/api-response";
 import { ownsCollections } from "@/lib/db/collections";
 import { findFolder } from "@/lib/db/folders";
-import { createFileItem } from "@/lib/db/items";
-import { MAX_UPLOAD_BYTES, buildFileKey, validateUpload } from "@/lib/file-upload";
+import { getStoredBytes } from "@/lib/db/items";
+import { createFileItem } from "@/lib/db/item-writes";
+import {
+  MAX_UPLOAD_BYTES,
+  buildFileKey,
+  getThumbnailKey,
+  hasThumbnail,
+  validateUpload,
+} from "@/lib/file-upload";
 import { createFileItemSchema, type CreateFileItemData } from "@/lib/item-schemas";
+import { STORAGE_QUOTA_BYTES } from "@/lib/plans";
 import { putFile } from "@/lib/r2";
+import { getRateLimitMessage, getRetryAfterSeconds, rateLimit } from "@/lib/rate-limit";
 import { discardStoredFiles } from "@/lib/stored-files";
+import { storeThumbnail } from "@/lib/thumbnails";
 import { canCreateItem, getSessionEntitlements } from "@/lib/usage-limits";
 import type { UploadItemResponse } from "@/types/items";
 
@@ -45,9 +56,23 @@ export async function POST(request: Request) {
     return uploadFailure(PRO_REQUIRED, 403);
   }
 
-  // Refuse an oversized body before buffering it. The file's own size is
+  const limit = await rateLimit("upload", userId);
+  if (!limit.success) {
+    return errorResponse(getRateLimitMessage(limit.reset), 429, {
+      fieldErrors: {},
+      headers: { "Retry-After": String(getRetryAfterSeconds(limit.reset)) },
+    });
+  }
+
+  // Refuse an oversized body before buffering it, and a body of undeclared
+  // length, which `formData()` would read whole before any check could run
+  // (browsers always declare it for a form upload). The file's own size is
   // checked against its type's limit once the form is read.
-  if (Number(request.headers.get("content-length")) > MAX_UPLOAD_BYTES + FORM_OVERHEAD_BYTES) {
+  const declaredLength = request.headers.get("content-length");
+  if (declaredLength === null) {
+    return uploadFailure("The upload must declare its size.", 411);
+  }
+  if (Number(declaredLength) > MAX_UPLOAD_BYTES + FORM_OVERHEAD_BYTES) {
     return uploadFailure("Files can be up to 10 MB.", 413);
   }
 
@@ -81,7 +106,8 @@ export async function POST(request: Request) {
   }
 
   // Checked before the file is stored, so a refused upload costs no R2 write.
-  const limitError = await checkItemLimit(userId, hasProAccess);
+  const limitError =
+    (await checkItemLimit(userId, hasProAccess)) ?? (await checkStorageQuota(userId, file.size));
   if (limitError) {
     return limitError;
   }
@@ -116,6 +142,25 @@ async function checkItemLimit(userId: string, hasProAccess: boolean): Promise<Re
   }
 
   return uploadFailure(ITEM_LIMIT_REACHED, 403);
+}
+
+/**
+ * An error response when storing `size` more bytes would take the account
+ * past its storage allowance; null when it fits. Two uploads at once can each
+ * fit on their own and together pass it slightly; the upload rate limit keeps
+ * that small.
+ */
+async function checkStorageQuota(userId: string, size: number): Promise<Response | null> {
+  try {
+    if ((await getStoredBytes(userId)) + size <= STORAGE_QUOTA_BYTES) {
+      return null;
+    }
+  } catch (error) {
+    console.error("Checking the storage quota failed", error);
+    return uploadFailure(ITEM_CREATE_FAILED, 500);
+  }
+
+  return uploadFailure(STORAGE_QUOTA_REACHED, 413, { file: STORAGE_QUOTA_REACHED });
 }
 
 /**
@@ -163,12 +208,18 @@ async function storeAndCreate(
   contentType: string,
 ) {
   const key = buildFileKey(userId, crypto.randomUUID(), file.name);
+  const bytes = new Uint8Array(await file.arrayBuffer());
 
   try {
-    await putFile(key, new Uint8Array(await file.arrayBuffer()), contentType);
+    await putFile(key, bytes, contentType);
   } catch (error) {
     console.error("Storing upload failed", error);
     return uploadFailure("Couldn't upload this file. Please try again.", 502);
+  }
+  // The gallery's small copy; best effort, since the original can stand in.
+  const storedKeys = [key];
+  if (hasThumbnail(file.name) && (await storeThumbnail(key, bytes))) {
+    storedKeys.push(getThumbnailKey(key));
   }
 
   try {
@@ -183,11 +234,11 @@ async function storeAndCreate(
       return Response.json(body, { status: 201 });
     }
 
-    await discardStoredFiles([key]);
+    await discardStoredFiles(storedKeys);
     return uploadFailure("This item type isn't available.", 500);
   } catch (error) {
     console.error("Creating file item failed", error);
-    await discardStoredFiles([key]);
+    await discardStoredFiles(storedKeys);
     return uploadFailure(ITEM_CREATE_FAILED, 500);
   }
 }

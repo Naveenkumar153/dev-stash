@@ -3,13 +3,14 @@ import { connection } from "next/server";
 import { Prisma } from "@/generated/prisma/client";
 import { getAvailableTypes, getItemTypeBySlug } from "@/lib/db/item-types";
 import { getCurrentUserId } from "@/lib/db/user";
-import type { CreateFileItemData, CreateItemData, UpdateItemData } from "@/lib/item-schemas";
 import {
-  compareItemTypeOrder,
-  getEditableItemFields,
-  getItemTypeSlug,
-  requiresUrl,
-} from "@/lib/item-types";
+  getDateFilterStart,
+  getFilterExtensions,
+  isFileFilterActive,
+  type FileFilters,
+} from "@/lib/file-filters";
+import type { FolderFileCounts } from "@/lib/folders";
+import { compareItemTypeOrder, getItemTypeSlug } from "@/lib/item-types";
 import {
   DASHBOARD_RECENT_ITEMS_LIMIT,
   getPageSkip,
@@ -17,10 +18,8 @@ import {
   type Page,
 } from "@/lib/pagination";
 import { prisma } from "@/lib/prisma";
-import { getItemPreview } from "@/lib/search";
 import type { FavoriteItem } from "@/types/favorites";
 import type { FileListItem, ItemDetail, ItemDrawerSummary } from "@/types/items";
-import type { SearchItem } from "@/types/search";
 
 const PINNED_ITEM_LIMIT = 10;
 
@@ -58,7 +57,7 @@ const FILE_LIST_SELECT = {
 } as const;
 
 /** Newest first. createdAt ties break on id so the order is stable. */
-const NEWEST_FIRST = [{ createdAt: "desc" }, { id: "desc" }] as const;
+export const NEWEST_FIRST = [{ createdAt: "desc" }, { id: "desc" }] as const;
 
 /**
  * Most recently changed first. There's no favorited-at column, so updatedAt
@@ -137,55 +136,6 @@ export async function getFavoriteItems(): Promise<FavoriteItem[]> {
   });
 
   return items.map(({ itemType, ...item }) => ({ ...item, typeName: itemType.name }));
-}
-
-/**
- * Sets whether one of `userId`'s items is a favorite, in one scoped statement.
- * Prisma bumps `updatedAt` with it, which is what /favorites sorts by. False
- * when there is no such item or it's someone else's.
- */
-export async function setItemFavorite(
-  userId: string,
-  itemId: string,
-  isFavorite: boolean,
-): Promise<boolean> {
-  try {
-    await prisma.item.update({
-      where: { id: itemId, userId },
-      data: { isFavorite },
-      select: { id: true },
-    });
-    return true;
-  } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
-      return false;
-    }
-    throw error;
-  }
-}
-
-/**
- * Sets whether one of `userId`'s items is pinned, in one scoped statement.
- * False when there is no such item or it's someone else's.
- */
-export async function setItemPinned(
-  userId: string,
-  itemId: string,
-  isPinned: boolean,
-): Promise<boolean> {
-  try {
-    await prisma.item.update({
-      where: { id: itemId, userId },
-      data: { isPinned },
-      select: { id: true },
-    });
-    return true;
-  } catch (error) {
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
-      return false;
-    }
-    throw error;
-  }
 }
 
 /** The latest items, newest first. */
@@ -305,72 +255,95 @@ export async function getCollectionItems(
   return getItemPage({ userId, collections: { some: { collectionId } } }, page);
 }
 
+/** What the files page shows: an open folder's files, or the matches of its filters. */
+export interface FileListQuery {
+  /** The open folder; null at the top level. Ignored while a filter is on. */
+  folderId: string | null;
+  filters: FileFilters;
+  /** The request time; the Uploaded filter's ranges count back from it. */
+  now: Date;
+}
+
+/** The files page's rows plus the counts that describe the rest. */
+export interface FileListPage extends FileItemList {
+  /** Every file the user has, for "N items" and "N of M files". */
+  total: number;
+  /** Files directly in each folder, for its row's count and its delete warning. */
+  folderCounts: FolderFileCounts;
+}
+
 /**
- * Every file for /items/files, in every folder, newest first: the list
- * derives each folder's contents, counts and filtered views from it. Null when
- * the file type isn't in the database, so the route can 404.
+ * The `where` for a filter: uploads from the range's start, and names ending
+ * in one of the category's extensions. The extensions are fixed strings, so
+ * `endsWith` has no wildcard to worry about.
  */
-export async function getFileListItems(): Promise<FileItemList | null> {
+function getFileFilterWhere(filters: FileFilters, now: Date): Prisma.ItemWhereInput {
+  const start = getDateFilterStart(filters.date, now);
+  const extensions = getFilterExtensions(filters.type);
+
+  return {
+    ...(start && { createdAt: { gte: start } }),
+    ...(extensions.length > 0 && {
+      OR: extensions.map((extension) => ({
+        fileName: { endsWith: `.${extension}`, mode: "insensitive" as const },
+      })),
+    }),
+  };
+}
+
+/**
+ * The rows /items/files shows, newest first: the open folder's files, or with
+ * a Type or Uploaded filter on, the matching files in every folder - never
+ * every file the user has. Alongside, one grouped count gives each folder's
+ * file count and the total. Null when the file type isn't in the database, so
+ * the route can 404.
+ */
+export async function getFileListPage({
+  folderId,
+  filters,
+  now,
+}: FileListQuery): Promise<FileListPage | null> {
   const scope = await getTypeListScope(getItemTypeSlug("file"));
   if (!scope) {
     return null;
   }
 
   const { userId, itemType } = scope;
-  const rows = userId
-    ? await prisma.item.findMany({
-        where: { userId, itemTypeId: itemType.id },
-        orderBy: [...NEWEST_FIRST],
-        select: FILE_LIST_SELECT,
-      })
-    : [];
-
-  return { typeName: itemType.name, items: rows.map((row) => ({ ...row, typeName: itemType.name })) };
-}
-
-/** A palette row's columns, plus the payloads its preview is cut from. */
-const SEARCH_ITEM_SELECT = {
-  id: true,
-  title: true,
-  isPinned: true,
-  isFavorite: true,
-  content: true,
-  url: true,
-  fileName: true,
-  itemType: { select: { name: true } },
-} as const;
-
-/**
- * Every item of the current user's for the command palette, newest first, each
- * with a short preview in place of its payload. The full content is read and
- * cut down here, since Prisma can't select a substring without raw SQL, so
- * only the preview reaches the browser.
- *
- * Uncapped: the palette filters in the browser, so an item left out here could
- * never be found.
- */
-export async function getSearchItems(): Promise<SearchItem[]> {
-  const userId = await getCurrentUserId();
-
   if (!userId) {
-    return [];
+    return { typeName: itemType.name, items: [], total: 0, folderCounts: {} };
   }
 
-  const rows = await prisma.item.findMany({
-    where: { userId },
-    orderBy: [...NEWEST_FIRST],
-    select: SEARCH_ITEM_SELECT,
-  });
+  const owned = { userId, itemTypeId: itemType.id };
+  const [rows, groups] = await Promise.all([
+    prisma.item.findMany({
+      where: isFileFilterActive(filters)
+        ? { ...owned, ...getFileFilterWhere(filters, now) }
+        : { ...owned, folderId },
+      orderBy: [...NEWEST_FIRST],
+      select: FILE_LIST_SELECT,
+    }),
+    prisma.item.groupBy({ by: ["folderId"], where: owned, _count: { _all: true } }),
+  ]);
 
-  return rows.map(({ itemType, content, url, fileName, ...item }) => ({
-    ...item,
+  const folderCounts: Record<string, number> = {};
+  let total = 0;
+  for (const group of groups) {
+    total += group._count._all;
+    if (group.folderId !== null) {
+      folderCounts[group.folderId] = group._count._all;
+    }
+  }
+
+  return {
     typeName: itemType.name,
-    preview: getItemPreview({ content, url, fileName }),
-  }));
+    items: rows.map((row) => ({ ...row, typeName: itemType.name })),
+    total,
+    folderCounts,
+  };
 }
 
 /** What the drawer shows on top of the card: the payload, collections and dates. */
-const ITEM_DETAIL_SELECT = {
+export const ITEM_DETAIL_SELECT = {
   id: true,
   title: true,
   description: true,
@@ -414,7 +387,7 @@ export async function getItemDetail(id: string): Promise<ItemDetail | null> {
 
 type ItemDetailRow = Prisma.ItemGetPayload<{ select: typeof ITEM_DETAIL_SELECT }>;
 
-function toItemDetail({
+export function toItemDetail({
   itemType,
   tags,
   collections,
@@ -432,121 +405,13 @@ function toItemDetail({
   };
 }
 
-/** Connects each tag by name, creating it first if no item uses it yet. */
-function connectTags(names: string[]) {
-  return names.map((name) => ({ where: { name }, create: { name } }));
-}
-
-/**
- * A new item's memberships, one join row per collection. The caller has
- * already checked the collections are the user's.
- */
-function addToCollections(collectionIds: string[]) {
-  return { create: collectionIds.map((collectionId) => ({ collectionId })) };
-}
-
-/**
- * Replaces an item's memberships with `collectionIds`: rows for collections
- * left out are deleted and rows for new ones added, while a collection the
- * item stays in keeps its row, and with it the date it was added.
- */
-function replaceCollections(collectionIds: string[]) {
-  return {
-    deleteMany: { collectionId: { notIn: collectionIds } },
-    createMany: {
-      data: collectionIds.map((collectionId) => ({ collectionId })),
-      skipDuplicates: true,
-    },
-  };
-}
-
-/**
- * Creates an item of a system type for `userId` and returns it as the drawer
- * shows it. Null when that system type isn't in the database. Only the
- * type-specific fields the type uses are written, so a crafted request can't
- * put a URL on a snippet; a link stores a `url` payload, every other type text.
- */
-export async function createItem(
-  userId: string,
-  data: CreateItemData,
-): Promise<ItemDetail | null> {
-  const itemType = await prisma.itemType.findFirst({
-    where: { name: data.typeName, isSystem: true, userId: null },
-    select: { id: true },
+/** Total bytes of the files `userId` has stored, for the upload quota. */
+export async function getStoredBytes(userId: string): Promise<number> {
+  const { _sum } = await prisma.item.aggregate({
+    where: { userId, fileSize: { not: null } },
+    _sum: { fileSize: true },
   });
-
-  if (!itemType) {
-    return null;
-  }
-
-  const fields = getEditableItemFields(data.typeName);
-
-  const item = await prisma.item.create({
-    data: {
-      title: data.title,
-      description: data.description,
-      contentType: fields.url ? "url" : "text",
-      content: fields.content ? data.content : null,
-      language: fields.language ? data.language : null,
-      url: fields.url ? data.url : null,
-      user: { connect: { id: userId } },
-      itemType: { connect: { id: itemType.id } },
-      tags: { connectOrCreate: connectTags(data.tags) },
-      collections: addToCollections(data.collectionIds),
-    },
-    select: ITEM_DETAIL_SELECT,
-  });
-
-  return toItemDetail(item);
-}
-
-/** An upload already stored in R2, ready to attach to a new item. */
-export interface StoredUpload {
-  /** Where the file lives in R2. Saved in `Item.fileUrl`. */
-  key: string;
-  fileName: string;
-  fileSize: number;
-}
-
-/**
- * Creates a file or image item for `userId` around a file already stored in
- * R2, inside `data.folderId` when set, and returns it as the drawer shows it.
- * Null when that system type isn't in the database, so the caller can remove
- * the stored file.
- */
-export async function createFileItem(
-  userId: string,
-  data: CreateFileItemData,
-  upload: StoredUpload,
-): Promise<ItemDetail | null> {
-  const itemType = await prisma.itemType.findFirst({
-    where: { name: data.typeName, isSystem: true, userId: null },
-    select: { id: true },
-  });
-
-  if (!itemType) {
-    return null;
-  }
-
-  const item = await prisma.item.create({
-    data: {
-      title: data.title,
-      description: data.description,
-      contentType: "file",
-      fileUrl: upload.key,
-      fileName: upload.fileName,
-      fileSize: upload.fileSize,
-      // The upload route has already checked the folder is this user's.
-      ...(data.folderId && { folder: { connect: { id: data.folderId } } }),
-      user: { connect: { id: userId } },
-      itemType: { connect: { id: itemType.id } },
-      tags: { connectOrCreate: connectTags(data.tags) },
-      collections: addToCollections(data.collectionIds),
-    },
-    select: ITEM_DETAIL_SELECT,
-  });
-
-  return toItemDetail(item);
+  return _sum.fileSize ?? 0;
 }
 
 export interface ItemFile {
@@ -577,97 +442,6 @@ export async function getItemFile(id: string): Promise<ItemFile | null> {
   }
 
   return { key: item.fileUrl, fileName: item.fileName };
-}
-
-/** How saving the drawer's edits ended. */
-export type UpdateItemOutcome =
-  | { status: "saved"; item: ItemDetail }
-  /** No such item, or it belongs to someone else. */
-  | { status: "not-found" }
-  /** The item's type needs a URL (a link) and the edit cleared it. */
-  | { status: "url-required" };
-
-/**
- * Saves the drawer's edits to one of `userId`'s items and returns it as the
- * drawer shows it. Only the type-specific fields the item's type edits are
- * written, and the tags are replaced: every current one is disconnected, then
- * each name is connected, created first if no item uses it yet. The
- * collections are replaced too; the caller has checked they're the user's. The edit
- * payload carries no type, so a link losing its URL is caught here, once the
- * stored type is known.
- */
-export async function updateItem(
-  itemId: string,
-  userId: string,
-  data: UpdateItemData,
-): Promise<UpdateItemOutcome> {
-  const owned = await prisma.item.findFirst({
-    where: { id: itemId, userId },
-    select: { itemType: { select: { name: true } } },
-  });
-
-  if (!owned) {
-    return { status: "not-found" };
-  }
-
-  if (requiresUrl(owned.itemType.name) && !data.url) {
-    return { status: "url-required" };
-  }
-
-  const fields = getEditableItemFields(owned.itemType.name);
-
-  try {
-    const item = await prisma.item.update({
-      // Scoped to the owner again, so the write itself can't land elsewhere.
-      where: { id: itemId, userId },
-      data: {
-        title: data.title,
-        description: data.description,
-        ...(fields.content && { content: data.content }),
-        ...(fields.language && { language: data.language }),
-        ...(fields.url && { url: data.url }),
-        tags: { set: [], connectOrCreate: connectTags(data.tags) },
-        collections: replaceCollections(data.collectionIds),
-      },
-      select: ITEM_DETAIL_SELECT,
-    });
-
-    return { status: "saved", item: toItemDetail(item) };
-  } catch (error) {
-    // Deleted between the lookup and the write.
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
-      return { status: "not-found" };
-    }
-    throw error;
-  }
-}
-
-export interface DeletedItem {
-  /** Where the item's file was stored in R2, for the caller to remove. Null for non-file items. */
-  fileKey: string | null;
-}
-
-/**
- * Deletes one of `userId`'s items. Ownership and the delete are one statement,
- * so there's no window between checking and deleting. Null when there is no
- * such item or it belongs to someone else. Its collection memberships cascade
- * and its tag links go with it; the tags themselves stay.
- */
-export async function deleteItem(itemId: string, userId: string): Promise<DeletedItem | null> {
-  try {
-    const item = await prisma.item.delete({
-      where: { id: itemId, userId },
-      select: { fileUrl: true },
-    });
-
-    return { fileKey: item.fileUrl };
-  } catch (error) {
-    // No such item, or not this user's.
-    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
-      return null;
-    }
-    throw error;
-  }
 }
 
 export interface ItemTypeCount {

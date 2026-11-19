@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 
 import {
   BILLING_SETTINGS_PATH,
+  FREE_PLAN_FEATURES,
+  getProPrice,
   getUpgradePath,
   getYearlySavingsPercent,
   parseBillingInterval,
@@ -40,4 +42,23 @@ describe("parseBillingInterval", () => {
       expect(parseBillingInterval(value)).toBe("monthly");
     },
   );
+});
+
+describe("getProPrice", () => {
+  it("shows $8 billed monthly", () => {
+    expect(getProPrice("monthly")).toEqual({ amount: "$8", billed: "billed monthly" });
+  });
+
+  it("shows the yearly price per month and the yearly total", () => {
+    expect(getProPrice("yearly")).toEqual({ amount: "$6", billed: "billed $72/year" });
+  });
+});
+
+describe("FREE_PLAN_FEATURES", () => {
+  it("states the Free limits from the plan constants", () => {
+    expect(FREE_PLAN_FEATURES.slice(0, 2).map((feature) => feature.label)).toEqual([
+      "50 items",
+      "3 collections",
+    ]);
+  });
 });

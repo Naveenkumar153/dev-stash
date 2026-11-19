@@ -28,6 +28,26 @@ export async function readJsonBody(request: Request, maxBytes: number): Promise<
   }
 }
 
+export type TextBodyResult = { ok: true; body: string } | { ok: false; status: 413; error: string };
+
+/**
+ * A request's body as text, refused (413) past `maxBytes` the same way as
+ * `readJsonBody`: a declared `Content-Length` over the cap unread, a chunked
+ * body once it passes the cap. For bodies that must stay raw, such as a
+ * signed webhook payload.
+ */
+export async function readTextBody(request: Request, maxBytes: number): Promise<TextBodyResult> {
+  if (Number(request.headers.get("content-length")) > maxBytes) {
+    return { ok: false, status: 413, error: BODY_TOO_LARGE };
+  }
+
+  const bytes = await readCapped(request, maxBytes);
+  if (!bytes) {
+    return { ok: false, status: 413, error: BODY_TOO_LARGE };
+  }
+  return { ok: true, body: new TextDecoder().decode(bytes) };
+}
+
 /** The body's bytes, or null once more than `maxBytes` have arrived. */
 async function readCapped(request: Request, maxBytes: number): Promise<Uint8Array | null> {
   if (!request.body) {

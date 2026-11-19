@@ -2,6 +2,7 @@ import type Stripe from "stripe";
 
 import { errorResponse } from "@/lib/api-response";
 import { syncSubscription } from "@/lib/db/billing";
+import { readTextBody } from "@/lib/request-body";
 import { getStripe, getWebhookSecret, toId } from "@/lib/stripe";
 
 /**
@@ -15,19 +16,35 @@ import { getStripe, getWebhookSecret, toId } from "@/lib/stripe";
  * payload, so retried, duplicated and out-of-order events all converge on
  * Stripe's current state.
  */
+// Stripe's events are a few kilobytes; anything near this isn't one.
+const MAX_WEBHOOK_BYTES = 1024 * 1024;
+
 export async function POST(request: Request) {
   const signature = request.headers.get("stripe-signature");
   if (!signature) {
     return errorResponse("Missing Stripe signature.", 400);
   }
 
+  // Read before the signature check so a missing secret shows up as the
+  // configuration error it is (a 500 Stripe retries), not as a bad signature.
+  let secret: string;
+  try {
+    secret = getWebhookSecret();
+  } catch (error) {
+    console.error("Stripe webhook is not configured", error);
+    return errorResponse("Webhook is not configured.", 500);
+  }
+
+  // Capped, so any request with some `stripe-signature` header can't make
+  // this buffer an unbounded body before the check rejects it.
+  const payload = await readTextBody(request, MAX_WEBHOOK_BYTES);
+  if (!payload.ok) {
+    return errorResponse(payload.error, payload.status);
+  }
+
   let event: Stripe.Event;
   try {
-    event = getStripe().webhooks.constructEvent(
-      await request.text(),
-      signature,
-      getWebhookSecret(),
-    );
+    event = getStripe().webhooks.constructEvent(payload.body, signature, secret);
   } catch (error) {
     console.error("Stripe webhook signature check failed", error);
     return errorResponse("Invalid Stripe signature.", 400);

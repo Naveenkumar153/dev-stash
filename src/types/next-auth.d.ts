@@ -15,5 +15,7 @@ declare module "next-auth" {
 declare module "next-auth/jwt" {
   interface JWT {
     isPro?: boolean;
+    /** `User.sessionVersion` when issued; a lower value than the row's ends the session. Absent reads as 0. */
+    sessionVersion?: number;
   }
 }

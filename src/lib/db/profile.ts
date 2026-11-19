@@ -1,8 +1,8 @@
 import { cache } from "react";
 
-import { auth } from "@/auth";
 import { countItemsByType, type ItemTypeCount } from "@/lib/db/items";
 import { prisma } from "@/lib/prisma";
+import { getSession } from "@/lib/session";
 
 export interface ProfileUser {
   id: string;
@@ -26,7 +26,7 @@ export interface ProfileStats {
  * signed out, or when the session outlived its user.
  */
 export const getProfileUser = cache(async (): Promise<ProfileUser | null> => {
-  const session = await auth();
+  const session = await getSession();
   if (!session?.user?.id) {
     return null;
   }

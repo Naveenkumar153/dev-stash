@@ -20,7 +20,7 @@ import {
   setItemFavorite as setItemFavoriteRecord,
   setItemPinned,
   updateItem as updateItemRecord,
-} from "@/lib/db/items";
+} from "@/lib/db/item-writes";
 import { isFavoriteSchema } from "@/lib/favorite-schemas";
 import {
   createItemSchema,
@@ -32,8 +32,9 @@ import {
   type UpdateItemInput,
 } from "@/lib/item-schemas";
 import { getSessionUserId } from "@/lib/session";
+import { getThumbnailKey } from "@/lib/file-upload";
 import { discardStoredFiles } from "@/lib/stored-files";
-import { canCreateItem, getSessionEntitlements } from "@/lib/usage-limits";
+import { createItemWithinLimit, getSessionEntitlements } from "@/lib/usage-limits";
 import type { SetFavoriteResult } from "@/types/favorites";
 import type {
   CreateItemResult,
@@ -69,19 +70,22 @@ export async function createItem(data: CreateItemInput): Promise<CreateItemResul
   }
 
   try {
-    if (!(await canCreateItem(userId, hasProAccess)).allowed) {
-      return failure(ITEM_LIMIT_REACHED);
-    }
     if (!(await ownsCollections(userId, parsed.data.collectionIds))) {
       return collectionsFailure();
     }
 
-    const item = await createItemRecord(userId, parsed.data);
-    if (!item) {
+    // The Free limit's count and the insert share one transaction.
+    const created = await createItemWithinLimit(userId, hasProAccess, (db) =>
+      createItemRecord(userId, parsed.data, db),
+    );
+    if (!created.allowed) {
+      return failure(ITEM_LIMIT_REACHED);
+    }
+    if (!created.value) {
       return failure("This item type isn't available.");
     }
 
-    return { success: true, data: item, error: null, fieldErrors: {} };
+    return { success: true, data: created.value, error: null, fieldErrors: {} };
   } catch (error) {
     console.error("Creating item failed", error);
     return failure(ITEM_CREATE_FAILED);
@@ -166,7 +170,8 @@ export async function deleteItem(itemId: string): Promise<DeleteItemResult> {
 
   // The row is already gone, so a failure here only leaves an unreachable file.
   if (deleted.fileKey) {
-    await discardStoredFiles([deleted.fileKey]);
+    // The thumbnail too, if the item was an image; deleting a missing key is a no-op.
+    await discardStoredFiles([deleted.fileKey, getThumbnailKey(deleted.fileKey)]);
   }
 
   return { success: true, data: { id: itemId }, error: null };

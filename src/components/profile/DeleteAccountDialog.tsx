@@ -16,6 +16,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { callAction } from "@/lib/action-call";
 
 interface DeleteAccountDialogProps {
   /** A Pro subscriber's subscription is canceled with the account. */
@@ -28,8 +29,8 @@ export function DeleteAccountDialog({ isPro }: Readonly<DeleteAccountDialogProps
   // A successful delete signs out and redirects, so only failures come back.
   function handleDelete() {
     startTransition(async () => {
-      const result = await deleteAccount();
-      if (!result.success) {
+      const result = await callAction(() => deleteAccount());
+      if (result && !result.success) {
         toast.error(result.error ?? "Could not delete your account. Please try again.");
       }
     });

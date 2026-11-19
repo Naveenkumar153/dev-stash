@@ -18,6 +18,7 @@ import {
   AlertDialogTrigger,
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
+import { callAction } from "@/lib/action-call";
 
 interface ItemDeleteDialogProps {
   itemId: string;
@@ -48,7 +49,10 @@ export function ItemDeleteDialog({ itemId, itemTitle, enabled, onDeleted }: Item
 
   function handleDelete() {
     startTransition(async () => {
-      const result = await deleteItem(itemId);
+      const result = await callAction(() => deleteItem(itemId));
+      if (!result) {
+        return;
+      }
 
       if (!result.success) {
         toast.error(result.error ?? "Couldn't delete this item. Please try again.");

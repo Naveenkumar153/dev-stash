@@ -13,12 +13,12 @@ export interface SearchDataState {
 }
 
 /**
- * The command palette's data, loaded when the app shell mounts. `refresh()`
- * loads it again in the background - the palette calls it on every open, so
- * items and collections created, edited or deleted since still show correctly,
- * while the previous data stays on screen until the new data arrives. Each
- * refresh cancels the one before it, so a slow reply can't overwrite a newer
- * one.
+ * The command palette's data. Nothing loads until `refresh()` - the palette
+ * calls it on every open - so a page view that never opens the palette costs
+ * no search query. The first open shows "Loading..."; later opens keep the
+ * previous data on screen while the new data loads, so items and collections
+ * created, edited or deleted since still show correctly. Each refresh cancels
+ * the one before it, so a slow reply can't overwrite a newer one.
  */
 export function useSearchData() {
   const [state, setState] = useState<SearchDataState>({ data: null, error: null });
@@ -60,11 +60,8 @@ export function useSearchData() {
     void startLoad().then(applyLoad);
   }, [startLoad, applyLoad]);
 
-  useEffect(() => {
-    void startLoad().then(applyLoad);
-
-    return () => controllerRef.current?.abort();
-  }, [startLoad, applyLoad]);
+  // Only cleanup: the first load waits for the palette to open.
+  useEffect(() => () => controllerRef.current?.abort(), []);
 
   return { ...state, refresh };
 }

@@ -5,22 +5,31 @@ import { POST } from "@/app/api/items/upload/route";
 import { auth } from "@/auth";
 import { ownsCollections } from "@/lib/db/collections";
 import { findFolder } from "@/lib/db/folders";
-import { createFileItem } from "@/lib/db/items";
+import { getStoredBytes } from "@/lib/db/items";
+import { createFileItem } from "@/lib/db/item-writes";
 import { deleteFile, putFile } from "@/lib/r2";
+import { rateLimit } from "@/lib/rate-limit";
+import { storeThumbnail } from "@/lib/thumbnails";
 import { canCreateItem } from "@/lib/usage-limits";
 import type { ItemDetail } from "@/types/items";
 
 // The session, the query and R2 are mocked; the upload rules and the Zod
 // schema run for real, so these tests also cover what reaches R2 and the database.
 vi.mock("@/auth", () => ({ auth: vi.fn() }));
-vi.mock("@/lib/db/items", () => ({ createFileItem: vi.fn() }));
+vi.mock("@/lib/db/items", () => ({ getStoredBytes: vi.fn() }));
+vi.mock("@/lib/db/item-writes", () => ({ createFileItem: vi.fn() }));
 vi.mock("@/lib/db/folders", () => ({ findFolder: vi.fn() }));
 vi.mock("@/lib/db/collections", () => ({ ownsCollections: vi.fn() }));
 vi.mock("@/lib/r2", () => ({ putFile: vi.fn(), deleteFile: vi.fn() }));
+vi.mock("@/lib/thumbnails", () => ({ storeThumbnail: vi.fn() }));
 // The entitlements and the Pro gate run for real against the mocked session;
 // only the item-limit count is stubbed, since it can only refuse an account
 // the Pro gate has already let through.
 vi.mock("@/lib/prisma", () => ({ prisma: {} }));
+vi.mock("@/lib/rate-limit", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/rate-limit")>()),
+  rateLimit: vi.fn(),
+}));
 vi.mock("@/lib/usage-limits", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/usage-limits")>()),
   canCreateItem: vi.fn(),
@@ -77,8 +86,23 @@ function uploadRequest({ fields = {}, file }: FormOptions = {}) {
   return new Request("http://localhost/api/items/upload", { method: "POST", body: form });
 }
 
+/**
+ * Declares the body's length the way a browser does for a form upload; a
+ * `Request` built in Node leaves it unset, which the route refuses.
+ */
+async function withLength(request: Request): Promise<Request> {
+  if (request.headers.has("content-length") || !request.body) {
+    return request;
+  }
+  // Read from a clone, so tests can still check the original went unread.
+  const body = await request.clone().arrayBuffer();
+  const headers = new Headers(request.headers);
+  headers.set("content-length", String(body.byteLength));
+  return new Request(request.url, { method: request.method, headers, body });
+}
+
 async function send(request: Request) {
-  const response = await POST(request);
+  const response = await POST(await withLength(request));
   return { status: response.status, body: await response.json() };
 }
 
@@ -89,6 +113,117 @@ describe("POST /api/items/upload", () => {
     vi.mocked(createFileItem).mockResolvedValue(created);
     vi.mocked(ownsCollections).mockResolvedValue(true);
     vi.mocked(canCreateItem).mockResolvedValue({ allowed: true });
+    vi.mocked(rateLimit).mockResolvedValue({ success: true, remaining: 29, reset: 0 });
+    vi.mocked(getStoredBytes).mockResolvedValue(0);
+  });
+
+  it("refuses a file that would pass the 1 GB storage quota, before storing it", async () => {
+    mockAuth.mockResolvedValue({ user: { id: "user-1", isPro: true }, expires: "2099-01-01T00:00:00.000Z" });
+    // 21 bytes of config.toml on top of 1 GB minus 10 bytes.
+    vi.mocked(getStoredBytes).mockResolvedValue(1024 ** 3 - 10);
+
+    const { status, body } = await send(uploadRequest());
+
+    expect(status).toBe(413);
+    expect(body.error).toBe(
+      "This upload would go over your 1 GB of storage. Delete some files to make room.",
+    );
+    expect(body.fieldErrors).toEqual({ file: body.error });
+    expect(getStoredBytes).toHaveBeenCalledWith("user-1");
+    expect(putFile).not.toHaveBeenCalled();
+  });
+
+  it("accepts a file that exactly fills the quota", async () => {
+    mockAuth.mockResolvedValue({ user: { id: "user-1", isPro: true }, expires: "2099-01-01T00:00:00.000Z" });
+    vi.mocked(getStoredBytes).mockResolvedValue(1024 ** 3 - 21);
+
+    expect((await send(uploadRequest())).status).toBe(201);
+  });
+
+  it("answers a failed quota lookup with a 500, storing nothing", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    mockAuth.mockResolvedValue({ user: { id: "user-1", isPro: true }, expires: "2099-01-01T00:00:00.000Z" });
+    vi.mocked(getStoredBytes).mockRejectedValue(new Error("connection lost"));
+
+    expect((await send(uploadRequest())).status).toBe(500);
+    expect(putFile).not.toHaveBeenCalled();
+  });
+
+  describe("an image upload", () => {
+    const png = () =>
+      new File([new Uint8Array([0x89, 0x50, 0x4e, 0x47])], "shot.png", { type: "image/png" });
+
+    beforeEach(() => {
+      mockAuth.mockResolvedValue({ user: { id: "user-1", isPro: true }, expires: "2099-01-01T00:00:00.000Z" });
+      vi.mocked(createFileItem).mockResolvedValue({ ...created, typeName: "image", fileName: "shot.png" });
+    });
+
+    it("also stores a gallery thumbnail of it", async () => {
+      vi.mocked(storeThumbnail).mockResolvedValue(new Uint8Array([1]));
+
+      expect((await send(uploadRequest({ fields: { typeName: "image" }, file: png() }))).status).toBe(201);
+      expect(storeThumbnail).toHaveBeenCalledWith(
+        `user-1/${UPLOAD_ID}-shot.png`,
+        new Uint8Array([0x89, 0x50, 0x4e, 0x47]),
+      );
+    });
+
+    it("still succeeds when the thumbnail can't be made", async () => {
+      vi.mocked(storeThumbnail).mockResolvedValue(null);
+
+      expect((await send(uploadRequest({ fields: { typeName: "image" }, file: png() }))).status).toBe(201);
+    });
+
+    it("removes the original and its thumbnail when the item can't be saved", async () => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      vi.mocked(storeThumbnail).mockResolvedValue(new Uint8Array([1]));
+      vi.mocked(createFileItem).mockRejectedValue(new Error("connection lost"));
+
+      await send(uploadRequest({ fields: { typeName: "image" }, file: png() }));
+
+      expect(deleteFile).toHaveBeenCalledWith(`user-1/${UPLOAD_ID}-shot.png`);
+      expect(deleteFile).toHaveBeenCalledWith(`user-1/${UPLOAD_ID}-shot.png.thumb.webp`);
+    });
+  });
+
+  it("makes no thumbnail for a file that isn't a raster image", async () => {
+    mockAuth.mockResolvedValue({ user: { id: "user-1", isPro: true }, expires: "2099-01-01T00:00:00.000Z" });
+
+    await send(uploadRequest());
+
+    expect(storeThumbnail).not.toHaveBeenCalled();
+  });
+
+  it("counts each upload against the user's upload limit", async () => {
+    mockAuth.mockResolvedValue({ user: { id: "user-1", isPro: true }, expires: "2099-01-01T00:00:00.000Z" });
+
+    await send(uploadRequest());
+
+    expect(rateLimit).toHaveBeenCalledWith("upload", "user-1");
+  });
+
+  it("refuses an upload over the limit with a 429 and Retry-After, before reading it", async () => {
+    mockAuth.mockResolvedValue({ user: { id: "user-1", isPro: true }, expires: "2099-01-01T00:00:00.000Z" });
+    vi.mocked(rateLimit).mockResolvedValue({ success: false, remaining: 0, reset: Date.now() + 60_000 });
+    const request = await withLength(uploadRequest());
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(429);
+    expect(response.headers.get("Retry-After")).toBe("60");
+    expect(request.bodyUsed).toBe(false);
+    expect(putFile).not.toHaveBeenCalled();
+  });
+
+  it("refuses a body of undeclared length with a 411, without reading it", async () => {
+    mockAuth.mockResolvedValue({ user: { id: "user-1", isPro: true }, expires: "2099-01-01T00:00:00.000Z" });
+    const request = uploadRequest();
+
+    const response = await POST(request);
+
+    expect(response.status).toBe(411);
+    expect(request.bodyUsed).toBe(false);
+    expect(putFile).not.toHaveBeenCalled();
   });
 
   it("stores the file in R2 under the user, then creates the item pointing at it", async () => {

@@ -4,6 +4,12 @@
  * client islands, `action-result.ts` and the server all read one copy.
  */
 
+/**
+ * Bytes of uploaded files one account can store in R2. Uploads are Pro-only,
+ * so this is Pro's storage allowance.
+ */
+export const STORAGE_QUOTA_BYTES = 1024 ** 3;
+
 /** Free-tier caps. Pro has none. */
 export const FREE_ITEM_LIMIT = 50;
 export const FREE_COLLECTION_LIMIT = 3;
@@ -16,6 +22,46 @@ export const PRO_PRICES = { monthly: 8, yearly: 72 } as const satisfies Record<
   BillingInterval,
   number
 >;
+
+function formatDollars(amount: number): string {
+  return Number.isInteger(amount) ? `$${amount}` : `$${amount.toFixed(2)}`;
+}
+
+/** Pro's per-month amount and billing note for a billing interval. */
+export function getProPrice(interval: BillingInterval): { amount: string; billed: string } {
+  if (interval === "yearly") {
+    return {
+      amount: formatDollars(PRO_PRICES.yearly / 12),
+      billed: `billed ${formatDollars(PRO_PRICES.yearly)}/year`,
+    };
+  }
+  return { amount: formatDollars(PRO_PRICES.monthly), billed: "billed monthly" };
+}
+
+/** A line on a plan card's checklist. */
+export interface PlanFeature {
+  label: string;
+  included: boolean;
+}
+
+/** What each plan's card lists, on the homepage's pricing section and /upgrade. */
+export const FREE_PLAN_FEATURES: readonly PlanFeature[] = [
+  { label: `${FREE_ITEM_LIMIT} items`, included: true },
+  { label: `${FREE_COLLECTION_LIMIT} collections`, included: true },
+  { label: "Snippets, Prompts, Commands, Notes, Links", included: true },
+  { label: "Basic search", included: true },
+  { label: "File & image uploads", included: false },
+  { label: "AI features", included: false },
+];
+
+export const PRO_PLAN_FEATURES: readonly PlanFeature[] = [
+  { label: "Unlimited items", included: true },
+  { label: "Unlimited collections", included: true },
+  { label: "All item types including Files & Images", included: true },
+  { label: "AI auto-tagging & summaries", included: true },
+  { label: 'AI "Explain This Code"', included: true },
+  { label: "Data export (JSON/ZIP)", included: true },
+];
 
 /** How much yearly billing saves over twelve monthly payments, in whole percent. */
 export function getYearlySavingsPercent(): number {
@@ -40,3 +86,8 @@ export function getUpgradePath(interval: BillingInterval): string {
 export function parseBillingInterval(value: unknown): BillingInterval {
   return value === "yearly" ? "yearly" : "monthly";
 }
+
+/** While a finished Checkout hasn't reached the account yet, /settings re-checks this often. */
+export const CHECKOUT_REFRESH_INTERVAL_MS = 3000;
+/** About half a minute of re-checks before leaving it to the user. */
+export const CHECKOUT_REFRESH_ATTEMPTS = 10;

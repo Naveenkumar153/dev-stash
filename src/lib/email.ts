@@ -79,3 +79,27 @@ export async function sendPasswordResetEmail({ to, name, url }: LinkEmail) {
 <p>This link expires in 1 hour. If you didn't ask for this, you can ignore this email and your password stays the same.</p>`,
   });
 }
+
+/**
+ * Sent instead of a verification link when someone registers with an email
+ * that already has an account, so the reply to the form can't reveal that.
+ */
+export async function sendAccountExistsEmail({
+  to,
+  signInUrl,
+  resetUrl,
+}: {
+  to: string;
+  signInUrl: string;
+  resetUrl: string;
+}) {
+  await sendEmail({
+    to,
+    subject: "You already have a DevStash account",
+    text: `Hi,\n\nSomeone tried to create a DevStash account with this email address, but you already have one.\n\nSign in: ${signInUrl}\nForgot your password? ${resetUrl}\n\nIf this wasn't you, you can ignore this email; nothing has changed.`,
+    html: `<p>Hi,</p>
+<p>Someone tried to create a DevStash account with this email address, but you already have one.</p>
+<p><a href="${escapeHtml(signInUrl)}">Sign in</a> or <a href="${escapeHtml(resetUrl)}">reset your password</a>.</p>
+<p>If this wasn't you, you can ignore this email; nothing has changed.</p>`,
+  });
+}

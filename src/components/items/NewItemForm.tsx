@@ -29,6 +29,7 @@ import {
 } from "@/lib/item-types";
 import { uploadFileItem } from "@/lib/item-upload";
 import type { CreateItemResult } from "@/types/items";
+import { callAction } from "@/lib/action-call";
 
 interface NewItemFormProps {
   defaultType: CreatableItemType;
@@ -84,7 +85,7 @@ export function NewItemForm({
     event.preventDefault();
 
     startTransition(async () => {
-      let result: CreateItemResult;
+      let result: CreateItemResult | null;
       if (isFileItemType(typeName)) {
         if (!upload) return;
         setProgress(0);
@@ -96,7 +97,10 @@ export function NewItemForm({
         );
         setProgress(null);
       } else {
-        result = await createItem({ ...toItemInput(values, fields), typeName });
+        result = await callAction(() => createItem({ ...toItemInput(values, fields), typeName }));
+      }
+      if (!result) {
+        return;
       }
 
       if (result.success) {

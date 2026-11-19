@@ -3,7 +3,12 @@
 import { BILLING_PORTAL_FAILED, CHECKOUT_FAILED, SESSION_EXPIRED } from "@/lib/action-result";
 import { getAppUrl } from "@/lib/app-url";
 import { billingIntervalSchema } from "@/lib/billing-schemas";
-import { getBillingStatus, getOrCreateCustomerId } from "@/lib/db/billing";
+import {
+  findLiveSubscriptionId,
+  getBillingStatus,
+  getOrCreateCustomerId,
+  syncSubscription,
+} from "@/lib/db/billing";
 import { UPGRADE_PATH } from "@/lib/plans";
 import { getSessionUserId } from "@/lib/session";
 import { getPriceId, getStripe } from "@/lib/stripe";
@@ -18,10 +23,14 @@ function failure(error: string): BillingRedirectResult {
   return { success: false, data: null, error };
 }
 
+const DEMO_BILLING_CLOSED = "The demo account is shared, so its billing can't be changed.";
+
 /**
  * Starts a Stripe-hosted Checkout for Pro at the chosen interval and returns
- * its URL for the browser to open. A user who is already Pro gets the Customer
- * Portal instead, so a second click can't start a second subscription.
+ * its URL for the browser to open. A user who already has a live subscription
+ * gets the Customer Portal instead, so a second click, a second tab or Back
+ * from Checkout can't start a second subscription. That is asked of Stripe:
+ * the stored `isPro` lags until the webhook or the post-checkout sync lands.
  */
 export async function createCheckoutSession(interval: unknown): Promise<BillingRedirectResult> {
   const userId = await getSessionUserId();
@@ -36,14 +45,25 @@ export async function createCheckoutSession(interval: unknown): Promise<BillingR
 
   try {
     const status = await getBillingStatus(userId);
+    if (status?.isDemo) {
+      return failure(DEMO_BILLING_CLOSED);
+    }
     if (status?.isPro) {
+      return createPortalSession();
+    }
+
+    const customer = await getOrCreateCustomerId(userId);
+    const liveSubscriptionId = await findLiveSubscriptionId(customer);
+    if (liveSubscriptionId) {
+      // Catch the stored plan up while we're here, then manage it instead.
+      await syncSubscription(liveSubscriptionId);
       return createPortalSession();
     }
 
     const settingsUrl = getSettingsUrl();
     const session = await getStripe().checkout.sessions.create({
       mode: "subscription",
-      customer: await getOrCreateCustomerId(userId),
+      customer,
       client_reference_id: userId,
       line_items: [{ price: getPriceId(parsed.data), quantity: 1 }],
       subscription_data: { metadata: { userId } },
@@ -74,6 +94,10 @@ export async function createPortalSession(): Promise<BillingRedirectResult> {
   }
 
   try {
+    if ((await getBillingStatus(userId))?.isDemo) {
+      return failure(DEMO_BILLING_CLOSED);
+    }
+
     const portal = await getStripe().billingPortal.sessions.create({
       customer: await getOrCreateCustomerId(userId),
       return_url: getSettingsUrl(),

@@ -16,6 +16,7 @@
     "db:test": "tsx scripts/test-db.ts",
     "db:seed": "prisma db seed",
     "db:reset-users": "tsx scripts/reset-users.ts",
+    "db:backfill-previews": "tsx scripts/backfill-item-previews.ts",
     "test": "vitest run",
     "test:watch": "vitest",
     "test:coverage": "vitest run --coverage"
@@ -44,6 +45,7 @@
     "remark-gfm": "^4.0.1",
     "resend": "^6.35.0",
     "shadcn": "^4.18.0",
+    "sharp": "^0.34.5",
     "sonner": "^2.0.8",
     "stripe": "^23.1.0",
     "tailwind-merge": "^3.6.0",

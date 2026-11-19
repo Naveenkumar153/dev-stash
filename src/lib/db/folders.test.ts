@@ -8,6 +8,7 @@ const { tx } = vi.hoisted(() => ({
   tx: {
     folder: { findMany: vi.fn(), deleteMany: vi.fn() },
     item: { findMany: vi.fn(), deleteMany: vi.fn() },
+    tag: { deleteMany: vi.fn() },
   },
 }));
 
@@ -45,9 +46,9 @@ describe("deleteFolderTree", () => {
       callback(tx)) as never);
     tx.folder.findMany.mockResolvedValue(LINKS);
     tx.item.findMany.mockResolvedValue([
-      { id: "item-1", fileUrl: "user-1/a-notes.md" },
-      { id: "item-2", fileUrl: "user-1/b-report.pdf" },
-      { id: "item-3", fileUrl: null },
+      { id: "item-1", fileUrl: "user-1/a-notes.md", tags: [{ id: "tag-docs" }] },
+      { id: "item-2", fileUrl: "user-1/b-report.pdf", tags: [{ id: "tag-docs" }, { id: "tag-q4" }] },
+      { id: "item-3", fileUrl: null, tags: [] },
     ]);
   });
 
@@ -61,7 +62,7 @@ describe("deleteFolderTree", () => {
     });
     expect(tx.item.findMany).toHaveBeenCalledWith({
       where: { userId: "user-1", folderId: { in: subtree } },
-      select: { id: true, fileUrl: true },
+      select: { id: true, fileUrl: true, tags: { select: { id: true } } },
     });
     expect(tx.item.deleteMany).toHaveBeenCalledWith({
       where: { userId: "user-1", id: { in: ["item-1", "item-2", "item-3"] } },
@@ -74,6 +75,17 @@ describe("deleteFolderTree", () => {
       files: 3,
       fileKeys: ["user-1/a-notes.md", "user-1/b-report.pdf"],
     });
+  });
+
+  it("removes the deleted files' tags nothing else uses, in the same transaction", async () => {
+    await deleteFolderTree("user-1", DOCS);
+
+    expect(tx.tag.deleteMany).toHaveBeenCalledWith({
+      where: { id: { in: ["tag-docs", "tag-q4"] }, items: { none: {} } },
+    });
+    expect(tx.item.deleteMany.mock.invocationCallOrder[0]).toBeLessThan(
+      tx.tag.deleteMany.mock.invocationCallOrder[0],
+    );
   });
 
   it("deletes the items before the folders, so none falls back to the top level", async () => {

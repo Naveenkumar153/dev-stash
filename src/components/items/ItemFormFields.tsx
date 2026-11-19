@@ -12,6 +12,7 @@ import type { UpdateItemInput } from "@/lib/item-schemas";
 import { parseTagInput } from "@/lib/tags";
 import type { ContentEditorKind, EditableItemFields } from "@/lib/item-types";
 import type { CollectionOption } from "@/types/collections";
+import { ITEM_LIMITS } from "@/lib/item-limits";
 
 /**
  * The form's inputs, as typed. Tags stay one comma-separated string until
@@ -95,11 +96,20 @@ export function ItemFormFields({
   return (
     <div className="flex flex-col gap-5">
       <Field {...field("title")} label="Title">
-        {(control) => <Input {...control} {...bind("title")} required autoFocus />}
+        {(control) => (
+          <Input {...control} {...bind("title")} required autoFocus maxLength={ITEM_LIMITS.title} />
+        )}
       </Field>
 
       <Field {...field("description")} label="Description">
-        {(control) => <Textarea {...control} {...bind("description")} className="min-h-20" />}
+        {(control) => (
+          <Textarea
+            {...control}
+            {...bind("description")}
+            maxLength={ITEM_LIMITS.description}
+            className="min-h-20"
+          />
+        )}
       </Field>
 
       {fields.content && (
@@ -145,7 +155,13 @@ export function ItemFormFields({
       {fields.language && (
         <Field {...field("language")} label="Language">
           {(control) => (
-            <Input {...control} {...bind("language")} placeholder="typescript" spellCheck={false} />
+            <Input
+              {...control}
+              {...bind("language")}
+              placeholder="typescript"
+              spellCheck={false}
+              maxLength={ITEM_LIMITS.language}
+            />
           )}
         </Field>
       )}
@@ -153,7 +169,14 @@ export function ItemFormFields({
       {fields.url && (
         <Field {...field("url")} label="URL">
           {(control) => (
-            <Input {...control} {...bind("url")} type="url" placeholder="https://" spellCheck={false} />
+            <Input
+              {...control}
+              {...bind("url")}
+              type="url"
+              placeholder="https://"
+              spellCheck={false}
+              maxLength={ITEM_LIMITS.url}
+            />
           )}
         </Field>
       )}

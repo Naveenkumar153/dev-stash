@@ -3,7 +3,7 @@ import Link from "next/link";
 import { redirect } from "next/navigation";
 import { ArrowLeft } from "lucide-react";
 
-import { BillingCard, type CheckoutOutcome } from "@/components/settings/BillingCard";
+import { BillingCard } from "@/components/settings/BillingCard";
 import { EditorPreferencesForm } from "@/components/settings/EditorPreferencesForm";
 import { ChangePasswordForm } from "@/components/profile/ChangePasswordForm";
 import { DeleteAccountDialog } from "@/components/profile/DeleteAccountDialog";
@@ -18,7 +18,6 @@ import { SIGN_IN_PATH } from "@/lib/auth-redirect";
 import { getBillingStatus, syncCheckoutForUser } from "@/lib/db/billing";
 import { getEditorPreferences } from "@/lib/db/editor-preferences";
 import { getProfileUser } from "@/lib/db/profile";
-import { parseBillingInterval } from "@/lib/plans";
 import { getUsage } from "@/lib/usage-limits";
 
 export const metadata: Metadata = {
@@ -32,9 +31,6 @@ function firstParam(value: string | string[] | undefined): string | undefined {
   return typeof value === "string" ? value : undefined;
 }
 
-function toCheckoutOutcome(value: string | undefined): CheckoutOutcome | null {
-  return value === "success" || value === "canceled" ? value : null;
-}
 
 export default async function SettingsPage({ searchParams }: PageProps<"/settings">) {
   const [user, editorPreferences, query] = await Promise.all([
@@ -51,15 +47,14 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
 
   // Stripe's return from Checkout: apply the subscription now rather than
   // waiting for the webhook, so the card below already reads Pro.
-  const checkout = toCheckoutOutcome(firstParam(query.checkout));
+  // Canceling returns to /upgrade, so success is the only outcome that lands here.
+  const checkoutSucceeded = firstParam(query.checkout) === "success";
   const sessionId = firstParam(query.session_id);
-  if (checkout === "success" && sessionId) {
+  if (checkoutSucceeded && sessionId) {
     await syncCheckoutForUser(user.id, sessionId);
   }
 
   const [billing, usage] = await Promise.all([getBillingStatus(user.id), getUsage(user.id)]);
-  // `?plan=yearly` makes the yearly button the primary one.
-  const preferredInterval = parseBillingInterval(firstParam(query.plan));
   const isPro = billing?.isPro ?? false;
 
   return (
@@ -75,10 +70,9 @@ export default async function SettingsPage({ searchParams }: PageProps<"/setting
       <h1 className="font-heading text-3xl font-semibold">Settings</h1>
 
       <BillingCard
-        billing={billing ?? { isPro: false, hasCustomer: false }}
+        billing={billing ?? { isPro: false, hasCustomer: false, isDemo: false }}
         usage={usage}
-        checkout={checkout}
-        preferredInterval={preferredInterval}
+        checkoutSucceeded={checkoutSucceeded}
       />
 
       <Card>

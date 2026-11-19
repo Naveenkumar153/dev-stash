@@ -49,13 +49,21 @@ export default async function CollectionPage({
     redirect(pathname);
   }
 
-  const collection = await findCollection(id);
+  // A malformed id is a 404 without a query.
+  if (!collectionIdSchema.safeParse(id).success) {
+    notFound();
+  }
+
+  // Together: the items query is scoped to the user too, so it doesn't need
+  // the collection first, and a missing collection simply returns no items.
+  const [collection, { rows: items, total }] = await Promise.all([
+    findCollection(id),
+    getCollectionItems(id, page),
+  ]);
 
   if (!collection) {
     notFound();
   }
-
-  const { rows: items, total } = await getCollectionItems(collection.id, page);
   const totalPages = getTotalPages(total, ITEMS_PER_PAGE);
 
   // Past the last page - a deleted item can leave it empty - show the last.

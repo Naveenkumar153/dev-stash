@@ -28,7 +28,7 @@ import {
 } from "@/lib/db/collections";
 import { isFavoriteSchema } from "@/lib/favorite-schemas";
 import { getSessionUserId } from "@/lib/session";
-import { canCreateCollection, getSessionEntitlements } from "@/lib/usage-limits";
+import { createCollectionWithinLimit, getSessionEntitlements } from "@/lib/usage-limits";
 import type {
   CreateCollectionResult,
   DeleteCollectionResult,
@@ -68,11 +68,14 @@ export async function createCollection(
   }
 
   try {
-    if (!(await canCreateCollection(userId, hasProAccess)).allowed) {
+    // The Free limit's count and the insert share one transaction.
+    const created = await createCollectionWithinLimit(userId, hasProAccess, (db) =>
+      createCollectionRecord(userId, parsed.data, db),
+    );
+    if (!created.allowed) {
       return failure(COLLECTION_LIMIT_REACHED);
     }
-    const collection = await createCollectionRecord(userId, parsed.data);
-    return { success: true, data: collection, error: null, fieldErrors: {} };
+    return { success: true, data: created.value, error: null, fieldErrors: {} };
   } catch (error) {
     console.error("Creating collection failed", error);
     return failure(COLLECTION_CREATE_FAILED);

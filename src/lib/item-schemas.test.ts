@@ -14,6 +14,55 @@ function parse(input: Record<string, unknown>) {
 }
 
 describe("updateItemSchema", () => {
+  describe("length limits", () => {
+    function firstIssue(input: Record<string, unknown>) {
+      return parse(input).error?.issues[0];
+    }
+
+    it.each([
+      ["title", 200, "Title can be up to 200 characters"],
+      ["description", 2000, "Description can be up to 2,000 characters"],
+      ["language", 50, "Language can be up to 50 characters"],
+    ])("caps %s at %i characters", (field, max, message) => {
+      expect(parse({ [field]: "x".repeat(max) }).success).toBe(true);
+      expect(firstIssue({ [field]: "x".repeat(max + 1) })).toMatchObject({ path: [field], message });
+    });
+
+    it("measures the cap after trimming", () => {
+      expect(parse({ title: `  ${"x".repeat(200)}  ` }).success).toBe(true);
+    });
+
+    it("caps content at 100,000 characters, counting whitespace since it's kept", () => {
+      expect(parse({ content: "x".repeat(100_000) }).success).toBe(true);
+      expect(firstIssue({ content: "x".repeat(100_001) })).toMatchObject({
+        path: ["content"],
+        message: "Content can be up to 100,000 characters",
+      });
+    });
+
+    it("caps a URL at 2,048 characters", () => {
+      const url = (length: number) => `https://example.com/${"a".repeat(length - 20)}`;
+      expect(parse({ url: url(2048) }).success).toBe(true);
+      expect(firstIssue({ url: url(2049) })).toMatchObject({ path: ["url"] });
+    });
+
+    it("caps each tag at 50 characters", () => {
+      expect(firstIssue({ tags: ["x".repeat(51)] })).toMatchObject({
+        path: ["tags", 0],
+        message: "Tags can be up to 50 characters each",
+      });
+    });
+
+    it("allows 20 tags, counted after duplicates are dropped", () => {
+      const tags = Array.from({ length: 20 }, (_, index) => `tag-${index}`);
+      expect(parse({ tags: [...tags, "tag-0"] }).data?.tags).toHaveLength(20);
+      expect(firstIssue({ tags: [...tags, "one-more"] })).toMatchObject({
+        path: ["tags"],
+        message: "Add up to 20 tags",
+      });
+    });
+  });
+
   describe("collectionIds", () => {
     const COLLECTION_A = "cmcollectreact0000000001";
     const COLLECTION_B = "cmcollectdocs00000000002";

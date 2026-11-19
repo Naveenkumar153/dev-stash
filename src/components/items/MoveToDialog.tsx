@@ -23,6 +23,8 @@ import {
   groupByParent,
   type FolderEntry,
 } from "@/lib/folders";
+import { callAction } from "@/lib/action-call";
+import type { FolderResult, MoveItemResult } from "@/types/folders";
 
 /** What's being moved: a folder, with everything in it, or one file. */
 export interface MoveSubject {
@@ -120,10 +122,14 @@ function MovePicker({ subject, folders, pending, startTransition, onMoved }: Mov
 
   function handleMove() {
     startTransition(async () => {
-      const result =
+      const result = await callAction<FolderResult | MoveItemResult>(() =>
         subject.kind === "folder"
-          ? await moveFolder({ folderId: subject.id, parentId: browsing })
-          : await moveItem({ itemId: subject.id, folderId: browsing });
+          ? moveFolder({ folderId: subject.id, parentId: browsing })
+          : moveItem({ itemId: subject.id, folderId: browsing }),
+      );
+      if (!result) {
+        return;
+      }
 
       if (!result.success) {
         toast.error(result.error ?? "Couldn't move it. Please try again.");

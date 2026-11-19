@@ -12,6 +12,9 @@ import {
   isImageFileName,
   sanitizeFileName,
   validateUpload,
+  getItemThumbnailUrl,
+  getThumbnailKey,
+  hasThumbnail,
 } from "@/lib/file-upload";
 
 const MB = 1024 * 1024;
@@ -251,5 +254,26 @@ describe("getItemFileUrl", () => {
   it("points at the download proxy, with ?download=1 to force a save", () => {
     expect(getItemFileUrl("cmitem1")).toBe("/api/items/cmitem1/file");
     expect(getItemFileUrl("cmitem1", true)).toBe("/api/items/cmitem1/file?download=1");
+  });
+});
+
+describe("thumbnails", () => {
+  it.each(["shot.png", "photo.JPG", "photo.jpeg", "anim.gif", "pic.webp"])(
+    "gives the raster image %s a thumbnail",
+    (name) => {
+      expect(hasThumbnail(name)).toBe(true);
+    },
+  );
+
+  it.each(["logo.svg", "notes.md", "report.pdf"])("gives %s none", (name) => {
+    expect(hasThumbnail(name)).toBe(false);
+  });
+
+  it("stores the thumbnail beside the original", () => {
+    expect(getThumbnailKey("user-1/abc-shot.png")).toBe("user-1/abc-shot.png.thumb.webp");
+  });
+
+  it("asks the file proxy for the thumbnail", () => {
+    expect(getItemThumbnailUrl("item-1")).toBe("/api/items/item-1/file?thumb=1");
   });
 });

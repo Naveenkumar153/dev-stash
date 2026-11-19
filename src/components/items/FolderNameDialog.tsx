@@ -17,6 +17,7 @@ import {
 } from "@/components/ui/dialog";
 import { FOLDER_NAME_MAX_LENGTH } from "@/lib/folders";
 import type { FolderResult } from "@/types/folders";
+import { callAction } from "@/lib/action-call";
 
 interface FolderNameDialogProps {
   open: boolean;
@@ -93,7 +94,10 @@ function FolderNameForm({
     event.preventDefault();
 
     startTransition(async () => {
-      const result = await onSubmit(name);
+      const result = await callAction(() => onSubmit(name));
+      if (!result) {
+        return;
+      }
 
       if (result.success) {
         toast.success(successMessage);

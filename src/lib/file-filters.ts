@@ -51,6 +51,39 @@ export interface FileFilters {
 
 export const DEFAULT_FILE_FILTERS: FileFilters = { type: "all", date: "any" };
 
+/** The query parameters the filters live in, e.g. `?fileType=pdf&uploaded=7d`. */
+export const FILE_FILTER_PARAMS = { type: "fileType", date: "uploaded" } as const;
+
+type QueryParams = Readonly<Record<string, string | string[] | undefined>>;
+
+function pick<T extends string>(value: unknown, options: readonly { value: T }[], fallback: T): T {
+  return options.find((option) => option.value === value)?.value ?? fallback;
+}
+
+/** The filters in a files-page URL; a missing, repeated or unknown value is the default. */
+export function parseFileFilters(query: QueryParams): FileFilters {
+  return {
+    type: pick(query[FILE_FILTER_PARAMS.type], FILE_TYPE_FILTERS, DEFAULT_FILE_FILTERS.type),
+    date: pick(query[FILE_FILTER_PARAMS.date], FILE_DATE_FILTERS, DEFAULT_FILE_FILTERS.date),
+  };
+}
+
+/**
+ * The files page at `folderHref` (the open folder, or the top level) with
+ * `filters` applied; filters at their defaults add no parameter.
+ */
+export function getFilteredFilesHref(folderHref: string, filters: FileFilters): string {
+  const url = new URL(folderHref, "http://devstash.local");
+  if (filters.type !== DEFAULT_FILE_FILTERS.type) url.searchParams.set(FILE_FILTER_PARAMS.type, filters.type);
+  if (filters.date !== DEFAULT_FILE_FILTERS.date) url.searchParams.set(FILE_FILTER_PARAMS.date, filters.date);
+  return `${url.pathname}${url.search}`;
+}
+
+/** The extensions a type filter keeps; empty for "all". */
+export function getFilterExtensions(type: FileTypeFilter): readonly string[] {
+  return FILE_TYPE_FILTERS.find((filter) => filter.value === type)!.extensions;
+}
+
 export function isFileFilterActive({ type, date }: FileFilters): boolean {
   return type !== DEFAULT_FILE_FILTERS.type || date !== DEFAULT_FILE_FILTERS.date;
 }
@@ -70,21 +103,6 @@ export function getDateFilterStart(date: FileDateFilter, now: Date): Date | null
   return new Date(
     Date.UTC(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() - (days - 1)),
   );
-}
-
-/** Whether a file passes both filters. A missing file name passes only "all". */
-export function matchesFileFilters(
-  file: { fileName: string | null; createdAt: Date },
-  { type, date }: FileFilters,
-  now: Date,
-): boolean {
-  if (type !== "all" && getFileCategory(file.fileName) !== type) {
-    return false;
-  }
-
-  const start = getDateFilterStart(date, now);
-
-  return start === null || file.createdAt >= start;
 }
 
 /**

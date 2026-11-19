@@ -61,6 +61,21 @@ export async function checkToken(identifier: string, token: string): Promise<Tok
   return record.expires.getTime() < Date.now() ? "expired" : "valid";
 }
 
+/**
+ * Deletes exactly this token while it is unexpired, for the start of a batch
+ * transaction that spends it. With no such row it rejects with P2025 and the
+ * whole batch rolls back - which is what a second, simultaneous submit of the
+ * same link gets once the first has deleted the row.
+ */
+export function spendToken(identifier: string, token: string) {
+  return prisma.verificationToken.delete({
+    where: {
+      identifier_token: { identifier, token: hashToken(token) },
+      expires: { gt: new Date() },
+    },
+  });
+}
+
 export function deleteTokens(identifier: string) {
   return prisma.verificationToken.deleteMany({ where: { identifier } });
 }

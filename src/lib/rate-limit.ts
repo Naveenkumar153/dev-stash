@@ -6,13 +6,19 @@ interface RateLimitRule {
   window: Duration;
 }
 
-/** Attempts allowed per sliding window, keyed by IP (plus email where noted). */
+/** Attempts allowed per sliding window, keyed by IP unless noted. */
 const RATE_LIMITS = {
   signIn: { limit: 5, window: "15 m" }, // IP + email
+  // Email alone, so rotating IPs can't keep guessing at one account.
+  signInEmail: { limit: 20, window: "15 m" },
   register: { limit: 3, window: "1 h" },
   forgotPassword: { limit: 3, window: "1 h" },
   resetPassword: { limit: 5, window: "15 m" },
   resendVerification: { limit: 3, window: "15 m" }, // IP + email
+  changePassword: { limit: 5, window: "15 m" }, // user id
+  upload: { limit: 30, window: "1 h" }, // user id
+  // Email: "you already have an account" notices, so the form can't flood an inbox.
+  accountExistsNotice: { limit: 1, window: "1 h" },
 } as const satisfies Record<string, RateLimitRule>;
 
 export type RateLimitName = keyof typeof RATE_LIMITS;

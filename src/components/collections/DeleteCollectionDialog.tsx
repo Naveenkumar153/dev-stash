@@ -16,6 +16,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { COLLECTION_DELETE_FAILED } from "@/lib/action-result";
 import type { CollectionHeader } from "@/lib/db/collections";
+import { callAction } from "@/lib/action-call";
 
 interface DeleteCollectionDialogProps {
   collection: CollectionHeader;
@@ -52,7 +53,10 @@ export function DeleteCollectionDialog({
 
   function handleDelete() {
     startTransition(async () => {
-      const result = await deleteCollection(collection.id);
+      const result = await callAction(() => deleteCollection(collection.id));
+      if (!result) {
+        return;
+      }
 
       if (!result.success) {
         toast.error(result.error ?? COLLECTION_DELETE_FAILED);

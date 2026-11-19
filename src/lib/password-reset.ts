@@ -2,11 +2,13 @@ import { getAppUrl } from "@/lib/app-url";
 import { RESET_PASSWORD_PATH } from "@/lib/auth-redirect";
 import { sendPasswordResetEmail } from "@/lib/email";
 import { hashPassword } from "@/lib/password";
+import { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import {
   checkToken,
   deleteTokens,
   replaceToken,
+  spendToken,
   wasIssuedWithin,
   type TokenStatus,
 } from "@/lib/tokens";
@@ -46,8 +48,10 @@ export function checkPasswordResetToken(email: string, token: string): Promise<T
 export type PasswordResetResult = "reset" | "invalid" | "expired";
 
 /**
- * Sets the new password and spends the token, which works only once. The link
- * came from the user's inbox, so an unverified email is marked verified too.
+ * Sets the new password and spends the token, which works only once - also
+ * for two submits of one link at the same moment: the batch starts by deleting
+ * the token, so the second finds no row and rolls back. The link came from the
+ * user's inbox, so an unverified email is marked verified too.
  */
 export async function resetPasswordWithToken(
   email: string,
@@ -65,13 +69,26 @@ export async function resetPasswordWithToken(
   }
 
   const passwordHash = await hashPassword(password);
-  await prisma.$transaction([
-    prisma.user.updateMany({ where: { email }, data: { passwordHash } }),
-    prisma.user.updateMany({
-      where: { email, emailVerified: null },
-      data: { emailVerified: new Date() },
-    }),
-    deleteTokens(identifier),
-  ]);
+  try {
+    await prisma.$transaction([
+      spendToken(identifier, token),
+      // Bumping the version signs every existing session out.
+      prisma.user.updateMany({
+        where: { email },
+        data: { passwordHash, sessionVersion: { increment: 1 } },
+      }),
+      prisma.user.updateMany({
+        where: { email, emailVerified: null },
+        data: { emailVerified: new Date() },
+      }),
+      deleteTokens(identifier),
+    ]);
+  } catch (error) {
+    // Spent (or expired) between the check above and this commit.
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
+      return "invalid";
+    }
+    throw error;
+  }
   return "reset";
 }

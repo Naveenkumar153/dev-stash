@@ -17,6 +17,7 @@ import { Button } from "@/components/ui/button";
 import type { FieldErrors } from "@/lib/action-result";
 import { getContentEditorKind, getEditableItemFields } from "@/lib/item-types";
 import type { ItemDetail } from "@/types/items";
+import { callAction } from "@/lib/action-call";
 
 function toFormValues(item: ItemDetail): ItemFormValues {
   return {
@@ -57,7 +58,10 @@ export function ItemDrawerEditForm({ item, onCancel, onSaved }: ItemDrawerEditFo
     event.preventDefault();
 
     startTransition(async () => {
-      const result = await updateItem(item.id, toItemInput(values, fields));
+      const result = await callAction(() => updateItem(item.id, toItemInput(values, fields)));
+      if (!result) {
+        return;
+      }
       if (result.success && result.data) {
         toast.success("Item saved");
         onSaved(result.data);

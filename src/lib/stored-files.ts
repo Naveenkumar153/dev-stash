@@ -1,6 +1,9 @@
 import { getUserFilePrefix } from "@/lib/file-upload";
 import { deleteFile, listFileKeys } from "@/lib/r2";
 
+/** R2 deletes in flight at once. */
+export const DELETE_BATCH_SIZE = 50;
+
 /**
  * Removes files from R2 that no item points at any more: the item was
  * deleted, or never got saved. Best effort, so a failure is logged rather than
@@ -8,13 +11,18 @@ import { deleteFile, listFileKeys } from "@/lib/r2";
  * shouldn't change because cleanup failed.
  */
 export async function discardStoredFiles(keys: string[]): Promise<void> {
-  const results = await Promise.allSettled(keys.map((key) => deleteFile(key)));
+  // In batches, so a Pro account or folder with thousands of files doesn't
+  // open thousands of R2 requests at once.
+  for (let start = 0; start < keys.length; start += DELETE_BATCH_SIZE) {
+    const batch = keys.slice(start, start + DELETE_BATCH_SIZE);
+    const results = await Promise.allSettled(batch.map((key) => deleteFile(key)));
 
-  results.forEach((result, index) => {
-    if (result.status === "rejected") {
-      console.error("Discarding stored file failed", { key: keys[index], error: result.reason });
-    }
-  });
+    results.forEach((result, index) => {
+      if (result.status === "rejected") {
+        console.error("Discarding stored file failed", { key: batch[index], error: result.reason });
+      }
+    });
+  }
 }
 
 /**

@@ -28,6 +28,8 @@ vi.mock("@/lib/db/folders", () => ({
   updateFolder: vi.fn(),
 }));
 vi.mock("@/lib/stored-files", () => ({ discardStoredFiles: vi.fn() }));
+// The entitlements run for real on the mocked session; nothing here counts rows.
+vi.mock("@/lib/prisma", () => ({ prisma: {} }));
 
 /** `auth` is overloaded (it doubles as middleware), so its mock is typed by hand. */
 const mockAuth = auth as unknown as ReturnType<typeof vi.fn<() => Promise<Session | null>>>;
@@ -84,6 +86,25 @@ describe("createFolder", () => {
       name,
       parentId,
     }));
+  });
+
+  it("refuses an account without Pro access while gating is on, writing nothing", async () => {
+    vi.stubEnv("PRO_GATING_ENABLED", "true");
+
+    expect(await createFolder({ name: "Docs", parentId: null })).toEqual({
+      success: false,
+      data: null,
+      error: "File and image uploads are a Pro feature.",
+      fieldErrors: {},
+    });
+    expect(insertFolder).not.toHaveBeenCalled();
+  });
+
+  it("lets a Pro account create one while gating is on", async () => {
+    vi.stubEnv("PRO_GATING_ENABLED", "true");
+    mockAuth.mockResolvedValue({ user: { id: "user-1", isPro: true }, expires: "2099-01-01T00:00:00.000Z" });
+
+    expect(await createFolder({ name: "Docs", parentId: null })).toMatchObject({ success: true });
   });
 
   it("creates a trimmed folder at the top level", async () => {

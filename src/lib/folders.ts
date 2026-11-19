@@ -137,17 +137,21 @@ export function wouldCreateCycle(
   return getFolderPath(byId, targetParentId).some((folder) => folder.id === folderId);
 }
 
+/**
+ * How many files sit directly in each folder, keyed by folder id; folders
+ * with none are left out. Counted by the server, since the page loads only
+ * the open folder's files.
+ */
+export type FolderFileCounts = Readonly<Record<string, number>>;
+
 /** How many sub-folders and files sit directly in each folder, keyed by folder id. */
 export function countDirectContents(
   folders: readonly FolderLink[],
-  files: readonly { folderId: string | null }[],
+  fileCounts: FolderFileCounts,
 ): Map<string, number> {
-  const counts = new Map<string, number>();
+  const counts = new Map<string, number>(Object.entries(fileCounts));
 
   for (const { parentId: id } of folders) {
-    if (id !== null) counts.set(id, (counts.get(id) ?? 0) + 1);
-  }
-  for (const { folderId: id } of files) {
     if (id !== null) counts.set(id, (counts.get(id) ?? 0) + 1);
   }
 
@@ -157,13 +161,13 @@ export function countDirectContents(
 /** What deleting `rootId` takes with it: the folders beneath it and the files in any of them. */
 export function countSubtree(
   folders: readonly FolderLink[],
-  files: readonly { folderId: string | null }[],
+  fileCounts: FolderFileCounts,
   rootId: string,
 ): { folders: number; files: number } {
-  const ids = new Set(getSubtreeIds(folders, rootId));
+  const ids = getSubtreeIds(folders, rootId);
 
   return {
-    folders: ids.size - 1,
-    files: files.filter((file) => file.folderId !== null && ids.has(file.folderId)).length,
+    folders: ids.length - 1,
+    files: ids.reduce((sum, id) => sum + (fileCounts[id] ?? 0), 0),
   };
 }

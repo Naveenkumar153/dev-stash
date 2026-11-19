@@ -139,6 +139,27 @@ describe("getCollections", () => {
     ]);
   });
 
+  it("counts types over the user's collections, one grouped query per type", async () => {
+    vi.mocked(getCurrentUserId).mockResolvedValue("user-1");
+    vi.mocked(getAvailableTypes).mockResolvedValue([
+      { id: "type-snippet", name: "snippet" },
+      { id: "type-prompt", name: "prompt" },
+    ] as never);
+    vi.mocked(prisma.collection.findMany).mockResolvedValue([
+      { id: "col-1", name: "React", description: null, isFavorite: false, _count: { items: 0 } },
+    ] as never);
+    vi.mocked(prisma.itemCollection.groupBy).mockResolvedValue([] as never);
+
+    await getCollections();
+
+    expect(prisma.itemCollection.groupBy).toHaveBeenCalledTimes(2);
+    expect(prisma.itemCollection.groupBy).toHaveBeenCalledWith({
+      by: ["collectionId"],
+      where: { collection: { userId: "user-1" }, item: { itemTypeId: "type-snippet" } },
+      _count: { _all: true },
+    });
+  });
+
   it("lists nothing, without a query, when there is no current user", async () => {
     vi.mocked(getCurrentUserId).mockResolvedValue(null);
 

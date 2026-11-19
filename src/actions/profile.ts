@@ -1,14 +1,19 @@
 "use server";
 
-import { signOut } from "@/auth";
+import { signIn, signOut } from "@/auth";
 import { SESSION_EXPIRED, getFieldErrors, type FieldErrors } from "@/lib/action-result";
 import { SIGN_IN_PATH } from "@/lib/auth-redirect";
 import { changePasswordSchema } from "@/lib/auth-schemas";
-import { cancelSubscription } from "@/lib/db/billing";
-import { DEMO_USER_EMAIL } from "@/lib/db/user";
+import {
+  cancelCustomerSubscriptions,
+  cancelSubscription,
+  clearSubscription,
+} from "@/lib/db/billing";
+import { isDemoEmail } from "@/lib/demo-account";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { resetIdentifier } from "@/lib/password-reset";
 import { prisma } from "@/lib/prisma";
+import { getRateLimitMessage, rateLimit } from "@/lib/rate-limit";
 import { getSessionUserId } from "@/lib/session";
 import { discardUserFiles } from "@/lib/stored-files";
 
@@ -17,6 +22,24 @@ export interface ChangePasswordResult {
   data: null;
   error: string | null;
   fieldErrors: FieldErrors;
+}
+
+function failed(error: string): ChangePasswordResult {
+  return { success: false, data: null, error, fieldErrors: {} };
+}
+
+/**
+ * Signs this browser back in with the new password, so the version bump that
+ * ends every other session doesn't end this one too: the fresh token carries
+ * the new version. If it fails the change still stands, and this browser is
+ * simply asked to sign in again.
+ */
+async function keepThisSession(email: string, password: string): Promise<void> {
+  try {
+    await signIn("credentials", { email, password, redirect: false });
+  } catch (error) {
+    console.error("Re-issuing the session after a password change failed", error);
+  }
 }
 
 /**
@@ -38,15 +61,20 @@ export async function changePassword(formData: FormData): Promise<ChangePassword
   try {
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { passwordHash: true },
+      select: { email: true, passwordHash: true },
     });
+    // Its password is published so anyone can try the app; one visitor
+    // changing it would lock everyone else out.
+    if (user && isDemoEmail(user.email)) {
+      return failed("The demo account's password can't be changed.");
+    }
     if (!user?.passwordHash) {
-      return {
-        success: false,
-        data: null,
-        error: "This account signs in with GitHub and has no password to change.",
-        fieldErrors: {},
-      };
+      return failed("This account signs in with GitHub and has no password to change.");
+    }
+    // Before bcrypt, so a stolen session can't brute-force the current password.
+    const limit = await rateLimit("changePassword", userId);
+    if (!limit.success) {
+      return failed(getRateLimitMessage(limit.reset));
     }
     if (!(await verifyPassword(parsed.data.currentPassword, user.passwordHash))) {
       return {
@@ -57,19 +85,20 @@ export async function changePassword(formData: FormData): Promise<ChangePassword
       };
     }
 
+    // Bumping the version ends every session signed in with the old password,
+    // including one an attacker may hold.
     await prisma.user.update({
       where: { id: userId },
-      data: { passwordHash: await hashPassword(parsed.data.password) },
+      data: {
+        passwordHash: await hashPassword(parsed.data.password),
+        sessionVersion: { increment: 1 },
+      },
     });
+    await keepThisSession(user.email, parsed.data.password);
     return { success: true, data: null, error: null, fieldErrors: {} };
   } catch (error) {
     console.error("Changing password failed", error);
-    return {
-      success: false,
-      data: null,
-      error: "Could not change your password. Please try again.",
-      fieldErrors: {},
-    };
+    return failed("Could not change your password. Please try again.");
   }
 }
 
@@ -88,16 +117,53 @@ async function getUserTagIds(userId: string): Promise<string[]> {
   return tags.map((tag) => tag.id);
 }
 
-const SUBSCRIPTION_CANCEL_FAILED = "Couldn't cancel your subscription. Please try again.";
+/**
+ * Deletes the user's rows in one transaction, so a failure leaves the account
+ * as it was. Items go first because `Item.itemType` has no cascade, so a
+ * custom type can't be deleted while its items exist.
+ */
+async function deleteUserRows(userId: string, email: string): Promise<void> {
+  const tagIds = await getUserTagIds(userId);
+  await prisma.$transaction([
+    prisma.item.deleteMany({ where: { userId } }),
+    prisma.verificationToken.deleteMany({
+      where: { identifier: { in: [email, resetIdentifier(email)] } },
+    }),
+    // Cascades to collections, their join rows, custom types, accounts and sessions.
+    prisma.user.delete({ where: { id: userId } }),
+    // Tags are global, so only this user's that nothing else uses now go.
+    prisma.tag.deleteMany({ where: { id: { in: tagIds }, items: { none: {} } } }),
+  ]);
+}
 
-/** Cancels the account's subscription; false (logged) when Stripe refuses. */
-async function tryCancelSubscription(subscriptionId: string): Promise<boolean> {
+const SUBSCRIPTION_CANCEL_FAILED = "Couldn't cancel your subscription. Please try again.";
+const DELETE_FAILED = "Could not delete your account. Please try again.";
+const DELETE_FAILED_AFTER_CANCEL =
+  "Your subscription was canceled, but your account couldn't be deleted. Please try again.";
+
+interface BillingRefs {
+  stripeCustomerId: string | null;
+  stripeSubscriptionId: string | null;
+}
+
+/**
+ * Cancels every live subscription the account has at Stripe (not only the
+ * stored one, which is whichever was applied last). Returns how many were
+ * canceled, or null (logged) when Stripe refused.
+ */
+async function tryCancelSubscriptions(refs: BillingRefs): Promise<number | null> {
   try {
-    await cancelSubscription(subscriptionId);
-    return true;
+    if (refs.stripeCustomerId) {
+      return await cancelCustomerSubscriptions(refs.stripeCustomerId);
+    }
+    if (refs.stripeSubscriptionId) {
+      await cancelSubscription(refs.stripeSubscriptionId);
+      return 1;
+    }
+    return 0;
   } catch (error) {
-    console.error("Canceling subscription before account delete failed", error);
-    return false;
+    console.error("Canceling subscriptions before account delete failed", error);
+    return null;
   }
 }
 
@@ -111,49 +177,54 @@ export async function deleteAccount(): Promise<DeleteAccountResult> {
     return { success: false, data: null, error: SESSION_EXPIRED };
   }
 
+  let canceled = 0;
   try {
     const user = await prisma.user.findUnique({
       where: { id: userId },
-      select: { email: true, stripeSubscriptionId: true },
+      select: { email: true, stripeCustomerId: true, stripeSubscriptionId: true },
     });
     if (!user) {
       return { success: false, data: null, error: "Account not found." };
     }
     // The seeded demo account is shared for trying the app, so it stays.
-    if (user.email === DEMO_USER_EMAIL) {
+    if (isDemoEmail(user.email)) {
       return { success: false, data: null, error: "The demo account can't be deleted." };
     }
 
-    // Stripe would keep billing a deleted account, so the subscription is
+    // Stripe would keep billing a deleted account, so the subscriptions are
     // canceled first and nothing is deleted if that fails. The customer stays
-    // for invoices and refunds; its later subscription.deleted webhook finds
-    // no user and changes nothing.
-    if (user.stripeSubscriptionId && !(await tryCancelSubscription(user.stripeSubscriptionId))) {
+    // for invoices and refunds; its later subscription.deleted webhooks find
+    // no user and change nothing.
+    const result = await tryCancelSubscriptions(user);
+    if (result === null) {
       return { success: false, data: null, error: SUBSCRIPTION_CANCEL_FAILED };
     }
+    canceled = result;
 
-    const tagIds = await getUserTagIds(userId);
-    // One transaction, so a failure leaves the account as it was. Items go
-    // first because `Item.itemType` has no cascade, so a custom type can't be
-    // deleted while its items exist.
-    await prisma.$transaction([
-      prisma.item.deleteMany({ where: { userId } }),
-      prisma.verificationToken.deleteMany({
-        where: { identifier: { in: [user.email, resetIdentifier(user.email)] } },
-      }),
-      // Cascades to collections, their join rows, custom types, accounts and sessions.
-      prisma.user.delete({ where: { id: userId } }),
-      // Tags are global, so only this user's that nothing else uses now go.
-      prisma.tag.deleteMany({ where: { id: { in: tagIds }, items: { none: {} } } }),
-    ]);
-
-    // R2 isn't part of the transaction, so its files go once the rows are
-    // gone. Listing them by the user's key prefix only now also catches an
-    // upload whose row committed while this was running.
-    await discardUserFiles(userId);
+    await deleteUserRows(userId, user.email);
   } catch (error) {
     console.error("Deleting account failed", error);
-    return { success: false, data: null, error: "Could not delete your account. Please try again." };
+    if (canceled === 0) {
+      return { success: false, data: null, error: DELETE_FAILED };
+    }
+    // The account stays but its subscription is gone: end Pro now rather
+    // than when the webhook lands, and say why.
+    try {
+      await clearSubscription(userId);
+    } catch (clearError) {
+      console.error("Recording the canceled subscription failed", clearError);
+    }
+    return { success: false, data: null, error: DELETE_FAILED_AFTER_CANCEL };
+  }
+
+  // R2 isn't part of the transaction, so its files go once the rows are gone.
+  // Listing them by the user's key prefix only now also catches an upload
+  // whose row committed while this was running. The account is already
+  // deleted, so a failure here is logged rather than reported as one.
+  try {
+    await discardUserFiles(userId);
+  } catch (error) {
+    console.error("Removing a deleted account's stored files failed", error);
   }
 
   // Throws the redirect, so it stays outside the try.

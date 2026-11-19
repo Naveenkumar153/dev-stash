@@ -1,6 +1,7 @@
 import { z } from "zod";
 
 import { folderIdSchema } from "@/lib/folder-schemas";
+import { ITEM_LIMITS } from "@/lib/item-limits";
 import { FILE_ITEM_TYPES, NON_FILE_ITEM_TYPES, requiresUrl } from "@/lib/item-types";
 
 /** A link saved, or edited, without its URL. */
@@ -22,12 +23,27 @@ const optionalText = z
   .nullish()
   .transform((value) => value || null);
 
+function tooLong(label: string, max: number): string {
+  return `${label} can be up to ${max.toLocaleString("en-US")} characters`;
+}
+
+/** Optional text with a length cap, checked after trimming. */
+function boundedText(label: string, max: number) {
+  return z
+    .string()
+    .trim()
+    .max(max, tooLong(label, max))
+    .nullish()
+    .transform((value) => value || null);
+}
+
 /**
  * Optional content, kept exactly as typed - indentation and trailing newlines
  * matter in code - but saved as null when it's only whitespace.
  */
 const optionalContent = z
   .string()
+  .max(ITEM_LIMITS.content, tooLong("Content", ITEM_LIMITS.content))
   .nullish()
   .transform((value) => (value?.trim() ? value : null));
 
@@ -36,14 +52,22 @@ const optionalContent = z
  * `javascript:` included, while `z.httpUrl()` also rejects localhost and IP
  * addresses, which developers do save links to.
  */
-const optionalUrl = optionalText.pipe(
+const optionalUrl = boundedText("URL", ITEM_LIMITS.url).pipe(
   z.url({ protocol: /^https?$/, error: "Enter a full URL starting with http:// or https://" }).nullable(),
 );
 
 /** Tag names, trimmed and non-blank, each kept once in the order given. */
 const tagsSchema = z
-  .array(z.string().trim().min(1, "Tags can't be blank"), { error: "Tags are required" })
-  .transform((tags) => [...new Set(tags)]);
+  .array(
+    z
+      .string()
+      .trim()
+      .min(1, "Tags can't be blank")
+      .max(ITEM_LIMITS.tag, `Tags can be up to ${ITEM_LIMITS.tag} characters each`),
+    { error: "Tags are required" },
+  )
+  .transform((tags) => [...new Set(tags)])
+  .pipe(z.array(z.string()).max(ITEM_LIMITS.tagCount, `Add up to ${ITEM_LIMITS.tagCount} tags`));
 
 /**
  * The collections an item goes in, each kept once in the order given. Empty is
@@ -61,10 +85,14 @@ const collectionIdsSchema = z
  * are still validated here; `updateItem` decides which ones it writes.
  */
 export const updateItemSchema = z.object({
-  title: z.string({ error: "Title is required" }).trim().min(1, "Title is required"),
-  description: optionalText,
+  title: z
+    .string({ error: "Title is required" })
+    .trim()
+    .min(1, "Title is required")
+    .max(ITEM_LIMITS.title, tooLong("Title", ITEM_LIMITS.title)),
+  description: boundedText("Description", ITEM_LIMITS.description),
   content: optionalContent,
-  language: optionalText,
+  language: boundedText("Language", ITEM_LIMITS.language),
   url: optionalUrl,
   tags: tagsSchema,
   /** Replaces the item's collections on save, so it's required, not defaulted. */

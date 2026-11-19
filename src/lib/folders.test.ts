@@ -170,8 +170,7 @@ describe("wouldCreateCycle", () => {
 
 describe("countDirectContents", () => {
   it("counts each folder's direct sub-folders and files together", () => {
-    const files = [{ folderId: "docs" }, { folderId: "docs" }, { folderId: "q4" }, { folderId: null }];
-    const counts = countDirectContents(TREE, files);
+    const counts = countDirectContents(TREE, { docs: 2, q4: 1 });
 
     expect(counts.get("docs")).toBe(4);
     expect(counts.get("2026")).toBe(1);
@@ -181,13 +180,7 @@ describe("countDirectContents", () => {
 });
 
 describe("countSubtree", () => {
-  const files = [
-    { folderId: "docs" },
-    { folderId: "q4" },
-    { folderId: "q4" },
-    { folderId: "config" },
-    { folderId: null },
-  ];
+  const files = { docs: 1, q4: 2, config: 1 };
 
   it("counts the folders beneath it and the files anywhere inside", () => {
     expect(countSubtree(TREE, files, "docs")).toEqual({ folders: 3, files: 3 });

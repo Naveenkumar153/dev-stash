@@ -8,8 +8,7 @@ import { UpgradePlanPicker } from "@/components/billing/UpgradePlanPicker";
 import { PlanPrice } from "@/components/home/PlanPrice";
 import { SIGN_IN_PATH } from "@/lib/auth-redirect";
 import { getSessionUser } from "@/lib/db/user";
-import { FREE_PLAN_FEATURES } from "@/lib/homepage";
-import { BILLING_SETTINGS_PATH, parseBillingInterval } from "@/lib/plans";
+import { BILLING_SETTINGS_PATH, FREE_PLAN_FEATURES, parseBillingInterval } from "@/lib/plans";
 
 export const metadata: Metadata = { title: "Upgrade | DevStash" };
 

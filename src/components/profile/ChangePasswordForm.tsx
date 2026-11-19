@@ -8,6 +8,7 @@ import { FormField } from "@/components/auth/FormField";
 import { FormMessage } from "@/components/auth/FormMessage";
 import { Button } from "@/components/ui/button";
 import type { FieldErrors } from "@/lib/action-result";
+import { callAction } from "@/lib/action-call";
 
 export function ChangePasswordForm() {
   const [pending, startTransition] = useTransition();
@@ -22,7 +23,10 @@ export function ChangePasswordForm() {
     const formData = new FormData(form);
 
     startTransition(async () => {
-      const result = await changePassword(formData);
+      const result = await callAction(() => changePassword(formData));
+      if (!result) {
+        return;
+      }
       setError(result.error);
       setFieldErrors(result.fieldErrors);
       if (result.success) {

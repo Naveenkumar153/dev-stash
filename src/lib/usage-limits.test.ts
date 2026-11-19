@@ -3,9 +3,11 @@ import { describe, expect, it, vi } from "vitest";
 
 import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
+import { Prisma } from "@/generated/prisma/client";
 import {
-  canCreateCollection,
   canCreateItem,
+  createCollectionWithinLimit,
+  createItemWithinLimit,
   getSessionEntitlements,
   getUsage,
   isProGatingEnabled,
@@ -13,7 +15,7 @@ import {
 
 vi.mock("@/auth", () => ({ auth: vi.fn() }));
 vi.mock("@/lib/prisma", () => ({
-  prisma: { item: { count: vi.fn() }, collection: { count: vi.fn() } },
+  prisma: { item: { count: vi.fn() }, collection: { count: vi.fn() }, $transaction: vi.fn() },
 }));
 
 const mockAuth = auth as unknown as ReturnType<typeof vi.fn<() => Promise<Session | null>>>;
@@ -132,28 +134,100 @@ describe("canCreateItem", () => {
   });
 });
 
-describe("canCreateCollection", () => {
-  it("allows without counting when the user has access", async () => {
-    expect(await canCreateCollection("user-1", true)).toEqual({ allowed: true });
-    expect(prisma.collection.count).not.toHaveBeenCalled();
+describe("createItemWithinLimit / createCollectionWithinLimit", () => {
+  const create = vi.fn();
+
+  function runTransactions() {
+    vi.mocked(prisma.$transaction).mockImplementation((async (run: (tx: unknown) => unknown) =>
+      run(prisma)) as never);
+  }
+
+  function serializationFailure() {
+    return new Prisma.PrismaClientKnownRequestError("could not serialize access", {
+      code: "P2034",
+      clientVersion: "7",
+    });
+  }
+
+  it("creates with access without a count or a transaction", async () => {
+    create.mockResolvedValue("created");
+
+    expect(await createItemWithinLimit("user-1", true, create)).toEqual({
+      allowed: true,
+      value: "created",
+    });
+    expect(create).toHaveBeenCalledWith(prisma);
+    expect(prisma.$transaction).not.toHaveBeenCalled();
+    expect(prisma.item.count).not.toHaveBeenCalled();
   });
 
-  it.each([0, 2])("allows a Free user at %i collections", async (count) => {
-    vi.mocked(prisma.collection.count).mockResolvedValue(count);
-    expect(await canCreateCollection("user-1", false)).toEqual({ allowed: true });
+  it("counts and creates in one serializable transaction under the limit", async () => {
+    runTransactions();
+    vi.mocked(prisma.item.count).mockResolvedValue(49);
+    create.mockResolvedValue("created");
+
+    expect(await createItemWithinLimit("user-1", false, create)).toEqual({
+      allowed: true,
+      value: "created",
+    });
+    expect(prisma.item.count).toHaveBeenCalledWith({ where: { userId: "user-1" } });
+    expect(prisma.$transaction).toHaveBeenCalledWith(expect.any(Function), {
+      isolationLevel: "Serializable",
+    });
   });
 
-  it.each([3, 4])("refuses a Free user at %i collections", async (count) => {
-    vi.mocked(prisma.collection.count).mockResolvedValue(count);
-    expect(await canCreateCollection("user-1", false)).toEqual({ allowed: false, limit: 3 });
+  it("refuses at the item limit without creating", async () => {
+    runTransactions();
+    vi.mocked(prisma.item.count).mockResolvedValue(50);
+
+    expect(await createItemWithinLimit("user-1", false, create)).toEqual({
+      allowed: false,
+      limit: 50,
+    });
+    expect(create).not.toHaveBeenCalled();
   });
 
-  it("counts only the given user's collections", async () => {
-    vi.mocked(prisma.collection.count).mockResolvedValue(0);
-    await canCreateCollection("user-1", false);
+  it.each([
+    [2, true],
+    [3, false],
+    [4, false],
+  ])("for collections, at %i existing allows: %s", async (existing, allowed) => {
+    runTransactions();
+    vi.mocked(prisma.collection.count).mockResolvedValue(existing);
+    create.mockResolvedValue("created");
 
-    expect(prisma.collection.count).toHaveBeenCalledTimes(1);
+    expect((await createCollectionWithinLimit("user-1", false, create)).allowed).toBe(allowed);
     expect(prisma.collection.count).toHaveBeenCalledWith({ where: { userId: "user-1" } });
+  });
+
+  it("retries once when Postgres aborts the transaction for a concurrent create", async () => {
+    vi.mocked(prisma.$transaction)
+      .mockRejectedValueOnce(serializationFailure())
+      .mockImplementationOnce((async (run: (tx: unknown) => unknown) => run(prisma)) as never);
+    // The retry sees the row the concurrent winner committed.
+    vi.mocked(prisma.collection.count).mockResolvedValue(3);
+
+    expect(await createCollectionWithinLimit("user-1", false, create)).toEqual({
+      allowed: false,
+      limit: 3,
+    });
+    expect(prisma.$transaction).toHaveBeenCalledTimes(2);
+  });
+
+  it("gives up after the retry is aborted too", async () => {
+    vi.mocked(prisma.$transaction).mockRejectedValue(serializationFailure());
+
+    await expect(createCollectionWithinLimit("user-1", false, create)).rejects.toMatchObject({
+      code: "P2034",
+    });
+    expect(prisma.$transaction).toHaveBeenCalledTimes(2);
+  });
+
+  it("doesn't retry other failures", async () => {
+    vi.mocked(prisma.$transaction).mockRejectedValue(new Error("connection lost"));
+
+    await expect(createItemWithinLimit("user-1", false, create)).rejects.toThrow("connection lost");
+    expect(prisma.$transaction).toHaveBeenCalledTimes(1);
   });
 });
 

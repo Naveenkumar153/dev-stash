@@ -1,12 +1,9 @@
 import { cache } from "react";
 
-import { auth } from "@/auth";
 import { prisma } from "@/lib/prisma";
-import { getSessionUserId } from "@/lib/session";
+import { getSession, getSessionUserId } from "@/lib/session";
 import type { SessionUser } from "@/types/auth";
 
-/** The seeded demo account (`prisma/seed.ts`), which can't be deleted. */
-export const DEMO_USER_EMAIL = "demo@devstash.io";
 
 /**
  * Owner id for the read queries behind every page: the signed-in user, so
@@ -19,20 +16,30 @@ export const DEMO_USER_EMAIL = "demo@devstash.io";
 export const getCurrentUserId = cache(getSessionUserId);
 
 /**
+ * The signed-in user's row for the app shell: display details, plan and editor
+ * preferences in one read, shared by `getSessionUser()` and
+ * `getEditorPreferences()`. Null when signed out, or when the session outlived
+ * its user.
+ */
+export const getSessionUserRow = cache(async () => {
+  const session = await getSession();
+  if (!session?.user?.id) {
+    return null;
+  }
+
+  return prisma.user.findUnique({
+    where: { id: session.user.id },
+    select: { name: true, email: true, image: true, isPro: true, editorPreferences: true },
+  });
+});
+
+/**
  * The signed-in user's display details, read from their row rather than the
  * JWT, which is frozen at sign-in - so a renamed account or a new avatar shows
  * straight away. Null when signed out, or when the session outlived its user.
  */
 export const getSessionUser = cache(async (): Promise<SessionUser | null> => {
-  const session = await auth();
-  if (!session?.user?.id) {
-    return null;
-  }
-
-  const user = await prisma.user.findUnique({
-    where: { id: session.user.id },
-    select: { name: true, email: true, image: true, isPro: true },
-  });
+  const user = await getSessionUserRow();
   if (!user) {
     return null;
   }

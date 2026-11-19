@@ -14,6 +14,7 @@ import {
   COLLECTION_DESCRIPTION_MAX_LENGTH,
   COLLECTION_NAME_MAX_LENGTH,
 } from "@/lib/collections";
+import { callAction } from "@/lib/action-call";
 
 /** What a collection form's submit returns: the shape both actions share. */
 interface CollectionFormResult {
@@ -66,7 +67,10 @@ export function CollectionForm({
     event.preventDefault();
 
     startTransition(async () => {
-      const result = await onSubmit({ name, description });
+      const result = await callAction(() => onSubmit({ name, description }));
+      if (!result) {
+        return;
+      }
 
       if (result.success) {
         onSaved();

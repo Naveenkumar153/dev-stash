@@ -29,6 +29,11 @@ model User {
   // Credentials auth (email / password). Null for OAuth-only accounts.
   passwordHash String?
 
+  // Bumped whenever the password is reset or changed. Each JWT carries the
+  // value it was issued with, and the `jwt` callback ends any session whose
+  // value is behind, so an attacker's session doesn't survive the change.
+  sessionVersion Int @default(0)
+
   // Billing / entitlement
   isPro                Boolean @default(false)
   stripeCustomerId     String? @unique
@@ -87,6 +92,11 @@ model Item {
 
   // Link payload
   url String?
+
+  // A one-line excerpt of the payload (URL, file name or text, in that order)
+  // for the search palette, written with the item so search never reads full
+  // content. Null for an item with nothing to preview.
+  preview String?
 
   description String?
   isFavorite  Boolean @default(false)

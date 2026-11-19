@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { BODY_NOT_JSON, BODY_TOO_LARGE, readJsonBody } from "@/lib/request-body";
+import { BODY_NOT_JSON, BODY_TOO_LARGE, readJsonBody, readTextBody } from "@/lib/request-body";
 
 function post(body: BodyInit | null, headers: HeadersInit = {}) {
   return new Request("http://localhost/api/auth/register", { method: "POST", body, headers });
@@ -72,5 +72,36 @@ describe("readJsonBody", () => {
       status: 400,
       error: BODY_NOT_JSON,
     });
+  });
+});
+
+describe("readTextBody", () => {
+  it("returns the raw text, unparsed", async () => {
+    expect(await readTextBody(post('{"a": 1}'), 1024)).toEqual({ ok: true, body: '{"a": 1}' });
+  });
+
+  it("refuses a declared length over the cap", async () => {
+    const request = new Request("http://localhost/api", {
+      method: "POST",
+      headers: { "content-length": "2048" },
+      body: "{}",
+    });
+
+    expect(await readTextBody(request, 1024)).toEqual({
+      ok: false,
+      status: 413,
+      error: BODY_TOO_LARGE,
+    });
+  });
+
+  it("refuses a chunked body once it passes the cap", async () => {
+    expect(await readTextBody(chunked("x".repeat(600), "x".repeat(600)), 1024)).toMatchObject({
+      ok: false,
+      status: 413,
+    });
+  });
+
+  it("reads an empty body as an empty string", async () => {
+    expect(await readTextBody(post(null), 1024)).toEqual({ ok: true, body: "" });
   });
 });

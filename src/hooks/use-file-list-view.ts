@@ -3,76 +3,47 @@
 import { useMemo, useState } from "react";
 
 import {
-  DEFAULT_FILE_FILTERS,
   DEFAULT_FILE_SORT,
   isFileFilterActive,
-  matchesFileFilters,
   sortFiles,
   sortFolders,
   type FileFilters,
   type FileSort,
 } from "@/lib/file-filters";
-import { countDirectContents, groupByParent, type FolderEntry } from "@/lib/folders";
+import {
+  countDirectContents,
+  groupByParent,
+  type FolderEntry,
+  type FolderFileCounts,
+} from "@/lib/folders";
 import type { FileListItem } from "@/types/items";
 
-interface FilterState {
-  filters: FileFilters;
-  /** When the filters last changed; date ranges count back from here. */
-  now: Date;
-}
-
 /**
- * What the files list shows for the open folder: its sub-folders and files,
- * or, with a Type or Uploaded filter on, every matching file in every folder.
- * Holds the filter and sort state. Opening another folder clears the filters,
- * while the sort carries over.
+ * What the files list shows: the server loaded either the open folder's files
+ * or, with a Type or Uploaded filter on, the matching files in every folder;
+ * this adds the open folder's sub-folders (none while filtering) and sorts
+ * both. The sort is browser state that carries over between folders, since
+ * moving between them keeps the list mounted; the filters live in the URL.
  */
 export function useFileListView(
   items: readonly FileListItem[],
   folders: readonly FolderEntry[],
+  folderCounts: FolderFileCounts,
   folderId: string | null,
+  filters: FileFilters,
 ) {
-  const [state, setState] = useState<FilterState | null>(null);
   const [sort, setSort] = useState<FileSort>(DEFAULT_FILE_SORT);
-  const [shownFolderId, setShownFolderId] = useState(folderId);
-
-  // Opening a folder - from a filtered row's path, or back / forward - clears
-  // the filters, or the list would stay flat and never show the folder. Reset
-  // while rendering rather than in an effect, so the stale list never paints.
-  if (folderId !== shownFolderId) {
-    setShownFolderId(folderId);
-    setState(null);
-  }
 
   const byId = useMemo(() => new Map(folders.map((folder) => [folder.id, folder])), [folders]);
   const children = useMemo(() => groupByParent(folders), [folders]);
-  const itemCounts = useMemo(() => countDirectContents(folders, items), [folders, items]);
-
-  const filters = state?.filters ?? DEFAULT_FILE_FILTERS;
-  const filtering = state !== null && isFileFilterActive(filters);
-  const shownFiles = sortFiles(
-    filtering
-      ? items.filter((item) => matchesFileFilters(item, filters, state.now))
-      : items.filter((item) => item.folderId === folderId),
-    sort,
+  const itemCounts = useMemo(
+    () => countDirectContents(folders, folderCounts),
+    [folders, folderCounts],
   );
+
+  const filtering = isFileFilterActive(filters);
+  const shownFiles = sortFiles(items, sort);
   const shownFolders = filtering ? [] : sortFolders(children.get(folderId) ?? [], sort);
 
-  function updateFilters(next: Partial<FileFilters>) {
-    // The time is taken here, not during render, so rendering stays pure.
-    setState({ filters: { ...filters, ...next }, now: new Date() });
-  }
-
-  return {
-    byId,
-    itemCounts,
-    filters,
-    filtering,
-    sort,
-    setSort,
-    shownFiles,
-    shownFolders,
-    updateFilters,
-    clearFilters: () => setState(null),
-  };
+  return { byId, itemCounts, filtering, sort, setSort, shownFiles, shownFolders };
 }

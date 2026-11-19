@@ -9,7 +9,8 @@ import { NewItemButton } from "@/components/items/NewItemButton";
 import { ListPagination } from "@/components/pagination/ListPagination";
 import { getFolders } from "@/lib/db/folders";
 import { getItemTypeBySlug } from "@/lib/db/item-types";
-import { getFileListItems, getItemsByType } from "@/lib/db/items";
+import { getFileListPage, getItemsByType } from "@/lib/db/items";
+import { parseFileFilters } from "@/lib/file-filters";
 import { folderIdSchema } from "@/lib/folder-schemas";
 import type { FolderEntry } from "@/lib/folders";
 import { formatCount } from "@/lib/format";
@@ -73,9 +74,17 @@ export default async function ItemTypePage({
   }
 
   const isFilesPage = slug === getItemTypeSlug("file");
-  // The files page isn't paged: its filters, sorting and folders work over
-  // every file in the browser. Every other type loads one page of cards.
+  // The files page isn't paged: it loads one folder's files, or a filter's
+  // matches, and sorts them in the browser. Every other type loads one page
+  // of cards.
   const page = isFilesPage ? 1 : parsePageParam(query.page);
+  const filters = parseFileFilters(query);
+  // Validated again against the user's folders below; a malformed or unknown
+  // id 404s there, so the query here only needs a well-formed one.
+  const folderParam =
+    typeof query.folder === "string" && folderIdSchema.safeParse(query.folder).success
+      ? query.folder
+      : null;
 
   if (page === null) {
     redirect(`/items/${encodeURIComponent(slug)}`);
@@ -84,7 +93,7 @@ export default async function ItemTypePage({
   // Files get their own, lighter rows; every other type loads its cards.
   const [cards, files, folders] = await Promise.all([
     isFilesPage ? null : getItemsByType(slug, page),
-    isFilesPage ? getFileListItems() : null,
+    isFilesPage ? getFileListPage({ folderId: folderParam, filters, now: new Date() }) : null,
     isFilesPage ? getFolders() : [],
   ]);
   const list = files ?? cards;
@@ -126,7 +135,7 @@ export default async function ItemTypePage({
         <div className="min-w-0 flex-1">
           <h1 className="font-heading text-3xl font-semibold">{plural}</h1>
           <p className="mt-1 text-muted-foreground">
-            {formatCount(cards ? cards.total : list.items.length, "item")}
+            {formatCount(cards ? cards.total : (files?.total ?? 0), "item")}
           </p>
         </div>
         {isFilesPage && (
@@ -147,7 +156,14 @@ export default async function ItemTypePage({
           // Files get a Drive-style list with folders and filters instead of a
           // card grid. It has its own empty states, since folders can exist
           // without any files.
-          <FileList items={files.items} folders={folders} folderId={openFolder?.id ?? null} />
+          <FileList
+            items={files.items}
+            total={files.total}
+            folderCounts={files.folderCounts}
+            folders={folders}
+            folderId={openFolder?.id ?? null}
+            filters={filters}
+          />
         ) : !cards?.items.length ? (
           <p className="text-sm text-muted-foreground">
             No {plural.toLowerCase()} yet.

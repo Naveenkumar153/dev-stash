@@ -1,7 +1,7 @@
 import { SEARCH_LOAD_FAILED, SESSION_EXPIRED } from "@/lib/action-result";
 import { errorResponse } from "@/lib/api-response";
 import { getCollections } from "@/lib/db/collections";
-import { getSearchItems } from "@/lib/db/items";
+import { getSearchItems } from "@/lib/db/search-items";
 import { toSearchCollection } from "@/lib/search";
 import { getSessionUserId } from "@/lib/session";
 import type { SearchDataResponse } from "@/types/search";

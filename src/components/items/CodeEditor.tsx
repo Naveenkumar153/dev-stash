@@ -53,7 +53,7 @@ export function CodeEditor({
         readOnly
           ? "border-border bg-muted/30"
           : "border-input dark:bg-input/30 focus-within:border-ring focus-within:ring-3 focus-within:ring-ring/50",
-        invalid && "border-destructive ring-destructive/20 dark:border-destructive/50 dark:ring-destructive/40",
+        invalid && "border-destructive ring-3 ring-destructive/20 dark:border-destructive/50 dark:ring-destructive/40",
       )}
     >
       <CodeEditorHeader value={value} language={language} />

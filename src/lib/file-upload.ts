@@ -146,6 +146,16 @@ export function isImageFileName(fileName: string): boolean {
   return UPLOAD_CONSTRAINTS.image.extensions.has(getFileExtension(fileName));
 }
 
+/** Raster images get a small thumbnail for the gallery; an SVG is already small and scales. */
+export function hasThumbnail(fileName: string): boolean {
+  return isImageFileName(fileName) && getFileExtension(fileName) !== "svg";
+}
+
+/** Where an image's gallery thumbnail is stored in R2, beside the original. */
+export function getThumbnailKey(key: string): string {
+  return `${key}.thumb.webp`;
+}
+
 const MAX_KEY_NAME_LENGTH = 100;
 
 /**
@@ -198,4 +208,9 @@ export function contentDisposition(type: "inline" | "attachment", fileName: stri
 /** The download proxy's path for an item's file; `download` forces a save. */
 export function getItemFileUrl(itemId: string, download = false): string {
   return `/api/items/${itemId}/file${download ? "?download=1" : ""}`;
+}
+
+/** An image item's gallery thumbnail, through the same proxy as its file. */
+export function getItemThumbnailUrl(itemId: string): string {
+  return `/api/items/${itemId}/file?thumb=1`;
 }

@@ -1,6 +1,7 @@
 import type Stripe from "stripe";
 
 import { checkoutSessionIdSchema } from "@/lib/billing-schemas";
+import { isDemoEmail } from "@/lib/demo-account";
 import { prisma } from "@/lib/prisma";
 import { getStripe, isProStatus, toId } from "@/lib/stripe";
 
@@ -14,14 +15,25 @@ export interface BillingStatus {
   isPro: boolean;
   /** Has a Stripe customer, so the Customer Portal has something to show. */
   hasCustomer: boolean;
+  /**
+   * The shared demo account: its billing is closed, so one visitor can't
+   * subscribe it or open another visitor's invoices in the Portal.
+   */
+  isDemo: boolean;
 }
 
 export async function getBillingStatus(userId: string): Promise<BillingStatus | null> {
   const user = await prisma.user.findUnique({
     where: { id: userId },
-    select: { isPro: true, stripeCustomerId: true },
+    select: { email: true, isPro: true, stripeCustomerId: true },
   });
-  return user && { isPro: user.isPro, hasCustomer: user.stripeCustomerId !== null };
+  return (
+    user && {
+      isPro: user.isPro,
+      hasCustomer: user.stripeCustomerId !== null,
+      isDemo: isDemoEmail(user.email),
+    }
+  );
 }
 
 /**
@@ -127,6 +139,54 @@ const ENDED_STATUSES: ReadonlySet<Stripe.Subscription.Status> = new Set([
   "canceled",
   "incomplete_expired",
 ]);
+
+// Far more than one customer ever has; a Checkout is refused while any is live.
+const SUBSCRIPTION_LIST_LIMIT = 100;
+
+/** The customer's subscriptions that haven't ended, newest first, as Stripe lists them. */
+async function listLiveSubscriptions(customerId: string): Promise<Stripe.Subscription[]> {
+  const { data } = await getStripe().subscriptions.list({
+    customer: customerId,
+    status: "all",
+    limit: SUBSCRIPTION_LIST_LIMIT,
+  });
+  return data.filter((subscription) => !ENDED_STATUSES.has(subscription.status));
+}
+
+/**
+ * A subscription of the customer's that hasn't ended, or null. Asked of Stripe
+ * rather than the stored `isPro`, which lags while the webhook and the
+ * post-checkout sync are still on their way, so a second Checkout can't start.
+ */
+export async function findLiveSubscriptionId(customerId: string): Promise<string | null> {
+  const [live] = await listLiveSubscriptions(customerId);
+  return live?.id ?? null;
+}
+
+/**
+ * Cancels every subscription of the customer that hasn't ended, before its
+ * account is deleted - not just the stored one, which is whichever was applied
+ * last. Throws if any cancel fails. Returns how many were canceled.
+ */
+export async function cancelCustomerSubscriptions(customerId: string): Promise<number> {
+  const live = await listLiveSubscriptions(customerId);
+  for (const subscription of live) {
+    await cancelSubscription(subscription.id);
+  }
+  return live.length;
+}
+
+/**
+ * Records that the user's subscriptions were canceled, for when an account
+ * delete canceled them and then failed: Pro ends now rather than when the
+ * webhook lands.
+ */
+export async function clearSubscription(userId: string): Promise<void> {
+  await prisma.user.update({
+    where: { id: userId },
+    data: { isPro: false, stripeSubscriptionId: null },
+  });
+}
 
 /**
  * Cancels a subscription immediately, before its account is deleted. Stripe
