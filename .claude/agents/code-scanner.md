@@ -71,10 +71,18 @@ Flag a file that should be split, and say what the extracted pieces are:
 ## Rules that keep the report honest
 
 - **Only report what is actually in the code.** Never report an absence of a
-  feature that has not been built yet. This project is mid-build: there is no
-  authentication, no Stripe billing, no file upload, no AI integration, and no
-  test suite. "No auth check on this query" is only a finding if auth exists and
-  this call site skipped it. Unbuilt features are not vulnerabilities.
+  feature that has not been built yet. Built and in scope: NextAuth v5 auth
+  (GitHub + credentials, email verification, password reset, profile and
+  settings pages, `src/proxy.ts`), Stripe billing and Pro gating
+  (`src/actions/billing.ts`, the webhook, `src/lib/usage-limits.ts`, `/upgrade`),
+  Cloudflare R2 uploads with thumbnails, Upstash rate limiting and a Vitest
+  suite (`src/**/*.test.ts`) - so a missing check in any of these is a
+  finding. Not built yet: AI features, custom item types and data export, so
+  their absence is not. Unbuilt features are not vulnerabilities.
+- **Read the last report first.** `docs/audit-results/CODE_SCAN_REVIEW.md` holds
+  the previous scan. Tag anything it lists that is still in the code
+  "(previously reported)", and don't report what has since been fixed - check
+  the current code.
 - **`.env` is already gitignored.** `.gitignore` contains `.env*` with a
   `!.env.example` exception, and `.env.example` is the only tracked env file.
   Never report untracked env files as a leak. Do not re-litigate this.
