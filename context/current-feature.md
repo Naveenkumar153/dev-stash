@@ -1,14 +1,27 @@
-# Current Feature
+# Current Feature: UI Layout Review
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+Review (done 2026-11-21, ui-reviewer agent in Playwright): 2 reported issues confirmed plus 10 suggestions. Fixing the reported issues and suggestions 1, 2, 5 and 6, the set proposed after the review:
+
+- [x] Sidebar active link clearly visible: left accent bar, `font-medium`, a lighter dark `--sidebar-accent`; collapsed rail links get an accessible name (the logo link too, found while verifying); the active row scrolls into view
+- [x] `/register` gets the GitHub button and "or" divider above the form, labelled "Sign up with GitHub", hidden once the check-your-email panel shows
+- [x] Item cards keep their titles readable: the date, favorite star and copy button move from the title row to the end of the tags row, and titles wrap to two lines instead of truncating (moving only the date still clipped titles at 1280px); the `/items/[type]` and `/collections/[id]` grids switch to container queries (`@xl:grid-cols-2 @[60rem]:grid-cols-3`) like the collections grids
+- [x] Item drawer action bar fits one row at 375px: Favorite, Pin and Copy show icons only below `sm`, keeping their accessible names
+- [x] `/dashboard` tab title reads "Dashboard | DevStash"
+- [x] The auth nav hides the link to the page you're on (Sign In on `/sign-in`, Get Started on `/register`)
 
 ## Notes
+
+- Inline request: "Use the ui reviewer and Playwright and give me any overall suggestions that you may have for the UI layout... no sidebar highlighting of links and there is no github button on the register page... Keep the report concise with straightforward results."
+- Sidebar: `NavRow` in `src/components/dashboard/SidebarNavParts.tsx` already sets `aria-current` and `bg-sidebar-accent` when active, but the dark `--sidebar-accent` (`oklch(0.269 0 0)`) is close to the sidebar background, so the highlight may be effectively invisible; collection rows may not get it at all
+- Register: `src/app/(auth)/sign-in/page.tsx` renders `GitHubSignInButton`; `/register` doesn't
+- Previous review (2026-11-17, UI Review Quick Wins) left open items: phone tap targets, no skip link, collection-card focus ring, drawer action bar wrapping at 375px, `/dashboard` tab title, auth nav showing Sign In on `/sign-in`; re-check rather than repeat blindly
+- Review is read-only against `development` as the demo user (`demo@devstash.io`); no data writes
 
 <!-- Any extra notes -->
 

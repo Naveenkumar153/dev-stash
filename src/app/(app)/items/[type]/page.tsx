@@ -170,10 +170,14 @@ export default async function ItemTypePage({
           </p>
         ) : (
           <div className="flex flex-1 flex-col gap-8">
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {cards.items.map((item) => (
-                <Card key={item.id} item={item} />
-              ))}
+            {/* Columns follow the list's own width, so the open sidebar doesn't
+                squeeze two columns of cards into a tablet screen. */}
+            <div className="@container">
+              <div className="grid gap-4 @xl:grid-cols-2 @[60rem]:grid-cols-3">
+                {cards.items.map((item) => (
+                  <Card key={item.id} item={item} />
+                ))}
+              </div>
             </div>
             <ListPagination
               pathname={pathname}

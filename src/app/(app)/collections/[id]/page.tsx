@@ -112,10 +112,14 @@ export default async function CollectionPage({
           <p className="text-sm text-muted-foreground">No items in this collection yet.</p>
         ) : (
           <div className="flex flex-1 flex-col gap-8">
-            <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-              {items.map((item) => (
-                <ItemCard key={item.id} item={item} />
-              ))}
+            {/* Columns follow the list's own width, so the open sidebar doesn't
+                squeeze two columns of cards into a tablet screen. */}
+            <div className="@container">
+              <div className="grid gap-4 @xl:grid-cols-2 @[60rem]:grid-cols-3">
+                {items.map((item) => (
+                  <ItemCard key={item.id} item={item} />
+                ))}
+              </div>
             </div>
             <ListPagination
               pathname={pathname}

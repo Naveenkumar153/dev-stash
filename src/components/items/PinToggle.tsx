@@ -15,13 +15,20 @@ interface PinToggleProps {
   isPinned: boolean;
   /** Runs with the saved state, so the drawer's copy of the item follows. */
   onSaved: (isPinned: boolean) => void;
+  /** Classes for the "Pin" label, e.g. to show it only from `sm`. */
+  labelClassName?: string;
 }
 
 /**
  * The drawer's Pin button. `aria-pressed` carries the state and the pin fills
  * while it's on; the change shows at once and falls back if the save fails.
  */
-export function PinToggle({ itemId, isPinned, onSaved }: Readonly<PinToggleProps>) {
+export function PinToggle({
+  itemId,
+  isPinned,
+  onSaved,
+  labelClassName,
+}: Readonly<PinToggleProps>) {
   const { value: pinned, toggle } = useOptimisticToggle(
     isPinned,
     (next) => toggleItemPin(itemId, next),
@@ -31,7 +38,7 @@ export function PinToggle({ itemId, isPinned, onSaved }: Readonly<PinToggleProps
   return (
     <Button type="button" variant="ghost" aria-pressed={pinned} onClick={toggle}>
       <Pin aria-hidden className={cn(pinned && "fill-current")} />
-      Pin
+      <span className={labelClassName}>Pin</span>
     </Button>
   );
 }

@@ -9,6 +9,12 @@ import { Button } from "@/components/ui/button";
 import { copyToClipboard } from "@/lib/clipboard";
 import { cn } from "@/lib/utils";
 
+/**
+ * Favorite, Pin and Copy show only their icons in the full-width phone drawer,
+ * so the bar fits one row; the label stays as the button's accessible name.
+ */
+const COMPACT_LABEL = "sr-only sm:not-sr-only";
+
 interface ItemDrawerActionsProps {
   itemId: string;
   itemTitle: string;
@@ -68,6 +74,7 @@ export function ItemDrawerActions({
           onSaved={onFavoriteSaved}
           size="default"
           showLabel
+          labelClassName={COMPACT_LABEL}
         />
       ) : (
         <Button
@@ -77,22 +84,27 @@ export function ItemDrawerActions({
           className={cn(isFavorite && "text-amber-400")}
         >
           <Star aria-hidden className={cn(isFavorite && "fill-amber-400")} />
-          Favorite
+          <span className={COMPACT_LABEL}>Favorite</span>
         </Button>
       )}
 
       {onPinSaved ? (
-        <PinToggle itemId={itemId} isPinned={isPinned} onSaved={onPinSaved} />
+        <PinToggle
+          itemId={itemId}
+          isPinned={isPinned}
+          onSaved={onPinSaved}
+          labelClassName={COMPACT_LABEL}
+        />
       ) : (
         <Button variant="ghost" disabled aria-pressed={isPinned}>
           <Pin aria-hidden className={cn(isPinned && "fill-current")} />
-          Pin
+          <span className={COMPACT_LABEL}>Pin</span>
         </Button>
       )}
 
       <Button variant="ghost" disabled={!copyText} onClick={handleCopy}>
         <Copy aria-hidden />
-        Copy
+        <span className={COMPACT_LABEL}>Copy</span>
       </Button>
 
       <div className="ml-auto flex items-center gap-1">

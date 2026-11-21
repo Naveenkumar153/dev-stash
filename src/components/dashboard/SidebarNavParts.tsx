@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ChevronDown } from "lucide-react";
@@ -41,15 +41,28 @@ export function NavRow({
 }: NavRowProps) {
   const pathname = usePathname();
   const isActive = pathname === activePath;
+  const rowRef = useRef<HTMLAnchorElement>(null);
+
+  // The list scrolls inside the sidebar, so a row lower down (View all
+  // collections) can be the current page while out of sight.
+  useEffect(() => {
+    if (isActive) {
+      rowRef.current?.scrollIntoView({ block: "nearest" });
+    }
+  }, [isActive]);
 
   const row = (
     <Link
+      ref={rowRef}
       href={href}
       onClick={onNavigate}
       aria-current={isActive ? "page" : undefined}
+      // The rail hides the label, and the tooltip doesn't name the link.
+      aria-label={collapsed ? label : undefined}
       className={cn(
-        "flex h-9 items-center rounded-md text-sm text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
-        isActive && "bg-sidebar-accent text-sidebar-accent-foreground",
+        "relative flex h-9 items-center rounded-md text-sm text-sidebar-foreground/80 transition-colors hover:bg-sidebar-accent hover:text-sidebar-accent-foreground",
+        isActive &&
+          "bg-sidebar-accent font-medium text-sidebar-accent-foreground before:absolute before:inset-y-1.5 before:left-0 before:w-0.5 before:rounded-full before:bg-sidebar-primary",
         collapsed ? "justify-center" : "gap-3 px-3",
       )}
     >

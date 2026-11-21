@@ -33,6 +33,8 @@ export function SidebarBody({
       <Link
         href="/dashboard"
         onClick={onNavigate}
+        // The rail shows only the mark, which has no text of its own.
+        aria-label={collapsed ? "DevStash dashboard" : undefined}
         className={cn(
           "flex h-16 shrink-0 items-center px-4",
           collapsed && "justify-center px-0",

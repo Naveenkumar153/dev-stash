@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import Link from "next/link";
 import { Clock, Pin } from "lucide-react";
 
@@ -7,6 +8,8 @@ import { StatsCards } from "@/components/dashboard/StatsCards";
 import { getRecentCollections } from "@/lib/db/collections";
 import { getPinnedItems, getRecentItems, type ItemSummary } from "@/lib/db/items";
 import { getDashboardStats } from "@/lib/db/stats";
+
+export const metadata: Metadata = { title: "Dashboard | DevStash" };
 
 interface ItemSectionProps {
   title: string;

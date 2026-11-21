@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { AuthDivider } from "@/components/auth/AuthDivider";
 import { GitHubSignInButton } from "@/components/auth/GitHubSignInButton";
 import { SignInForm } from "@/components/auth/SignInForm";
 import {
@@ -45,11 +46,7 @@ export default async function SignInPage({ searchParams }: SignInPageProps) {
       <CardContent className="grid gap-4">
         <GitHubSignInButton callbackUrl={redirectTo} />
 
-        <div className="flex items-center gap-3 text-xs text-muted-foreground">
-          <span className="h-px flex-1 bg-border" />
-          or
-          <span className="h-px flex-1 bg-border" />
-        </div>
+        <AuthDivider />
 
         <SignInForm
           callbackUrl={redirectTo}

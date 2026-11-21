@@ -14,8 +14,9 @@ import { cn } from "@/lib/utils";
 /**
  * Item row card, color-coded on its left edge by item type. Used for the
  * dashboard's pinned and recent lists and the /items/[type] grid. Clicking
- * anywhere on it opens the item drawer, through the button on its title. A star
- * beside the date toggles favorite, and items with text or a URL get a copy icon.
+ * anywhere on it opens the item drawer, through the button on its title. The
+ * date, a favorite star and (for items with text or a URL) a copy icon end the
+ * tag row, so the title keeps the card's full width.
  */
 export function ItemCard({ item }: Readonly<{ item: ItemSummary }>) {
   const { icon: Icon, colorClass, borderClass, bgClass } =
@@ -42,14 +43,14 @@ export function ItemCard({ item }: Readonly<{ item: ItemSummary }>) {
         </span>
 
         <div className="min-w-0 flex-1">
-          <h3 className="flex items-center gap-2 font-heading text-base font-medium">
-            <OpenItemButton item={toDrawerSummary(item)} className="truncate">
+          <h3 className="flex items-start gap-2 font-heading text-base font-medium">
+            <OpenItemButton item={toDrawerSummary(item)} className="line-clamp-2 wrap-anywhere">
               {item.title}
             </OpenItemButton>
             {item.isPinned && (
               <Pin
                 aria-label="Pinned"
-                className="size-4 shrink-0 text-muted-foreground"
+                className="mt-1 size-4 shrink-0 text-muted-foreground"
               />
             )}
           </h3>
@@ -60,34 +61,33 @@ export function ItemCard({ item }: Readonly<{ item: ItemSummary }>) {
             </p>
           )}
 
-          {item.tags.length > 0 && (
-            <div className="mt-3 flex flex-wrap items-center gap-1.5">
-              {item.tags.map((tag) => (
-                <Badge key={tag} variant="secondary">
-                  {tag}
-                </Badge>
-              ))}
+          {/* The date and buttons sit here rather than beside the title, which
+              left the title only a few characters in a narrow card. */}
+          <div className="mt-3 flex flex-wrap items-center gap-1.5">
+            {item.tags.map((tag) => (
+              <Badge key={tag} variant="secondary">
+                {tag}
+              </Badge>
+            ))}
+            <div className="ml-auto flex shrink-0 items-center gap-1">
+              <time
+                dateTime={item.createdAt.toISOString()}
+                className="mr-1 text-xs text-muted-foreground"
+              >
+                {formatShortDate(item.createdAt)}
+              </time>
+              <FavoriteToggle
+                kind="item"
+                id={item.id}
+                name={item.title}
+                isFavorite={item.isFavorite}
+                className="relative z-10 shrink-0"
+              />
+              {!isFileItemType(item.typeName) && (
+                <QuickCopyButton itemId={item.id} itemTitle={item.title} />
+              )}
             </div>
-          )}
-        </div>
-
-        <div className="flex shrink-0 items-center gap-2">
-          <time
-            dateTime={item.createdAt.toISOString()}
-            className="hidden text-xs text-muted-foreground sm:block"
-          >
-            {formatShortDate(item.createdAt)}
-          </time>
-          <FavoriteToggle
-            kind="item"
-            id={item.id}
-            name={item.title}
-            isFavorite={item.isFavorite}
-            className="relative z-10 shrink-0"
-          />
-          {!isFileItemType(item.typeName) && (
-            <QuickCopyButton itemId={item.id} itemTitle={item.title} />
-          )}
+          </div>
         </div>
       </div>
     </Card>

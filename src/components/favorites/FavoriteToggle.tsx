@@ -20,6 +20,8 @@ interface FavoriteToggleProps {
   size?: "default" | "icon" | "icon-xs";
   /** Shows "Favorite" beside the star, as in the drawer's action bar. */
   showLabel?: boolean;
+  /** Classes for that label, e.g. to show it only from `sm`. */
+  labelClassName?: string;
   className?: string;
 }
 
@@ -37,6 +39,7 @@ export function FavoriteToggle({
   variant = "ghost",
   size = "icon-xs",
   showLabel = false,
+  labelClassName,
   className,
 }: Readonly<FavoriteToggleProps>) {
   const save = (next: boolean) =>
@@ -54,7 +57,7 @@ export function FavoriteToggle({
       className={cn(on ? "text-amber-400 hover:text-amber-400" : !showLabel && "text-muted-foreground", className)}
     >
       <Star aria-hidden className={cn(on && "fill-amber-400")} />
-      {showLabel && "Favorite"}
+      {showLabel && <span className={labelClassName}>Favorite</span>}
     </Button>
   );
 }

@@ -16,11 +16,16 @@ import type { RegisterResponse } from "@/types/auth";
 
 const SERVER_UNREACHABLE = "Could not reach the server. Please try again.";
 
+interface RegisterFormProps {
+  /** Shown above the form (the GitHub button), and hidden with it once the account exists. */
+  alternative?: React.ReactNode;
+}
+
 /**
  * Validates with the same schema the route uses, so most mistakes are caught
  * without a round trip, then posts to `/api/auth/register`.
  */
-export function RegisterForm() {
+export function RegisterForm({ alternative }: Readonly<RegisterFormProps>) {
   const router = useRouter();
   const [registeredEmail, setRegisteredEmail] = useState<string | null>(null);
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
@@ -94,44 +99,47 @@ export function RegisterForm() {
   }
 
   return (
-    <form onSubmit={handleSubmit} noValidate className="grid gap-4">
-      {error && <FormMessage>{error}</FormMessage>}
+    <div className="grid gap-4">
+      {alternative}
+      <form onSubmit={handleSubmit} noValidate className="grid gap-4">
+        {error && <FormMessage>{error}</FormMessage>}
 
-      <FormField
-        id="name"
-        label="Name"
-        autoComplete="name"
-        required
-        error={fieldErrors.name}
-      />
-      <FormField
-        id="email"
-        label="Email"
-        type="email"
-        autoComplete="email"
-        required
-        error={fieldErrors.email}
-      />
-      <FormField
-        id="password"
-        label="Password"
-        type="password"
-        autoComplete="new-password"
-        required
-        error={fieldErrors.password}
-      />
-      <FormField
-        id="confirmPassword"
-        label="Confirm password"
-        type="password"
-        autoComplete="new-password"
-        required
-        error={fieldErrors.confirmPassword}
-      />
+        <FormField
+          id="name"
+          label="Name"
+          autoComplete="name"
+          required
+          error={fieldErrors.name}
+        />
+        <FormField
+          id="email"
+          label="Email"
+          type="email"
+          autoComplete="email"
+          required
+          error={fieldErrors.email}
+        />
+        <FormField
+          id="password"
+          label="Password"
+          type="password"
+          autoComplete="new-password"
+          required
+          error={fieldErrors.password}
+        />
+        <FormField
+          id="confirmPassword"
+          label="Confirm password"
+          type="password"
+          autoComplete="new-password"
+          required
+          error={fieldErrors.confirmPassword}
+        />
 
-      <Button type="submit" disabled={pending} className="w-full">
-        {pending ? "Creating account..." : "Create account"}
-      </Button>
-    </form>
+        <Button type="submit" disabled={pending} className="w-full">
+          {pending ? "Creating account..." : "Create account"}
+        </Button>
+      </form>
+    </div>
   );
 }

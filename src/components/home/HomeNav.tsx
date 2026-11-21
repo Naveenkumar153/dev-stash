@@ -1,10 +1,9 @@
 import Link from "next/link";
 
 import { Logo } from "@/components/brand/Logo";
-import { HomeButtonLink } from "@/components/home/HomeButtonLink";
+import { HomeNavActions } from "@/components/home/HomeNavActions";
 import { HomeContainer } from "@/components/home/HomeSection";
 import { NavScrollShell } from "@/components/home/NavScrollShell";
-import { SIGN_IN_PATH } from "@/lib/auth-redirect";
 import { getStartAction, SECTION_LINKS } from "@/lib/homepage";
 
 /** The homepage's fixed top bar: logo, section links and account actions. */
@@ -26,16 +25,7 @@ export function HomeNav({ isSignedIn }: Readonly<{ isSignedIn: boolean }>) {
             </a>
           ))}
         </nav>
-        <div className="ml-auto flex items-center gap-1 sm:gap-2">
-          {!isSignedIn && (
-            <HomeButtonLink href={SIGN_IN_PATH} tone="ghost" size="sm">
-              Sign In
-            </HomeButtonLink>
-          )}
-          <HomeButtonLink href={start.href} size="sm">
-            {start.label}
-          </HomeButtonLink>
-        </div>
+        <HomeNavActions isSignedIn={isSignedIn} start={start} />
       </HomeContainer>
     </NavScrollShell>
   );

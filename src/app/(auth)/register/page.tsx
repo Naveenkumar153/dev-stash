@@ -1,6 +1,8 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 
+import { AuthDivider } from "@/components/auth/AuthDivider";
+import { GitHubSignInButton } from "@/components/auth/GitHubSignInButton";
 import { RegisterForm } from "@/components/auth/RegisterForm";
 import {
   Card,
@@ -10,7 +12,7 @@ import {
   CardHeader,
   CardTitle,
 } from "@/components/ui/card";
-import { SIGN_IN_PATH } from "@/lib/auth-redirect";
+import { DASHBOARD_PATH, SIGN_IN_PATH } from "@/lib/auth-redirect";
 
 export const metadata: Metadata = {
   title: "Register | DevStash",
@@ -25,7 +27,14 @@ export default function RegisterPage() {
       </CardHeader>
 
       <CardContent>
-        <RegisterForm />
+        <RegisterForm
+          alternative={
+            <>
+              <GitHubSignInButton callbackUrl={DASHBOARD_PATH} label="Sign up with GitHub" />
+              <AuthDivider />
+            </>
+          }
+        />
       </CardContent>
 
       <CardFooter className="justify-center text-sm text-muted-foreground">
