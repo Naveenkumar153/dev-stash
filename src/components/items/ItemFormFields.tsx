@@ -4,16 +4,18 @@ import { toast } from "sonner";
 import { useProAccess } from "@/components/billing/ProAccessProvider";
 import { CodeEditor } from "@/components/items/CodeEditor";
 import { CollectionPicker } from "@/components/items/CollectionPicker";
+import { GenerateDescriptionButton } from "@/components/items/GenerateDescriptionButton";
 import { LanguageSelect } from "@/components/items/LanguageSelect";
 import { MarkdownEditor } from "@/components/items/MarkdownEditor";
 import { SuggestTagsButton, TagSuggestionList } from "@/components/items/TagSuggestions";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useAiDescription } from "@/hooks/use-ai-description";
 import { useAutoTags } from "@/hooks/use-auto-tags";
 import { useCollectionOptions, type CollectionOptionsState } from "@/hooks/use-collection-options";
 import type { FieldErrors } from "@/lib/action-result";
-import type { AutoTagInput } from "@/lib/ai-schemas";
+import { hasAiInput, type AiItemDraft } from "@/lib/ai-item";
 import type { UpdateItemInput } from "@/lib/item-schemas";
 import { addTagToInput, parseTagInput } from "@/lib/tags";
 import type { ContentEditorKind, EditableItemFields } from "@/lib/item-types";
@@ -71,8 +73,10 @@ export function toItemInput(values: ItemFormValues, fields: EditableItemFields):
 }
 
 interface ItemFormFieldsProps {
-  /** The item's type, sent with the draft when asking for tag suggestions. */
+  /** The item's type, sent with the draft to the AI buttons. */
   typeName: string;
+  /** A file or image item's file name (picked or saved), which the AI buttons also read. */
+  fileName?: string | null;
   values: ItemFormValues;
   errors: FieldErrors;
   fields: EditableItemFields;
@@ -87,6 +91,7 @@ interface ItemFormFieldsProps {
  */
 export function ItemFormFields({
   typeName,
+  fileName,
   values,
   errors,
   fields,
@@ -97,6 +102,9 @@ export function ItemFormFields({
   const collectionOptions = useCollectionOptions();
   const hasProAccess = useProAccess();
   const autoTags = useAutoTags();
+  const aiDescription = useAiDescription((description) => onChange("description", description));
+  const aiDraft = toAiDraft(typeName, values, fields, fileName);
+  const canUseAi = hasAiInput(aiDraft);
   const field = (name: keyof ItemFormValues) => ({ id: `${id}-${name}`, error: errors[name] });
   const bind = (name: TextFieldName) => ({
     value: values[name],
@@ -112,7 +120,19 @@ export function ItemFormFields({
         )}
       </Field>
 
-      <Field {...field("description")} label="Description">
+      <Field
+        {...field("description")}
+        label="Description"
+        labelAside={
+          hasProAccess && (
+            <GenerateDescriptionButton
+              pending={aiDescription.pending}
+              canGenerate={canUseAi}
+              onClick={() => aiDescription.generate(aiDraft)}
+            />
+          )
+        }
+      >
         {(control) => (
           <Textarea
             {...control}
@@ -198,8 +218,8 @@ export function ItemFormFields({
           hasProAccess && (
             <SuggestTagsButton
               pending={autoTags.pending}
-              canSuggest={hasAutoTagInput(values, fields)}
-              onClick={() => autoTags.suggest(toAutoTagInput(typeName, values, fields))}
+              canSuggest={canUseAi}
+              onClick={() => autoTags.suggest(aiDraft)}
             />
           )
         }
@@ -245,20 +265,16 @@ export function ItemFormFields({
 }
 
 /**
- * Whether there's anything for the model to read: a title, or content in a
- * type that has content. Content typed under another type (before switching
- * to Link, say) isn't sent, so it doesn't count.
+ * The draft the AI buttons send: only the fields this type uses (content
+ * typed under another type before switching to Link, say, isn't sent), the
+ * file name for file types, and the tags the item already has.
  */
-function hasAutoTagInput(values: ItemFormValues, fields: EditableItemFields): boolean {
-  return Boolean(values.title.trim() || (fields.content && values.content.trim()));
-}
-
-/** The draft the model reads: only the fields this type uses, plus the tags it already has. */
-function toAutoTagInput(
+function toAiDraft(
   typeName: string,
   values: ItemFormValues,
   fields: EditableItemFields,
-): AutoTagInput {
+  fileName: string | null | undefined,
+): AiItemDraft {
   return {
     typeName,
     title: values.title,
@@ -266,6 +282,7 @@ function toAutoTagInput(
     content: fields.content ? values.content : "",
     url: fields.url ? values.url : "",
     language: fields.language ? values.language : "",
+    fileName: fileName ?? "",
     tags: parseTagInput(values.tags),
   };
 }

@@ -7,14 +7,14 @@ import { generateAutoTags } from "@/actions/ai";
 import { useUpgradeErrorToast } from "@/hooks/use-upgrade-error-toast";
 import { callAction } from "@/lib/action-call";
 import { AI_TAGS_FAILED } from "@/lib/action-result";
-import type { AutoTagInput } from "@/lib/ai-schemas";
+import type { AiDraftInput } from "@/lib/ai-schemas";
 
 export interface AutoTagsState {
   /** Suggestions the user hasn't accepted or rejected yet. */
   suggestions: string[];
   pending: boolean;
   /** Asks the model for tags for `draft`, replacing any earlier suggestions. */
-  suggest: (draft: AutoTagInput) => void;
+  suggest: (draft: AiDraftInput) => void;
   /** Drops one suggestion, after it's been accepted or rejected. */
   remove: (tag: string) => void;
 }
@@ -29,7 +29,7 @@ export function useAutoTags(): AutoTagsState {
   const [pending, startTransition] = useTransition();
   const showError = useUpgradeErrorToast();
 
-  function suggest(draft: AutoTagInput) {
+  function suggest(draft: AiDraftInput) {
     startTransition(async () => {
       const result = await callAction(() => generateAutoTags(draft));
       if (!result) {

@@ -59,7 +59,7 @@ export const MAX_UPLOAD_BYTES = Math.max(
 const GENERIC_MIME_TYPES = new Set(["", "application/octet-stream"]);
 
 /** The original name is stored and shown, so it's capped like a filesystem name. */
-const MAX_FILE_NAME_LENGTH = 255;
+export const MAX_FILE_NAME_LENGTH = 255;
 
 /** "Report.PDF" -> "pdf". Empty when there's no extension, or for a dotfile like ".env". */
 export function getFileExtension(fileName: string): string {

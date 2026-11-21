@@ -1,71 +1,34 @@
 import { describe, expect, it } from "vitest";
 
+import { formatItemForAi, type AiItemDraft } from "@/lib/ai-item";
 import {
-  AI_TAG_CONTENT_LIMIT,
   buildTagInput,
   MAX_TAG_SUGGESTIONS,
   normalizeTagName,
   normalizeTagSuggestions,
   parseTagReply,
   TAG_INPUT_PREAMBLE,
-  type TagDraft,
 } from "@/lib/ai-tags";
 
-const draft: TagDraft = {
+const draft: AiItemDraft = {
   typeName: "link",
   title: "Tailwind docs",
   description: "",
   content: "",
   url: "https://tailwindcss.com",
   language: "",
+  fileName: "",
   tags: [],
 };
 
+// The item text itself is covered in ai-item.test.ts.
 describe("buildTagInput", () => {
-  it("wraps the item in delimiters after the preamble, leaving out blank fields", () => {
-    expect(buildTagInput(draft)).toBe(
-      [
-        TAG_INPUT_PREAMBLE,
-        '<item type="link">',
-        "<title>Tailwind docs</title>",
-        "<url>https://tailwindcss.com</url>",
-        "</item>",
-      ].join("\n"),
-    );
+  it("puts the JSON preamble before the item", () => {
+    expect(buildTagInput(draft)).toBe(`${TAG_INPUT_PREAMBLE}\n${formatItemForAi(draft)}`);
   });
 
   it("mentions JSON in the input, which json_object mode requires", () => {
-    expect(buildTagInput(draft)).toMatch(/json/i);
-  });
-
-  it("includes the language, description, content and current tags when set", () => {
-    const input = buildTagInput({
-      ...draft,
-      typeName: "snippet",
-      description: "Utility classes",
-      content: "const x = 1;",
-      url: "",
-      language: "typescript",
-      tags: ["css", "tailwind"],
-    });
-
-    expect(input).toContain('<item type="snippet" language="typescript">');
-    expect(input).toContain("<description>Utility classes</description>");
-    expect(input).toContain("<content>\nconst x = 1;\n</content>");
-    expect(input).toContain("<current_tags>css, tailwind</current_tags>");
-  });
-
-  it("leaves content out when it's only whitespace", () => {
-    expect(buildTagInput({ ...draft, content: "  \n " })).not.toContain("<content>");
-  });
-
-  it("cuts content at the limit and marks it truncated", () => {
-    const exact = buildTagInput({ ...draft, content: "a".repeat(AI_TAG_CONTENT_LIMIT) });
-    expect(exact).not.toContain("[...truncated]");
-
-    const long = buildTagInput({ ...draft, content: `${"a".repeat(AI_TAG_CONTENT_LIMIT)}b` });
-    expect(long).toContain(`${"a".repeat(AI_TAG_CONTENT_LIMIT)}\n[...truncated]`);
-    expect(long).not.toContain("ab");
+    expect(TAG_INPUT_PREAMBLE).toMatch(/json/i);
   });
 });
 

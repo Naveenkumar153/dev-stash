@@ -145,6 +145,7 @@ export function NewItemForm({
         )}
         <ItemFormFields
           typeName={typeName}
+          fileName={needsFile ? upload?.file.name : null}
           values={values}
           errors={fieldErrors}
           fields={fields}

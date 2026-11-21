@@ -7,16 +7,19 @@ import {
 } from "openai";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { generateAutoTags } from "@/actions/ai";
+import { generateAutoTags, generateDescription } from "@/actions/ai";
 import { auth } from "@/auth";
 import {
+  AI_DESCRIPTION_FAILED,
   AI_PRO_REQUIRED,
   AI_TAGS_FAILED,
   AI_UNAVAILABLE,
   SESSION_EXPIRED,
 } from "@/lib/action-result";
-import type { AutoTagInput } from "@/lib/ai-schemas";
-import { AI_TAG_CONTENT_LIMIT, AI_TAGS_NEED_INPUT, TAG_INSTRUCTIONS } from "@/lib/ai-tags";
+import { DESCRIPTION_INSTRUCTIONS } from "@/lib/ai-description";
+import { AI_CONTENT_LIMIT, AI_NEEDS_INPUT } from "@/lib/ai-item";
+import type { AiDraftInput } from "@/lib/ai-schemas";
+import { TAG_INSTRUCTIONS } from "@/lib/ai-tags";
 import { AI_MODEL, getOpenAI, getSafetyIdentifier } from "@/lib/openai";
 import { rateLimit } from "@/lib/rate-limit";
 
@@ -47,7 +50,7 @@ function reply(outputText: string) {
   create.mockResolvedValue({ output_text: outputText, status: "completed", incomplete_details: null });
 }
 
-const draft: AutoTagInput = {
+const draft: AiDraftInput = {
   typeName: "snippet",
   title: "  useDebounce hook ",
   description: "Debounces a value",
@@ -93,10 +96,10 @@ describe("generateAutoTags", () => {
   });
 
   it("sends at most the first 2000 characters of content", async () => {
-    await generateAutoTags({ ...draft, content: `${"a".repeat(AI_TAG_CONTENT_LIMIT)}TAIL` });
+    await generateAutoTags({ ...draft, content: `${"a".repeat(AI_CONTENT_LIMIT)}TAIL` });
 
     const { input } = create.mock.calls[0][0];
-    expect(input).toContain("a".repeat(AI_TAG_CONTENT_LIMIT));
+    expect(input).toContain("a".repeat(AI_CONTENT_LIMIT));
     expect(input).not.toContain("TAIL");
     expect(input).toContain("[...truncated]");
   });
@@ -147,7 +150,7 @@ describe("generateAutoTags", () => {
     expect(await generateAutoTags({ ...draft, title: "  ", content: " \n" })).toEqual({
       success: false,
       data: null,
-      error: AI_TAGS_NEED_INPUT,
+      error: AI_NEEDS_INPUT,
     });
     expect(rateLimit).not.toHaveBeenCalled();
     expect(create).not.toHaveBeenCalled();
@@ -231,5 +234,124 @@ describe("generateAutoTags", () => {
     create.mockRejectedValue(new InternalServerError(500, undefined, "boom", new Headers()));
 
     expect(await generateAutoTags(draft)).toEqual({ success: false, data: null, error: AI_TAGS_FAILED });
+  });
+});
+
+describe("generateDescription", () => {
+  beforeEach(() => {
+    reply('{"description": "  Debounces a value so effects run only\\n after typing pauses. "}');
+  });
+
+  it("returns the description, normalized to one line", async () => {
+    expect(await generateDescription(draft)).toEqual({
+      success: true,
+      data: { description: "Debounces a value so effects run only after typing pauses." },
+      error: null,
+    });
+  });
+
+  it("calls the Responses API with the description instructions and the item", async () => {
+    await generateDescription(draft);
+
+    const [request, options] = create.mock.calls[0];
+    expect(request).toMatchObject({
+      model: AI_MODEL,
+      instructions: DESCRIPTION_INSTRUCTIONS,
+      text: { format: { type: "json_object" } },
+      store: false,
+      safety_identifier: getSafetyIdentifier("user-1"),
+    });
+    expect(request.input).toMatch(/json/i);
+    expect(request.input).toContain("<title>useDebounce hook</title>");
+    expect(options).toEqual({ timeout: 15_000 });
+  });
+
+  it("describes a file from its title and file name", async () => {
+    await generateDescription({
+      typeName: "file",
+      title: "Q3 report",
+      fileName: "q3-report.pdf",
+    });
+
+    const { input } = create.mock.calls[0][0];
+    expect(input).toContain('<item type="file">');
+    expect(input).toContain("<file_name>q3-report.pdf</file_name>");
+    expect(input).not.toContain("<content>");
+  });
+
+  it("accepts a link with only a URL", async () => {
+    expect(
+      await generateDescription({ typeName: "link", url: "https://tailwindcss.com/docs" }),
+    ).toMatchObject({ success: true });
+  });
+
+  it("counts against the same AI limit as tag suggestions", async () => {
+    await generateDescription(draft);
+    expect(rateLimit).toHaveBeenCalledWith("ai", "user-1");
+  });
+
+  it("refuses a Free account while gating is on, before calling", async () => {
+    vi.stubEnv("PRO_GATING_ENABLED", "true");
+    signIn(false);
+
+    expect(await generateDescription(draft)).toEqual({
+      success: false,
+      data: null,
+      error: AI_PRO_REQUIRED,
+    });
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it("rejects a draft with nothing to read", async () => {
+    expect(await generateDescription({ typeName: "note", title: " " })).toEqual({
+      success: false,
+      data: null,
+      error: AI_NEEDS_INPUT,
+    });
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    "",
+    "Debounces a value.",
+    '{"description": ""}',
+    '{"description": "\\"\\""}',
+    '{"tags": ["react"]}',
+  ])(
+    "fails on a reply that isn't a JSON description: %j",
+    async (outputText) => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      reply(outputText);
+
+      expect(await generateDescription(draft)).toEqual({
+        success: false,
+        data: null,
+        error: AI_DESCRIPTION_FAILED,
+      });
+    },
+  );
+
+  it("answers unavailable for an account out of credits", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    create.mockRejectedValue(
+      new RateLimitError(429, { type: "insufficient_quota" }, "no credits", new Headers()),
+    );
+
+    expect(await generateDescription(draft)).toEqual({
+      success: false,
+      data: null,
+      error: AI_UNAVAILABLE,
+    });
+  });
+
+  it("answers its own failure message for other errors", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    create.mockRejectedValue(new InternalServerError(500, undefined, "boom", new Headers()));
+
+    expect(await generateDescription(draft)).toEqual({
+      success: false,
+      data: null,
+      error: AI_DESCRIPTION_FAILED,
+    });
   });
 });

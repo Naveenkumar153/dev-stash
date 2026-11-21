@@ -3,7 +3,7 @@
 import { Check, Loader2, Sparkles, X } from "lucide-react";
 
 import { Button } from "@/components/ui/button";
-import { AI_TAGS_NEED_INPUT } from "@/lib/ai-tags";
+import { AI_NEEDS_INPUT } from "@/lib/ai-item";
 
 interface SuggestTagsButtonProps {
   pending: boolean;
@@ -21,7 +21,7 @@ export function SuggestTagsButton({ pending, canSuggest, onClick }: SuggestTagsB
       size="xs"
       onClick={onClick}
       disabled={pending || !canSuggest}
-      title={canSuggest ? undefined : AI_TAGS_NEED_INPUT}
+      title={canSuggest ? undefined : AI_NEEDS_INPUT}
     >
       {pending ? <Loader2 aria-hidden className="animate-spin" /> : <Sparkles aria-hidden />}
       {pending ? "Suggesting..." : "Suggest Tags"}

@@ -81,6 +81,9 @@ export const AI_UNAVAILABLE = "AI features are unavailable right now.";
 /** Suggesting tags failed for a reason the user can't act on, such as a timeout. */
 export const AI_TAGS_FAILED = "Couldn't suggest tags. Please try again.";
 
+/** Generating a description failed for a reason the user can't act on, such as a timeout. */
+export const AI_DESCRIPTION_FAILED = "Couldn't write a description. Please try again.";
+
 /** Starting Stripe Checkout failed for a reason the user can't act on. */
 export const CHECKOUT_FAILED = "Couldn't start checkout. Please try again.";
 

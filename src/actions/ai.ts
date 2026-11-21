@@ -3,12 +3,20 @@
 import { AuthenticationError, PermissionDeniedError, RateLimitError } from "openai";
 
 import {
+  AI_DESCRIPTION_FAILED,
   AI_PRO_REQUIRED,
   AI_TAGS_FAILED,
   AI_UNAVAILABLE,
   SESSION_EXPIRED,
 } from "@/lib/action-result";
-import { autoTagInputSchema, type AutoTagInput } from "@/lib/ai-schemas";
+import {
+  buildDescriptionInput,
+  DESCRIPTION_INSTRUCTIONS,
+  normalizeDescription,
+  parseDescriptionReply,
+} from "@/lib/ai-description";
+import type { AiItemDraft } from "@/lib/ai-item";
+import { aiDraftSchema, type AiDraftInput } from "@/lib/ai-schemas";
 import {
   buildTagInput,
   normalizeTagSuggestions,
@@ -18,13 +26,13 @@ import {
 import { AI_MODEL, getOpenAI, getSafetyIdentifier, isAiConfigured } from "@/lib/openai";
 import { getRateLimitMessage, rateLimit } from "@/lib/rate-limit";
 import { getSessionEntitlements } from "@/lib/usage-limits";
-import type { GenerateAutoTagsResult } from "@/types/ai";
+import type { GenerateAutoTagsResult, GenerateDescriptionResult } from "@/types/ai";
 
-/** A tag reply is a short JSON list, so 200 tokens leaves room without paying for rambling. */
-const TAG_MAX_OUTPUT_TOKENS = 200;
+/** Tags and a description are both short JSON replies; 200 tokens leaves room without paying for rambling. */
+const MAX_OUTPUT_TOKENS = 200;
 
 /** A button the user is waiting on; the client's 30 s default is too long here. */
-const TAG_TIMEOUT_MS = 15_000;
+const REQUEST_TIMEOUT_MS = 15_000;
 
 /**
  * A revoked or restricted key, or an OpenAI account out of credits: an
@@ -41,69 +49,124 @@ function isConfigurationError(error: unknown): boolean {
   );
 }
 
-function failure(error: string): GenerateAutoTagsResult {
-  return { success: false, data: null, error };
+interface AiRequest {
+  /** Names the request in error logs. */
+  label: string;
+  instructions: string;
+  buildInput: (draft: AiItemDraft) => string;
+  /** Returned for failures a retry can fix. */
+  failedMessage: string;
 }
 
+type AiReply = { ok: true; text: string; draft: AiItemDraft } | { ok: false; error: string };
+
 /**
- * Suggests up to five tags for the item being written or edited, from its
- * title and content. Nothing is saved: the form shows the suggestions and the
- * user accepts or rejects each one. Checks run cheapest first, and the rate
- * limit only counts a valid request.
+ * The steps every form-draft AI request shares, cheapest first: the session,
+ * Pro access, a configured key, the draft's validity, then the user's `ai`
+ * rate limit (so only a valid request counts), then one Responses API call
+ * in `json_object` mode. Returns the raw reply text for the caller to parse.
  */
-export async function generateAutoTags(input: AutoTagInput): Promise<GenerateAutoTagsResult> {
+async function requestAi(input: AiDraftInput, request: AiRequest): Promise<AiReply> {
   const entitlements = await getSessionEntitlements();
   if (!entitlements) {
-    return failure(SESSION_EXPIRED);
+    return { ok: false, error: SESSION_EXPIRED };
   }
   if (!entitlements.hasProAccess) {
-    return failure(AI_PRO_REQUIRED);
+    return { ok: false, error: AI_PRO_REQUIRED };
   }
   if (!isAiConfigured()) {
-    return failure(AI_UNAVAILABLE);
+    return { ok: false, error: AI_UNAVAILABLE };
   }
 
-  const parsed = autoTagInputSchema.safeParse(input);
+  const parsed = aiDraftSchema.safeParse(input);
   if (!parsed.success) {
-    return failure(parsed.error.issues[0].message);
+    return { ok: false, error: parsed.error.issues[0].message };
   }
 
   const limit = await rateLimit("ai", entitlements.userId);
   if (!limit.success) {
-    return failure(getRateLimitMessage(limit.reset));
+    return { ok: false, error: getRateLimitMessage(limit.reset) };
   }
 
   try {
     const response = await getOpenAI().responses.create(
       {
         model: AI_MODEL,
-        instructions: TAG_INSTRUCTIONS,
-        input: buildTagInput(parsed.data),
+        instructions: request.instructions,
+        input: request.buildInput(parsed.data),
         text: { format: { type: "json_object" } },
         reasoning: { effort: "none" },
-        max_output_tokens: TAG_MAX_OUTPUT_TOKENS,
+        max_output_tokens: MAX_OUTPUT_TOKENS,
         // Nothing reads a response back later, so OpenAI needn't keep it.
         store: false,
         safety_identifier: getSafetyIdentifier(entitlements.userId),
       },
-      { timeout: TAG_TIMEOUT_MS },
+      { timeout: REQUEST_TIMEOUT_MS },
     );
-    const tags = parseTagReply(response.output_text);
-    if (!tags) {
-      console.error("AI tag reply wasn't JSON tags", {
-        status: response.status,
-        incomplete: response.incomplete_details?.reason,
-      });
-      return failure(AI_TAGS_FAILED);
-    }
-
-    const suggestions = normalizeTagSuggestions(tags, parsed.data.tags);
-    return { success: true, data: { tags: suggestions }, error: null };
+    return { ok: true, text: response.output_text, draft: parsed.data };
   } catch (error) {
-    console.error("Suggesting tags failed", error);
-    if (isConfigurationError(error)) {
-      return failure(AI_UNAVAILABLE);
-    }
-    return failure(AI_TAGS_FAILED);
+    console.error(`${request.label} failed`, error);
+    return {
+      ok: false,
+      error: isConfigurationError(error) ? AI_UNAVAILABLE : request.failedMessage,
+    };
   }
+}
+
+/**
+ * Suggests up to five tags for the item being written or edited, from its
+ * title and content. Nothing is saved: the form shows the suggestions and the
+ * user accepts or rejects each one.
+ */
+export async function generateAutoTags(input: AiDraftInput): Promise<GenerateAutoTagsResult> {
+  const reply = await requestAi(input, {
+    label: "Suggesting tags",
+    instructions: TAG_INSTRUCTIONS,
+    buildInput: buildTagInput,
+    failedMessage: AI_TAGS_FAILED,
+  });
+  if (!reply.ok) {
+    return { success: false, data: null, error: reply.error };
+  }
+
+  const tags = parseTagReply(reply.text);
+  if (!tags) {
+    console.error("AI tag reply wasn't JSON tags");
+    return { success: false, data: null, error: AI_TAGS_FAILED };
+  }
+
+  return {
+    success: true,
+    data: { tags: normalizeTagSuggestions(tags, reply.draft.tags) },
+    error: null,
+  };
+}
+
+/**
+ * Writes a one- or two-sentence description of the item being written or
+ * edited, from whatever the form holds: title, content, URL, file name, tags.
+ * Nothing is saved: the form puts it in the Description field.
+ */
+export async function generateDescription(
+  input: AiDraftInput,
+): Promise<GenerateDescriptionResult> {
+  const reply = await requestAi(input, {
+    label: "Generating a description",
+    instructions: DESCRIPTION_INSTRUCTIONS,
+    buildInput: buildDescriptionInput,
+    failedMessage: AI_DESCRIPTION_FAILED,
+  });
+  if (!reply.ok) {
+    return { success: false, data: null, error: reply.error };
+  }
+
+  const parsed = parseDescriptionReply(reply.text);
+  // A reply of only quotes cleans up to nothing; don't empty the field with it.
+  const description = parsed && normalizeDescription(parsed);
+  if (!description) {
+    console.error("AI description reply wasn't a JSON description");
+    return { success: false, data: null, error: AI_DESCRIPTION_FAILED };
+  }
+
+  return { success: true, data: { description }, error: null };
 }

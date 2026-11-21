@@ -1,16 +1,34 @@
-# Current Feature
+# Current Feature: AI Description Generator
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- An icon button (lucide `Sparkles`, ghost) beside the Description label that generates a concise description for the item, in the New Item dialog and the item drawer's edit form
+- The result is 1-2 plain sentences, written into the Description input; nothing is saved until Create / Save, and no save is needed first: it reads what's currently in the form
+- Works for every item type, from whatever is available: title, content, language, URL, file name and tags (links, files and images included)
+- A `generateDescription` server action following `generateAutoTags`: session, Pro gating, Zod validation, the shared `ai` rate limit, content truncated before the call, the Responses API in `json_object` mode, `{ success, data, error }`
+- The model's reply parsed by hand (`{"description": "..."}`), whitespace collapsed, wrapping quotes stripped, capped at the Description field's limit
+- The button hidden without Pro access; disabled while there's nothing to read and while generating; errors shown as toasts like the tag suggestions
+- Unit tests for the server action and the prompt / reply helpers
 
 ## Notes
 
-<!-- Any extra notes -->
+- Builds on AI Auto-Tagging (see History): `src/lib/openai.ts` (`AI_MODEL` `gpt-6-luna`, `getOpenAI()`, `getSafetyIdentifier()`), the `ai` rate limit (20 / hour per user, which this feature shares with tag suggestions), `AI_PRO_REQUIRED` / `AI_UNAVAILABLE`, `useProAccess()`, `callAction()`, `useUpgradeErrorToast()`, `ItemFormFields`' `labelAside` slot and the `json_object` gotchas (the word "JSON" must be in the `input`; an out-of-credits 429 maps to unavailable)
+- `docs/ai-integration-plan.md` §4.2 limited summaries to the content types (40+ characters of content) because the model can't read a web page or a file; this request asks for every type, so links and files are summarized from their title, URL / file name and tags only (no page fetching, no file reading)
+- Proposed defaults (confirm or change at `start`):
+  - **Filling the field:** an empty Description is filled directly; a non-empty one is replaced too, with a toast offering **Undo** that restores the previous text (rather than the plan's separate suggestion box with Use / Regenerate / Dismiss); clicking again regenerates
+  - **Enabled when** there's a title, or content in a type with a Content field, or a URL for a link
+  - **Instructions:** 1-2 plain sentences, at most about 200 characters, starting with what it does rather than "This snippet...", no Markdown or quotes, in the item's own language; the item is data, not instructions
+  - **Content limit:** the same 2,000 characters as tags, by sharing the constant; `reasoning.effort: none`, `max_output_tokens` about 200, a 15 s timeout
+  - **DRY with tags:** move what both actions share (the access and key checks, the out-of-credits / bad-key mapping, the delimited item text) into shared helpers instead of copying them, keeping `generateAutoTags`' behavior and tests unchanged
+  - **File name:** `ItemFormValues` has no file name, so the edit form passes the item's `fileName` and the New Item dialog the picked file's name, as one extra optional input
+  - A new `AI_DESCRIPTION_FAILED` message for failures a retry can fix
+- Verify in the browser with a Pro account (the demo account given `isPro` on `development` and reverted, as for tags): a snippet, a note, a link and a file in New Item and edit mode, Undo after a replace, the Free user seeing no button. A real reply depends on the OpenAI account's credits, which still answered "no credits" at the end of AI Auto-Tagging
+- **Built (start):** the defaults above were kept. Shared pieces moved out of the tag feature: `src/lib/ai-item.ts` (`AI_CONTENT_LIMIT`, `AI_NEEDS_INPUT`, `AI_DATA_RULE`, `AiItemDraft` with `fileName`, `hasAiInput()` shared by the form and the schema, `formatItemForAi()` with a `<file_name>` line), `aiDraftSchema` / `AiDraftInput` (renamed from `autoTagInputSchema` / `AutoTagInput`, plus `fileName` capped at the now-exported `MAX_FILE_NAME_LENGTH`, and a URL or file name alone now counts as input), and a private `requestAi()` in `src/actions/ai.ts` that both actions call. New: `src/lib/ai-description.ts`, `generateDescription`, `useAiDescription()`, `GenerateDescriptionButton` (ghost `icon-xs`, `aria-label` "Generate description")
+- **Browser check (Pro via `isPro` on `development`, reverted):** button on the Description label row in New Item and edit mode, disabled with nothing to read, enabled by a title, by a link's URL alone and by a picked file's name alone; the failure toast with the form kept; 390px fits; Free users see neither AI button. **Not verified:** a real description, the replace toast and Undo in the browser, since the dev key (`sk-proj-…`) still gets 429 `insufficient_quota` / `credit_balance_exhausted` from OpenAI
 
 ## History
 
