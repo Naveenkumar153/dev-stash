@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useId, useState, useTransition, type TransitionStartFunction } from "react";
 import { toast } from "sonner";
 
@@ -84,7 +83,6 @@ function FolderNameForm({
   startTransition,
   onDone,
 }: FolderNameFormProps) {
-  const router = useRouter();
   const id = useId();
   const [name, setName] = useState(initialName);
   const [error, setError] = useState<string>();
@@ -101,9 +99,8 @@ function FolderNameForm({
 
       if (result.success) {
         toast.success(successMessage);
+        // The folder actions re-render the list in their own response.
         onDone();
-        // Re-renders the page so the list shows the change.
-        router.refresh();
         return;
       }
 

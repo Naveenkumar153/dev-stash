@@ -3,6 +3,7 @@
 import {
   EDITOR_PREFERENCES_SAVE_FAILED,
   SESSION_EXPIRED,
+  formFailure,
   getFieldErrors,
 } from "@/lib/action-result";
 import { editorPreferencesSchema } from "@/lib/editor-preference-schemas";
@@ -19,7 +20,7 @@ export async function updateEditorPreferences(
 ): Promise<UpdateEditorPreferencesResult> {
   const userId = await getSessionUserId();
   if (!userId) {
-    return { success: false, data: null, error: SESSION_EXPIRED, fieldErrors: {} };
+    return formFailure(SESSION_EXPIRED);
   }
 
   const parsed = editorPreferencesSchema.safeParse(data);
@@ -35,11 +36,6 @@ export async function updateEditorPreferences(
     return { success: true, data: parsed.data, error: null, fieldErrors: {} };
   } catch (error) {
     console.error("Saving editor preferences failed", error);
-    return {
-      success: false,
-      data: null,
-      error: EDITOR_PREFERENCES_SAVE_FAILED,
-      fieldErrors: {},
-    };
+    return formFailure(EDITOR_PREFERENCES_SAVE_FAILED);
   }
 }

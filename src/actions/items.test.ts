@@ -124,6 +124,7 @@ describe("updateItem", () => {
       tags: ["react", "hooks"],
       collectionIds: [COLLECTION_A, COLLECTION_B],
     });
+    expect(refresh).toHaveBeenCalledOnce();
   });
 
   it("refuses a signed-out request without saving", async () => {
@@ -167,6 +168,7 @@ describe("updateItem", () => {
       error: NOT_FOUND,
       fieldErrors: {},
     });
+    expect(refresh).not.toHaveBeenCalled();
   });
 
   it("shows a link losing its URL as an error on the URL field", async () => {
@@ -204,6 +206,7 @@ describe("deleteItem", () => {
 
     expect(result).toEqual({ success: true, data: { id: ITEM_ID }, error: null });
     expect(deleteItemRecord).toHaveBeenCalledWith(ITEM_ID, "user-1");
+    expect(refresh).toHaveBeenCalledOnce();
   });
 
   it("refuses a signed-out request without deleting", async () => {
@@ -232,6 +235,7 @@ describe("deleteItem", () => {
     const result = await deleteItem(ITEM_ID);
 
     expect(result).toEqual({ success: false, data: null, error: NOT_FOUND });
+    expect(refresh).not.toHaveBeenCalled();
   });
 
   it("reports a database failure without passing on its details", async () => {
@@ -324,6 +328,7 @@ describe("createItem", () => {
       isolationLevel: "Serializable",
     });
     expect(createItemRecord).not.toHaveBeenCalled();
+    expect(refresh).not.toHaveBeenCalled();
   });
 
   it("creates for a Free account under the limit", async () => {
@@ -391,6 +396,7 @@ describe("createItem", () => {
       tags: ["react", "hooks"],
       collectionIds: [COLLECTION_A, COLLECTION_B],
     });
+    expect(refresh).toHaveBeenCalledOnce();
   });
 
   it("refuses a signed-out request without creating", async () => {

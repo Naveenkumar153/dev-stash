@@ -10,8 +10,10 @@ import {
   COLLECTION_UPDATE_FAILED,
   FAVORITE_UPDATE_FAILED,
   SESSION_EXPIRED,
-  getFieldErrors,
-  type FieldErrors,
+  actionFailure,
+  formFailure,
+  runOwnedWrite,
+  validationFailure,
 } from "@/lib/action-result";
 import {
   collectionIdSchema,
@@ -26,8 +28,8 @@ import {
   setCollectionFavorite as setCollectionFavoriteRecord,
   updateCollection as updateCollectionRecord,
 } from "@/lib/db/collections";
-import { isFavoriteSchema } from "@/lib/favorite-schemas";
 import { getSessionUserId } from "@/lib/session";
+import { wantedStateSchema } from "@/lib/toggle-schemas";
 import { createCollectionWithinLimit, getSessionEntitlements } from "@/lib/usage-limits";
 import type {
   CreateCollectionResult,
@@ -35,18 +37,6 @@ import type {
   UpdateCollectionResult,
 } from "@/types/collections";
 import type { SetFavoriteResult } from "@/types/favorites";
-
-function failure(error: string, fieldErrors: FieldErrors = {}): CreateCollectionResult {
-  return { success: false, data: null, error, fieldErrors };
-}
-
-function updateFailure(error: string, fieldErrors: FieldErrors = {}): UpdateCollectionResult {
-  return { success: false, data: null, error, fieldErrors };
-}
-
-function deleteFailure(error: string): DeleteCollectionResult {
-  return { success: false, data: null, error };
-}
 
 /**
  * Creates a collection from the New Collection dialog for the signed-in user
@@ -58,13 +48,13 @@ export async function createCollection(
 ): Promise<CreateCollectionResult> {
   const entitlements = await getSessionEntitlements();
   if (!entitlements) {
-    return failure(SESSION_EXPIRED);
+    return formFailure(SESSION_EXPIRED);
   }
   const { userId, hasProAccess } = entitlements;
 
   const parsed = createCollectionSchema.safeParse(data);
   if (!parsed.success) {
-    return failure(parsed.error.issues[0].message, getFieldErrors(parsed.error));
+    return validationFailure(parsed.error);
   }
 
   try {
@@ -73,12 +63,13 @@ export async function createCollection(
       createCollectionRecord(userId, parsed.data, db),
     );
     if (!created.allowed) {
-      return failure(COLLECTION_LIMIT_REACHED);
+      return formFailure(COLLECTION_LIMIT_REACHED);
     }
+    refresh();
     return { success: true, data: created.value, error: null, fieldErrors: {} };
   } catch (error) {
     console.error("Creating collection failed", error);
-    return failure(COLLECTION_CREATE_FAILED);
+    return formFailure(COLLECTION_CREATE_FAILED);
   }
 }
 
@@ -92,26 +83,28 @@ export async function updateCollection(
 ): Promise<UpdateCollectionResult> {
   const userId = await getSessionUserId();
   if (!userId) {
-    return updateFailure(SESSION_EXPIRED);
+    return formFailure(SESSION_EXPIRED);
   }
 
   if (!collectionIdSchema.safeParse(collectionId).success) {
-    return updateFailure(COLLECTION_NOT_FOUND);
+    return formFailure(COLLECTION_NOT_FOUND);
   }
 
   const parsed = updateCollectionSchema.safeParse(data);
   if (!parsed.success) {
-    return updateFailure(parsed.error.issues[0].message, getFieldErrors(parsed.error));
+    return validationFailure(parsed.error);
   }
 
   try {
     const collection = await updateCollectionRecord(userId, collectionId, parsed.data);
-    return collection
-      ? { success: true, data: collection, error: null, fieldErrors: {} }
-      : updateFailure(COLLECTION_NOT_FOUND);
+    if (!collection) {
+      return formFailure(COLLECTION_NOT_FOUND);
+    }
+    refresh();
+    return { success: true, data: collection, error: null, fieldErrors: {} };
   } catch (error) {
     console.error("Updating collection failed", error);
-    return updateFailure(COLLECTION_UPDATE_FAILED);
+    return formFailure(COLLECTION_UPDATE_FAILED);
   }
 }
 
@@ -122,20 +115,20 @@ export async function updateCollection(
 export async function deleteCollection(collectionId: string): Promise<DeleteCollectionResult> {
   const userId = await getSessionUserId();
   if (!userId) {
-    return deleteFailure(SESSION_EXPIRED);
+    return actionFailure(SESSION_EXPIRED);
   }
 
   if (!collectionIdSchema.safeParse(collectionId).success) {
-    return deleteFailure(COLLECTION_NOT_FOUND);
+    return actionFailure(COLLECTION_NOT_FOUND);
   }
 
-  try {
-    if (!(await deleteCollectionRecord(userId, collectionId))) {
-      return deleteFailure(COLLECTION_NOT_FOUND);
-    }
-  } catch (error) {
-    console.error("Deleting collection failed", error);
-    return deleteFailure(COLLECTION_DELETE_FAILED);
+  const error = await runOwnedWrite(() => deleteCollectionRecord(userId, collectionId), {
+    notFound: COLLECTION_NOT_FOUND,
+    failed: COLLECTION_DELETE_FAILED,
+    logLabel: "Deleting collection failed",
+  });
+  if (error) {
+    return actionFailure(error);
   }
 
   // Re-renders the page and its layout in this same response, so the sidebar
@@ -143,10 +136,6 @@ export async function deleteCollection(collectionId: string): Promise<DeleteColl
   // a router.refresh() right after router.replace() cancels the navigation.
   refresh();
   return { success: true, data: { id: collectionId }, error: null };
-}
-
-function favoriteFailure(error: string): SetFavoriteResult {
-  return { success: false, data: null, error };
 }
 
 /**
@@ -160,25 +149,28 @@ export async function setCollectionFavorite(
 ): Promise<SetFavoriteResult> {
   const userId = await getSessionUserId();
   if (!userId) {
-    return favoriteFailure(SESSION_EXPIRED);
+    return actionFailure(SESSION_EXPIRED);
   }
 
   if (!collectionIdSchema.safeParse(collectionId).success) {
-    return favoriteFailure(COLLECTION_NOT_FOUND);
+    return actionFailure(COLLECTION_NOT_FOUND);
   }
 
-  const parsed = isFavoriteSchema.safeParse(isFavorite);
+  const parsed = wantedStateSchema.safeParse(isFavorite);
   if (!parsed.success) {
-    return favoriteFailure(FAVORITE_UPDATE_FAILED);
+    return actionFailure(FAVORITE_UPDATE_FAILED);
   }
 
-  try {
-    if (!(await setCollectionFavoriteRecord(userId, collectionId, parsed.data))) {
-      return favoriteFailure(COLLECTION_NOT_FOUND);
-    }
-  } catch (error) {
-    console.error("Updating collection favorite failed", error);
-    return favoriteFailure(FAVORITE_UPDATE_FAILED);
+  const error = await runOwnedWrite(
+    () => setCollectionFavoriteRecord(userId, collectionId, parsed.data),
+    {
+      notFound: COLLECTION_NOT_FOUND,
+      failed: FAVORITE_UPDATE_FAILED,
+      logLabel: "Updating collection favorite failed",
+    },
+  );
+  if (error) {
+    return actionFailure(error);
   }
 
   refresh();

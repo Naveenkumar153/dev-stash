@@ -20,6 +20,57 @@ export function getFieldErrors(error: z.ZodError): FieldErrors {
   return fieldErrors;
 }
 
+/** The failure half of every `{ success, data, error }` reply. */
+export interface ActionFailure {
+  success: false;
+  data: null;
+  error: string;
+}
+
+/** A failure for a form's reply, which also carries per-field errors. */
+export interface FormFailure extends ActionFailure {
+  fieldErrors: FieldErrors;
+}
+
+export function actionFailure(error: string): ActionFailure {
+  return { success: false, data: null, error };
+}
+
+export function formFailure(error: string, fieldErrors: FieldErrors = {}): FormFailure {
+  return { success: false, data: null, error, fieldErrors };
+}
+
+/** A form failure from a failed `safeParse`: its first message, plus each field's. */
+export function validationFailure(error: z.ZodError): FormFailure {
+  return formFailure(error.issues[0].message, getFieldErrors(error));
+}
+
+interface OwnedWriteMessages {
+  /** When the write matched nothing: the row is missing or someone else's. */
+  notFound: string;
+  /** When the write threw. */
+  failed: string;
+  /** Names the write in the error log. */
+  logLabel: string;
+}
+
+/**
+ * Runs a write scoped to the user's own row (`write` resolves false when it
+ * matched nothing) and returns the message to show, or null when it saved.
+ * The caller keeps its own session and id checks, and refreshes on success.
+ */
+export async function runOwnedWrite(
+  write: () => Promise<boolean>,
+  { notFound, failed, logLabel }: OwnedWriteMessages,
+): Promise<string | null> {
+  try {
+    return (await write()) ? null : notFound;
+  } catch (error) {
+    console.error(logLabel, error);
+    return failed;
+  }
+}
+
 /** Returned when a request arrives without a valid session. */
 export const SESSION_EXPIRED = "Your session has expired. Sign in again.";
 
@@ -34,6 +85,26 @@ export const ITEM_LOAD_FAILED = "Couldn't load this item. Please try again.";
 
 /** Creating an item failed for a reason the user can't act on. */
 export const ITEM_CREATE_FAILED = "Couldn't create this item. Please try again.";
+
+/** The system type for a new item is missing from the database. */
+export const ITEM_TYPE_UNAVAILABLE = "This item type isn't available.";
+
+/** Saving an item's edits failed for a reason the user can't act on. */
+export const ITEM_UPDATE_FAILED = "Couldn't save your changes. Please try again.";
+
+export const ITEM_DELETE_FAILED = "Couldn't delete this item. Please try again.";
+
+export const FOLDER_CREATE_FAILED = "Couldn't create this folder. Please try again.";
+
+export const FOLDER_RENAME_FAILED = "Couldn't rename this folder. Please try again.";
+
+export const FOLDER_MOVE_FAILED = "Couldn't move this folder. Please try again.";
+
+export const FOLDER_DELETE_FAILED = "Couldn't delete this folder. Please try again.";
+
+export const FILE_MOVE_FAILED = "Couldn't move this file. Please try again.";
+
+export const ACCOUNT_DELETE_FAILED = "Couldn't delete your account. Please try again.";
 
 /** Creating a collection failed for a reason the user can't act on. */
 export const COLLECTION_CREATE_FAILED = "Couldn't create this collection. Please try again.";

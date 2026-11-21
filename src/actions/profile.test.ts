@@ -11,7 +11,7 @@ import {
   cancelSubscription,
   clearSubscription,
 } from "@/lib/db/billing";
-import { rateLimit } from "@/lib/rate-limit";
+import { getRateLimitError, getRateLimitMessage } from "@/lib/rate-limit";
 
 // Server actions are tested with every outside dependency mocked: the session,
 // the database, bcrypt and R2. Nothing here reaches a real service.
@@ -25,7 +25,7 @@ vi.mock("@/lib/db/billing", () => ({
 }));
 vi.mock("@/lib/rate-limit", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/rate-limit")>()),
-  rateLimit: vi.fn(),
+  getRateLimitError: vi.fn(),
 }));
 vi.mock("@/lib/prisma", () => ({
   prisma: {
@@ -72,23 +72,19 @@ describe("changePassword", () => {
     } as never);
     vi.mocked(verifyPassword).mockResolvedValue(true);
     vi.mocked(hashPassword).mockResolvedValue("new-hash");
-    vi.mocked(rateLimit).mockResolvedValue({ success: true, remaining: 4, reset: Date.now() });
+    vi.mocked(getRateLimitError).mockResolvedValue(null);
   });
 
   it("counts each attempt against the user's changePassword limit", async () => {
     await changePassword(passwordForm());
 
-    expect(rateLimit).toHaveBeenCalledWith("changePassword", "user-1");
+    expect(getRateLimitError).toHaveBeenCalledWith("changePassword", "user-1");
   });
 
   it("refuses an attempt over the limit before checking the password", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-11-20T10:00:00Z"));
-    vi.mocked(rateLimit).mockResolvedValue({
-      success: false,
-      remaining: 0,
-      reset: Date.now() + 10 * 60 * 1000,
-    });
+    vi.mocked(getRateLimitError).mockResolvedValue(getRateLimitMessage(Date.now() + 10 * 60 * 1000));
 
     expect(await changePassword(passwordForm())).toEqual({
       success: false,
@@ -214,7 +210,7 @@ describe("changePassword", () => {
 
     expect(result).toMatchObject({
       success: false,
-      error: "Could not change your password. Please try again.",
+      error: "Couldn't change your password. Please try again.",
     });
   });
 });
@@ -352,7 +348,7 @@ describe("deleteAccount", () => {
       vi.mocked(prisma.$transaction).mockRejectedValue(new Error("connection lost"));
 
       expect(await deleteAccount()).toMatchObject({
-        error: "Could not delete your account. Please try again.",
+        error: "Couldn't delete your account. Please try again.",
       });
       expect(clearSubscription).not.toHaveBeenCalled();
     });
@@ -378,7 +374,7 @@ describe("deleteAccount", () => {
     vi.mocked(prisma.$transaction).mockRejectedValue(new Error("connection lost"));
 
     await expect(deleteAccount()).resolves.toMatchObject({
-      error: "Could not delete your account. Please try again.",
+      error: "Couldn't delete your account. Please try again.",
     });
     expect(signOut).not.toHaveBeenCalled();
     expect(listFileKeys).not.toHaveBeenCalled();

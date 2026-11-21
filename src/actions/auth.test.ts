@@ -2,7 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 
 import { resendVerificationEmail } from "@/actions/auth";
 import { prisma } from "@/lib/prisma";
-import { rateLimit } from "@/lib/rate-limit";
+import { getRateLimitError } from "@/lib/rate-limit";
 import { isEmailVerificationEnabled, issueVerificationEmail } from "@/lib/verification";
 
 vi.mock("next-auth", () => ({
@@ -22,7 +22,7 @@ vi.mock("@/lib/verification", () => ({
 }));
 vi.mock("@/lib/rate-limit", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/rate-limit")>()),
-  rateLimit: vi.fn(),
+  getRateLimitError: vi.fn(),
 }));
 
 const SUCCESS = { success: true, data: null, error: null };
@@ -30,7 +30,7 @@ const SUCCESS = { success: true, data: null, error: null };
 describe("resendVerificationEmail", () => {
   beforeEach(() => {
     vi.mocked(isEmailVerificationEnabled).mockReturnValue(true);
-    vi.mocked(rateLimit).mockResolvedValue({ success: true, remaining: 2, reset: 0 });
+    vi.mocked(getRateLimitError).mockResolvedValue(null);
     vi.mocked(prisma.user.findUnique).mockResolvedValue({
       name: "Ada",
       passwordHash: "hash",

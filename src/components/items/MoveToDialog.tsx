@@ -1,7 +1,6 @@
 "use client";
 
 import { ArrowLeft, ChevronRight, Folder } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useEffect, useMemo, useRef, useState, useTransition, type TransitionStartFunction } from "react";
 import { toast } from "sonner";
 
@@ -89,7 +88,6 @@ interface MovePickerProps {
 }
 
 function MovePicker({ subject, folders, pending, startTransition, onMoved }: MovePickerProps) {
-  const router = useRouter();
   const [browsing, setBrowsing] = useState(subject.location);
   const headingRef = useRef<HTMLHeadingElement>(null);
   const navigated = useRef(false);
@@ -136,9 +134,9 @@ function MovePicker({ subject, folders, pending, startTransition, onMoved }: Mov
         return;
       }
 
+      // The move actions re-render the list in their own response.
       toast.success(`Moved to “${currentName}”`);
       onMoved();
-      router.refresh();
     });
   }
 

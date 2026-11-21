@@ -106,8 +106,12 @@ export function NewItemForm({
       if (result.success) {
         toast.success("Item created");
         onCreated();
-        // Re-renders the server components so the lists, stats and counts show it.
-        router.refresh();
+        // createItem re-renders the page in its own response; an upload goes
+        // through a route handler, which can't, so the lists, stats and counts
+        // are refreshed from here.
+        if (isFileItemType(typeName)) {
+          router.refresh();
+        }
         return;
       }
 

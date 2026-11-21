@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { toast } from "sonner";
 
@@ -33,7 +32,6 @@ export function NewCollectionDialog({
   onOpenChange,
   returnFocusRef,
 }: Readonly<NewCollectionDialogProps>) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
 
   function handleOpenChange(next: boolean) {
@@ -61,9 +59,8 @@ export function NewCollectionDialog({
           onSubmit={createCollection}
           onSaved={() => {
             toast.success("Collection created");
+            // createCollection re-renders the cards, stats and sidebar in its own response.
             onOpenChange(false);
-            // Re-renders the server components so the cards, stats and sidebar show it.
-            router.refresh();
           }}
         />
       </DialogContent>

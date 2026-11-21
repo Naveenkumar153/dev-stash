@@ -1,3 +1,4 @@
+import { refresh } from "next/cache";
 import type { Session } from "next-auth";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
@@ -18,6 +19,7 @@ import type { FolderRef } from "@/types/folders";
 // The session, the queries and R2 cleanup are mocked; the Zod schemas and the
 // tree helpers run for real, so these tests cover the checks end to end.
 vi.mock("@/auth", () => ({ auth: vi.fn() }));
+vi.mock("next/cache", () => ({ refresh: vi.fn() }));
 vi.mock("@/lib/db/folders", () => ({
   deleteFolderTree: vi.fn(),
   findFolder: vi.fn(),
@@ -119,6 +121,7 @@ describe("createFolder", () => {
     expect(getChildFolders).toHaveBeenCalledWith("user-1", null);
     expect(findFolder).not.toHaveBeenCalled();
     expect(insertFolder).toHaveBeenCalledWith("user-1", "Docs", null);
+    expect(refresh).toHaveBeenCalledOnce();
   });
 
   it("creates a folder inside one of the user's folders", async () => {
@@ -175,6 +178,7 @@ describe("createFolder", () => {
   it("refuses a name a sibling already has, ignoring case", async () => {
     expect(await createFolder({ name: "config", parentId: null })).toEqual(nameTaken("config"));
     expect(insertFolder).not.toHaveBeenCalled();
+    expect(refresh).not.toHaveBeenCalled();
   });
 
   it("returns a generic error when the database fails", async () => {
@@ -184,6 +188,7 @@ describe("createFolder", () => {
       failed("Couldn't create this folder. Please try again."),
     );
     expect(console.error).toHaveBeenCalled();
+    expect(refresh).not.toHaveBeenCalled();
   });
 });
 
@@ -213,6 +218,7 @@ describe("renameFolder", () => {
     expect(findFolder).toHaveBeenCalledWith("user-1", DOCS);
     expect(getChildFolders).toHaveBeenCalledWith("user-1", null);
     expect(updateFolder).toHaveBeenCalledWith("user-1", DOCS, { name: "Documents" });
+    expect(refresh).toHaveBeenCalledOnce();
   });
 
   it("allows changing only the case of the name", async () => {
@@ -284,6 +290,7 @@ describe("moveFolder", () => {
     expect(getFolderTree).toHaveBeenCalledOnce();
     expect(getFolderTree).toHaveBeenCalledWith("user-1");
     expect(updateFolder).toHaveBeenCalledWith("user-1", YEAR, { parentId: CONFIG });
+    expect(refresh).toHaveBeenCalledOnce();
   });
 
   it("moves a folder to the top level", async () => {
@@ -385,6 +392,7 @@ describe("deleteFolder", () => {
     expect(vi.mocked(deleteFolderTree).mock.invocationCallOrder[0]).toBeLessThan(
       vi.mocked(discardStoredFiles).mock.invocationCallOrder[0],
     );
+    expect(refresh).toHaveBeenCalledOnce();
   });
 
   it("refuses when signed out", async () => {
@@ -404,6 +412,7 @@ describe("deleteFolder", () => {
 
     expect(await deleteFolder(DOCS)).toEqual({ success: false, data: null, error: FOLDER_NOT_FOUND });
     expect(discardStoredFiles).not.toHaveBeenCalled();
+    expect(refresh).not.toHaveBeenCalled();
   });
 
   it("removes no files when the transaction fails", async () => {
@@ -430,6 +439,7 @@ describe("moveItem", () => {
     expect(result).toEqual({ success: true, data: { id: ITEM_ID, folderId: DOCS }, error: null });
     expect(findFolder).toHaveBeenCalledWith("user-1", DOCS);
     expect(moveFileItem).toHaveBeenCalledWith("user-1", ITEM_ID, DOCS);
+    expect(refresh).toHaveBeenCalledOnce();
   });
 
   it("moves a file to the top level without looking up a folder", async () => {
@@ -471,6 +481,7 @@ describe("moveItem", () => {
       data: null,
       error: FILE_NOT_FOUND,
     });
+    expect(refresh).not.toHaveBeenCalled();
   });
 
   it("returns a generic error when the database fails", async () => {

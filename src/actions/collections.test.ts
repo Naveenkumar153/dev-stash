@@ -71,6 +71,7 @@ describe("createCollection", () => {
       { name: "React Patterns", description: "Hooks and components" },
       prisma,
     );
+    expect(refresh).toHaveBeenCalledOnce();
   });
 
   it("doesn't count collections while gating is off", async () => {
@@ -90,6 +91,7 @@ describe("createCollection", () => {
     });
     expect(prisma.collection.count).toHaveBeenCalledWith({ where: { userId: "user-1" } });
     expect(createCollectionRecord).not.toHaveBeenCalled();
+    expect(refresh).not.toHaveBeenCalled();
   });
 
   it("creates for a Free account under the limit", async () => {
@@ -181,6 +183,7 @@ describe("updateCollection", () => {
       name: "Hooks",
       description: null,
     });
+    expect(refresh).toHaveBeenCalledOnce();
   });
 
   it("refuses when signed out, without a query", async () => {
@@ -225,6 +228,7 @@ describe("updateCollection", () => {
       data: null,
       error: "This collection doesn't exist or has been deleted.",
     });
+    expect(refresh).not.toHaveBeenCalled();
   });
 
   it("returns a generic error when the database fails", async () => {

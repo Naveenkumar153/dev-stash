@@ -5,7 +5,7 @@ import { redirect } from "next/navigation";
 import { AuthError, CredentialsSignin } from "next-auth";
 
 import { signIn, signOut, TooManyAttempts } from "@/auth";
-import { getFieldErrors, type FieldErrors } from "@/lib/action-result";
+import { actionFailure, getFieldErrors, type FieldErrors } from "@/lib/action-result";
 import {
   EMAIL_NOT_VERIFIED,
   getSignInErrorMessage,
@@ -18,8 +18,8 @@ import { issuePasswordResetEmail, resetPasswordWithToken } from "@/lib/password-
 import { prisma } from "@/lib/prisma";
 import {
   getClientIp,
+  getRateLimitError,
   getRateLimitMessage,
-  rateLimit,
   type RateLimitName,
 } from "@/lib/rate-limit";
 import { isEmailVerificationEnabled, issueVerificationEmail } from "@/lib/verification";
@@ -30,8 +30,7 @@ import { isEmailVerificationEnabled, issueVerificationEmail } from "@/lib/verifi
  */
 async function checkRateLimit(name: RateLimitName, email?: string): Promise<string | null> {
   const ip = getClientIp(await headers());
-  const { success, reset } = await rateLimit(name, email ? `${ip}:${email}` : ip);
-  return success ? null : getRateLimitMessage(reset);
+  return getRateLimitError(name, email ? `${ip}:${email}` : ip);
 }
 
 export interface SignInState {
@@ -104,7 +103,7 @@ export async function resendVerificationEmail(
 ): Promise<ResendVerificationResult> {
   const parsed = emailSchema.safeParse(rawEmail);
   if (!parsed.success) {
-    return { success: false, data: null, error: parsed.error.issues[0].message };
+    return actionFailure(parsed.error.issues[0].message);
   }
   if (!isEmailVerificationEnabled()) {
     return { success: true, data: null, error: null };
@@ -112,7 +111,7 @@ export async function resendVerificationEmail(
 
   const rateLimitError = await checkRateLimit("resendVerification", parsed.data);
   if (rateLimitError) {
-    return { success: false, data: null, error: rateLimitError };
+    return actionFailure(rateLimitError);
   }
 
   try {
@@ -212,7 +211,7 @@ export async function resetPassword(
     }
   } catch (error) {
     console.error("Resetting password failed", error);
-    return { error: "Could not reset your password. Please try again.", fieldErrors: {} };
+    return { error: "Couldn't reset your password. Please try again.", fieldErrors: {} };
   }
 
   redirect(`${SIGN_IN_PATH}?reset=1`);

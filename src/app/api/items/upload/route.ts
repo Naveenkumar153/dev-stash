@@ -3,6 +3,7 @@ import {
   FOLDER_NOT_FOUND,
   ITEM_CREATE_FAILED,
   ITEM_LIMIT_REACHED,
+  ITEM_TYPE_UNAVAILABLE,
   PRO_REQUIRED,
   SESSION_EXPIRED,
   STORAGE_QUOTA_REACHED,
@@ -235,7 +236,7 @@ async function storeAndCreate(
     }
 
     await discardStoredFiles(storedKeys);
-    return uploadFailure("This item type isn't available.", 500);
+    return uploadFailure(ITEM_TYPE_UNAVAILABLE, 500);
   } catch (error) {
     console.error("Creating file item failed", error);
     await discardStoredFiles(storedKeys);

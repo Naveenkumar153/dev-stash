@@ -1,7 +1,14 @@
 "use server";
 
 import { signIn, signOut } from "@/auth";
-import { SESSION_EXPIRED, getFieldErrors, type FieldErrors } from "@/lib/action-result";
+import {
+  ACCOUNT_DELETE_FAILED,
+  SESSION_EXPIRED,
+  actionFailure,
+  formFailure,
+  getFieldErrors,
+  type FieldErrors,
+} from "@/lib/action-result";
 import { SIGN_IN_PATH } from "@/lib/auth-redirect";
 import { changePasswordSchema } from "@/lib/auth-schemas";
 import {
@@ -13,7 +20,7 @@ import { isDemoEmail } from "@/lib/demo-account";
 import { hashPassword, verifyPassword } from "@/lib/password";
 import { resetIdentifier } from "@/lib/password-reset";
 import { prisma } from "@/lib/prisma";
-import { getRateLimitMessage, rateLimit } from "@/lib/rate-limit";
+import { getRateLimitError } from "@/lib/rate-limit";
 import { getSessionUserId } from "@/lib/session";
 import { discardUserFiles } from "@/lib/stored-files";
 
@@ -22,10 +29,6 @@ export interface ChangePasswordResult {
   data: null;
   error: string | null;
   fieldErrors: FieldErrors;
-}
-
-function failed(error: string): ChangePasswordResult {
-  return { success: false, data: null, error, fieldErrors: {} };
 }
 
 /**
@@ -50,7 +53,7 @@ async function keepThisSession(email: string, password: string): Promise<void> {
 export async function changePassword(formData: FormData): Promise<ChangePasswordResult> {
   const userId = await getSessionUserId();
   if (!userId) {
-    return { success: false, data: null, error: SESSION_EXPIRED, fieldErrors: {} };
+    return formFailure(SESSION_EXPIRED);
   }
 
   const parsed = changePasswordSchema.safeParse(Object.fromEntries(formData));
@@ -66,15 +69,15 @@ export async function changePassword(formData: FormData): Promise<ChangePassword
     // Its password is published so anyone can try the app; one visitor
     // changing it would lock everyone else out.
     if (user && isDemoEmail(user.email)) {
-      return failed("The demo account's password can't be changed.");
+      return formFailure("The demo account's password can't be changed.");
     }
     if (!user?.passwordHash) {
-      return failed("This account signs in with GitHub and has no password to change.");
+      return formFailure("This account signs in with GitHub and has no password to change.");
     }
     // Before bcrypt, so a stolen session can't brute-force the current password.
-    const limit = await rateLimit("changePassword", userId);
-    if (!limit.success) {
-      return failed(getRateLimitMessage(limit.reset));
+    const rateLimitError = await getRateLimitError("changePassword", userId);
+    if (rateLimitError) {
+      return formFailure(rateLimitError);
     }
     if (!(await verifyPassword(parsed.data.currentPassword, user.passwordHash))) {
       return {
@@ -98,7 +101,7 @@ export async function changePassword(formData: FormData): Promise<ChangePassword
     return { success: true, data: null, error: null, fieldErrors: {} };
   } catch (error) {
     console.error("Changing password failed", error);
-    return failed("Could not change your password. Please try again.");
+    return formFailure("Couldn't change your password. Please try again.");
   }
 }
 
@@ -137,7 +140,6 @@ async function deleteUserRows(userId: string, email: string): Promise<void> {
 }
 
 const SUBSCRIPTION_CANCEL_FAILED = "Couldn't cancel your subscription. Please try again.";
-const DELETE_FAILED = "Could not delete your account. Please try again.";
 const DELETE_FAILED_AFTER_CANCEL =
   "Your subscription was canceled, but your account couldn't be deleted. Please try again.";
 
@@ -174,7 +176,7 @@ async function tryCancelSubscriptions(refs: BillingRefs): Promise<number | null>
 export async function deleteAccount(): Promise<DeleteAccountResult> {
   const userId = await getSessionUserId();
   if (!userId) {
-    return { success: false, data: null, error: SESSION_EXPIRED };
+    return actionFailure(SESSION_EXPIRED);
   }
 
   let canceled = 0;
@@ -184,11 +186,11 @@ export async function deleteAccount(): Promise<DeleteAccountResult> {
       select: { email: true, stripeCustomerId: true, stripeSubscriptionId: true },
     });
     if (!user) {
-      return { success: false, data: null, error: "Account not found." };
+      return actionFailure("Account not found.");
     }
     // The seeded demo account is shared for trying the app, so it stays.
     if (isDemoEmail(user.email)) {
-      return { success: false, data: null, error: "The demo account can't be deleted." };
+      return actionFailure("The demo account can't be deleted.");
     }
 
     // Stripe would keep billing a deleted account, so the subscriptions are
@@ -197,7 +199,7 @@ export async function deleteAccount(): Promise<DeleteAccountResult> {
     // no user and change nothing.
     const result = await tryCancelSubscriptions(user);
     if (result === null) {
-      return { success: false, data: null, error: SUBSCRIPTION_CANCEL_FAILED };
+      return actionFailure(SUBSCRIPTION_CANCEL_FAILED);
     }
     canceled = result;
 
@@ -205,7 +207,7 @@ export async function deleteAccount(): Promise<DeleteAccountResult> {
   } catch (error) {
     console.error("Deleting account failed", error);
     if (canceled === 0) {
-      return { success: false, data: null, error: DELETE_FAILED };
+      return actionFailure(ACCOUNT_DELETE_FAILED);
     }
     // The account stays but its subscription is gone: end Pro now rather
     // than when the webhook lands, and say why.
@@ -214,7 +216,7 @@ export async function deleteAccount(): Promise<DeleteAccountResult> {
     } catch (clearError) {
       console.error("Recording the canceled subscription failed", clearError);
     }
-    return { success: false, data: null, error: DELETE_FAILED_AFTER_CANCEL };
+    return actionFailure(DELETE_FAILED_AFTER_CANCEL);
   }
 
   // R2 isn't part of the transaction, so its files go once the rows are gone.

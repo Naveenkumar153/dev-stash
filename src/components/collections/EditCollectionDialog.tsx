@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { toast } from "sonner";
 
@@ -36,7 +35,6 @@ export function EditCollectionDialog({
   onOpenChange,
   returnFocusRef,
 }: Readonly<EditCollectionDialogProps>) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
 
   function handleOpenChange(next: boolean) {
@@ -65,9 +63,8 @@ export function EditCollectionDialog({
           onSubmit={(values) => updateCollection(collection.id, values)}
           onSaved={() => {
             toast.success("Collection updated");
+            // updateCollection re-renders the header, cards and sidebar in its own response.
             onOpenChange(false);
-            // The page header, cards and sidebar all read the name.
-            router.refresh();
           }}
         />
       </DialogContent>

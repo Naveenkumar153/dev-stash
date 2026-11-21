@@ -1,7 +1,6 @@
 "use client";
 
 import { Trash2 } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
@@ -19,6 +18,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
 import { callAction } from "@/lib/action-call";
+import { ITEM_DELETE_FAILED } from "@/lib/action-result";
 
 interface ItemDeleteDialogProps {
   itemId: string;
@@ -35,7 +35,6 @@ interface ItemDeleteDialogProps {
  * they can retry or cancel.
  */
 export function ItemDeleteDialog({ itemId, itemTitle, enabled, onDeleted }: ItemDeleteDialogProps) {
-  const router = useRouter();
   const [open, setOpen] = useState(false);
   const [pending, startTransition] = useTransition();
 
@@ -55,15 +54,14 @@ export function ItemDeleteDialog({ itemId, itemTitle, enabled, onDeleted }: Item
       }
 
       if (!result.success) {
-        toast.error(result.error ?? "Couldn't delete this item. Please try again.");
+        toast.error(result.error ?? ITEM_DELETE_FAILED);
         return;
       }
 
       setOpen(false);
       toast.success("Item deleted");
+      // deleteItem re-renders the lists and counts in its own response.
       onDeleted();
-      // Removes the card from the lists and updates the counts.
-      router.refresh();
     });
   }
 

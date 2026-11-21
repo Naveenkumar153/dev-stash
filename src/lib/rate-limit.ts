@@ -109,3 +109,14 @@ export function getRateLimitMessage(reset: number): string {
   const minutes = Math.ceil(getRetryAfterSeconds(reset) / 60);
   return `Too many attempts. Please try again in ${minutes} minute${minutes === 1 ? "" : "s"}.`;
 }
+
+/**
+ * Counts an attempt against `name` for `key` and returns the message to show
+ * when the limit is reached, or null when the attempt may go ahead (including
+ * when rate limiting is off or failing open). For callers that don't need
+ * `reset` for a `Retry-After` header.
+ */
+export async function getRateLimitError(name: RateLimitName, key: string): Promise<string | null> {
+  const { success, reset } = await rateLimit(name, key);
+  return success ? null : getRateLimitMessage(reset);
+}

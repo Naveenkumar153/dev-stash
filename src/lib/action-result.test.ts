@@ -1,4 +1,4 @@
-import { describe, expect, it } from "vitest";
+import { describe, expect, it, vi } from "vitest";
 import { z } from "zod";
 
 import {
@@ -8,8 +8,12 @@ import {
   ITEM_CREATE_FAILED,
   ITEM_LIMIT_REACHED,
   PRO_REQUIRED,
+  actionFailure,
+  formFailure,
   getFieldErrors,
   isUpgradeError,
+  runOwnedWrite,
+  validationFailure,
 } from "@/lib/action-result";
 
 const schema = z.object({
@@ -67,5 +71,60 @@ describe("isUpgradeError", () => {
   it("names the Free limits in the limit messages", () => {
     expect(ITEM_LIMIT_REACHED).toContain("limit of 50 items");
     expect(COLLECTION_LIMIT_REACHED).toContain("limit of 3 collections");
+  });
+});
+
+describe("failure replies", () => {
+  it("actionFailure carries only the error", () => {
+    expect(actionFailure("Nope")).toEqual({ success: false, data: null, error: "Nope" });
+  });
+
+  it("formFailure defaults to no field errors", () => {
+    expect(formFailure("Nope")).toEqual({ success: false, data: null, error: "Nope", fieldErrors: {} });
+  });
+
+  it("formFailure keeps the field errors it's given", () => {
+    expect(formFailure("Taken", { name: "Taken" })).toEqual({
+      success: false,
+      data: null,
+      error: "Taken",
+      fieldErrors: { name: "Taken" },
+    });
+  });
+
+  it("validationFailure uses the first issue's message and each field's first error", () => {
+    const parsed = schema.safeParse({ name: "", email: "nope" });
+    if (parsed.success) throw new Error("expected the input to be invalid");
+
+    expect(validationFailure(parsed.error)).toEqual({
+      success: false,
+      data: null,
+      error: "Name is required",
+      fieldErrors: { name: "Name is required", email: "Enter a valid email address" },
+    });
+  });
+});
+
+describe("runOwnedWrite", () => {
+  const messages = { notFound: "Not found", failed: "Failed", logLabel: "Saving failed" };
+
+  it("returns null when the write matched a row", async () => {
+    await expect(runOwnedWrite(async () => true, messages)).resolves.toBeNull();
+  });
+
+  it("returns the not-found message when the write matched nothing", async () => {
+    await expect(runOwnedWrite(async () => false, messages)).resolves.toBe("Not found");
+  });
+
+  it("returns the failure message and logs when the write throws", async () => {
+    const log = vi.spyOn(console, "error").mockImplementation(() => {});
+    const error = new Error("connection reset");
+
+    await expect(
+      runOwnedWrite(async () => {
+        throw error;
+      }, messages),
+    ).resolves.toBe("Failed");
+    expect(log).toHaveBeenCalledWith("Saving failed", error);
   });
 });

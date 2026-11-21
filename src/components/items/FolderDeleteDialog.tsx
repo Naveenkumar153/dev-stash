@@ -1,6 +1,5 @@
 "use client";
 
-import { useRouter } from "next/navigation";
 import { useTransition } from "react";
 import { toast } from "sonner";
 
@@ -17,6 +16,7 @@ import {
 } from "@/components/ui/alert-dialog";
 import { formatCount } from "@/lib/format";
 import { callAction } from "@/lib/action-call";
+import { FOLDER_DELETE_FAILED } from "@/lib/action-result";
 
 interface FolderDeleteDialogProps {
   open: boolean;
@@ -47,7 +47,6 @@ function describeDeletion({ folders, files }: FolderDeleteDialogProps["contents"
  * and leaves the dialog open so they can retry or cancel.
  */
 export function FolderDeleteDialog({ open, onOpenChange, folder, contents }: FolderDeleteDialogProps) {
-  const router = useRouter();
   const [pending, startTransition] = useTransition();
 
   // Escape and the backdrop can't dismiss the dialog mid-delete.
@@ -67,13 +66,13 @@ export function FolderDeleteDialog({ open, onOpenChange, folder, contents }: Fol
       }
 
       if (!result.success) {
-        toast.error(result.error ?? "Couldn't delete this folder. Please try again.");
+        toast.error(result.error ?? FOLDER_DELETE_FAILED);
         return;
       }
 
       onOpenChange(false);
+      // deleteFolder re-renders the list in its own response.
       toast.success("Folder deleted");
-      router.refresh();
     });
   }
 

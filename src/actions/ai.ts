@@ -11,6 +11,7 @@ import {
   AI_UNAVAILABLE,
   ITEM_NOT_FOUND,
   SESSION_EXPIRED,
+  actionFailure,
 } from "@/lib/action-result";
 import {
   buildDescriptionInput,
@@ -49,7 +50,7 @@ import {
 import { getItemForAi } from "@/lib/db/items";
 import { itemIdSchema } from "@/lib/item-schemas";
 import { AI_MODEL, getOpenAI, getSafetyIdentifier, isAiConfigured } from "@/lib/openai";
-import { getRateLimitMessage, rateLimit } from "@/lib/rate-limit";
+import { getRateLimitError } from "@/lib/rate-limit";
 import { getSessionEntitlements } from "@/lib/usage-limits";
 import type {
   ExplainCodeResult,
@@ -134,9 +135,9 @@ interface ModelCall {
  * Returns the raw reply text for the caller to parse.
  */
 async function callModel(userId: string, call: ModelCall): Promise<Outcome<{ text: string }>> {
-  const limit = await rateLimit("ai", userId);
-  if (!limit.success) {
-    return { ok: false, error: getRateLimitMessage(limit.reset) };
+  const rateLimitError = await getRateLimitError("ai", userId);
+  if (rateLimitError) {
+    return { ok: false, error: rateLimitError };
   }
 
   try {
@@ -215,13 +216,13 @@ export async function generateAutoTags(input: AiDraftInput): Promise<GenerateAut
     failedMessage: AI_TAGS_FAILED,
   });
   if (!reply.ok) {
-    return { success: false, data: null, error: reply.error };
+    return actionFailure(reply.error);
   }
 
   const tags = parseTagReply(reply.text);
   if (!tags) {
     console.error("AI tag reply wasn't JSON tags");
-    return { success: false, data: null, error: AI_TAGS_FAILED };
+    return actionFailure(AI_TAGS_FAILED);
   }
 
   return {
@@ -246,7 +247,7 @@ export async function generateDescription(
     failedMessage: AI_DESCRIPTION_FAILED,
   });
   if (!reply.ok) {
-    return { success: false, data: null, error: reply.error };
+    return actionFailure(reply.error);
   }
 
   const parsed = parseDescriptionReply(reply.text);
@@ -254,7 +255,7 @@ export async function generateDescription(
   const description = parsed && normalizeDescription(parsed);
   if (!description) {
     console.error("AI description reply wasn't a JSON description");
-    return { success: false, data: null, error: AI_DESCRIPTION_FAILED };
+    return actionFailure(AI_DESCRIPTION_FAILED);
   }
 
   return { success: true, data: { description }, error: null };
@@ -317,7 +318,7 @@ async function loadSavedItem(
 export async function explainCode(itemId: string): Promise<ExplainCodeResult> {
   const access = await checkAiAccess();
   if (!access.ok) {
-    return { success: false, data: null, error: access.error };
+    return actionFailure(access.error);
   }
 
   const loaded = await loadSavedItem(access.userId, itemId, {
@@ -330,7 +331,7 @@ export async function explainCode(itemId: string): Promise<ExplainCodeResult> {
     failedMessage: AI_EXPLAIN_FAILED,
   });
   if (!loaded.ok) {
-    return { success: false, data: null, error: loaded.error };
+    return actionFailure(loaded.error);
   }
 
   const reply = await callModel(access.userId, {
@@ -344,13 +345,13 @@ export async function explainCode(itemId: string): Promise<ExplainCodeResult> {
     failedMessage: AI_EXPLAIN_FAILED,
   });
   if (!reply.ok) {
-    return { success: false, data: null, error: reply.error };
+    return actionFailure(reply.error);
   }
 
   const explanation = normalizeExplanation(reply.text);
   if (!explanation) {
     console.error("AI explanation reply was empty");
-    return { success: false, data: null, error: AI_EXPLAIN_FAILED };
+    return actionFailure(AI_EXPLAIN_FAILED);
   }
 
   return { success: true, data: { explanation }, error: null };
@@ -365,7 +366,7 @@ export async function explainCode(itemId: string): Promise<ExplainCodeResult> {
 export async function optimizePrompt(itemId: string): Promise<OptimizePromptResult> {
   const access = await checkAiAccess();
   if (!access.ok) {
-    return { success: false, data: null, error: access.error };
+    return actionFailure(access.error);
   }
 
   const loaded = await loadSavedItem(access.userId, itemId, {
@@ -378,7 +379,7 @@ export async function optimizePrompt(itemId: string): Promise<OptimizePromptResu
     failedMessage: AI_OPTIMIZE_FAILED,
   });
   if (!loaded.ok) {
-    return { success: false, data: null, error: loaded.error };
+    return actionFailure(loaded.error);
   }
 
   const reply = await callModel(access.userId, {
@@ -392,13 +393,13 @@ export async function optimizePrompt(itemId: string): Promise<OptimizePromptResu
     failedMessage: AI_OPTIMIZE_FAILED,
   });
   if (!reply.ok) {
-    return { success: false, data: null, error: reply.error };
+    return actionFailure(reply.error);
   }
 
   const optimization = parseOptimizeReply(reply.text, loaded.item.content);
   if (!optimization) {
     console.error("AI prompt optimization reply wasn't the expected JSON");
-    return { success: false, data: null, error: AI_OPTIMIZE_FAILED };
+    return actionFailure(AI_OPTIMIZE_FAILED);
   }
 
   return { success: true, data: optimization, error: null };

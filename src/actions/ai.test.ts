@@ -39,7 +39,7 @@ import {
 import { TAG_INSTRUCTIONS } from "@/lib/ai-tags";
 import { getItemForAi } from "@/lib/db/items";
 import { AI_MODEL, getOpenAI, getSafetyIdentifier } from "@/lib/openai";
-import { rateLimit } from "@/lib/rate-limit";
+import { getRateLimitError, getRateLimitMessage } from "@/lib/rate-limit";
 
 vi.mock("@/auth", () => ({ auth: vi.fn() }));
 // The usage limits module loads Prisma; nothing here counts rows.
@@ -57,7 +57,7 @@ vi.mock("@/lib/db/items", async (importOriginal) => ({
 }));
 vi.mock("@/lib/rate-limit", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/rate-limit")>()),
-  rateLimit: vi.fn(),
+  getRateLimitError: vi.fn(),
 }));
 
 /** `auth` is overloaded (it doubles as middleware), so its mock is typed by hand. */
@@ -87,7 +87,7 @@ beforeEach(() => {
   signIn(true);
   vi.stubEnv("OPENAI_API_KEY", "sk-test");
   vi.mocked(getOpenAI).mockReturnValue({ responses: { create } } as never);
-  vi.mocked(rateLimit).mockResolvedValue({ success: true, remaining: 19, reset: Date.now() });
+  vi.mocked(getRateLimitError).mockResolvedValue(null);
   reply('{"tags": ["React", "Hooks", "TypeScript", "debounce"]}');
 });
 
@@ -138,7 +138,7 @@ describe("generateAutoTags", () => {
 
   it("counts the request against the user's AI limit", async () => {
     await generateAutoTags(draft);
-    expect(rateLimit).toHaveBeenCalledWith("ai", "user-1");
+    expect(getRateLimitError).toHaveBeenCalledWith("ai", "user-1");
   });
 
   it("refuses a signed-out request without calling OpenAI", async () => {
@@ -153,7 +153,7 @@ describe("generateAutoTags", () => {
     signIn(false);
 
     expect(await generateAutoTags(draft)).toEqual({ success: false, data: null, error: AI_PRO_REQUIRED });
-    expect(rateLimit).not.toHaveBeenCalled();
+    expect(getRateLimitError).not.toHaveBeenCalled();
     expect(create).not.toHaveBeenCalled();
   });
 
@@ -175,7 +175,7 @@ describe("generateAutoTags", () => {
       data: null,
       error: AI_NEEDS_INPUT,
     });
-    expect(rateLimit).not.toHaveBeenCalled();
+    expect(getRateLimitError).not.toHaveBeenCalled();
     expect(create).not.toHaveBeenCalled();
   });
 
@@ -190,11 +190,7 @@ describe("generateAutoTags", () => {
   it("returns the rate-limit message once the hour's requests are used", async () => {
     vi.useFakeTimers();
     vi.setSystemTime(new Date("2026-11-21T12:00:00Z"));
-    vi.mocked(rateLimit).mockResolvedValue({
-      success: false,
-      remaining: 0,
-      reset: Date.now() + 10 * 60 * 1000,
-    });
+    vi.mocked(getRateLimitError).mockResolvedValue(getRateLimitMessage(Date.now() + 10 * 60 * 1000));
 
     expect(await generateAutoTags(draft)).toEqual({
       success: false,
@@ -310,7 +306,7 @@ describe("generateDescription", () => {
 
   it("counts against the same AI limit as tag suggestions", async () => {
     await generateDescription(draft);
-    expect(rateLimit).toHaveBeenCalledWith("ai", "user-1");
+    expect(getRateLimitError).toHaveBeenCalledWith("ai", "user-1");
   });
 
   it("refuses a Free account while gating is on, before calling", async () => {
@@ -430,7 +426,7 @@ describe("explainCode", () => {
 
   it("counts against the same AI limit as the other features", async () => {
     await explainCode(ITEM_ID);
-    expect(rateLimit).toHaveBeenCalledWith("ai", "user-1");
+    expect(getRateLimitError).toHaveBeenCalledWith("ai", "user-1");
   });
 
   it("refuses a signed-out request without reading the item", async () => {
@@ -446,7 +442,7 @@ describe("explainCode", () => {
 
     expect(await explainCode(ITEM_ID)).toEqual({ success: false, data: null, error: AI_PRO_REQUIRED });
     expect(getItemForAi).not.toHaveBeenCalled();
-    expect(rateLimit).not.toHaveBeenCalled();
+    expect(getRateLimitError).not.toHaveBeenCalled();
     expect(create).not.toHaveBeenCalled();
   });
 
@@ -472,7 +468,7 @@ describe("explainCode", () => {
     vi.mocked(getItemForAi).mockResolvedValue(found);
 
     expect(await explainCode(ITEM_ID)).toEqual({ success: false, data: null, error });
-    expect(rateLimit).not.toHaveBeenCalled();
+    expect(getRateLimitError).not.toHaveBeenCalled();
     expect(create).not.toHaveBeenCalled();
   });
 
@@ -485,7 +481,7 @@ describe("explainCode", () => {
   });
 
   it("returns the rate-limit message once the hour's requests are used", async () => {
-    vi.mocked(rateLimit).mockResolvedValue({ success: false, remaining: 0, reset: Date.now() + 60_000 });
+    vi.mocked(getRateLimitError).mockResolvedValue(getRateLimitMessage(Date.now() + 60_000));
 
     const result = await explainCode(ITEM_ID);
     expect(result).toMatchObject({ success: false, data: null });
@@ -576,7 +572,7 @@ describe("optimizePrompt", () => {
 
   it("counts against the same AI limit as the other features", async () => {
     await optimizePrompt(ITEM_ID);
-    expect(rateLimit).toHaveBeenCalledWith("ai", "user-1");
+    expect(getRateLimitError).toHaveBeenCalledWith("ai", "user-1");
   });
 
   it("refuses a signed-out request without reading the item", async () => {
@@ -610,7 +606,7 @@ describe("optimizePrompt", () => {
     vi.mocked(getItemForAi).mockResolvedValue(found);
 
     expect(await optimizePrompt(ITEM_ID)).toEqual({ success: false, data: null, error });
-    expect(rateLimit).not.toHaveBeenCalled();
+    expect(getRateLimitError).not.toHaveBeenCalled();
     expect(create).not.toHaveBeenCalled();
   });
 

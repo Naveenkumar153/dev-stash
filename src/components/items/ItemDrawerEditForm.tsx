@@ -1,7 +1,6 @@
 "use client";
 
 import { Check, X } from "lucide-react";
-import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { toast } from "sonner";
 
@@ -14,7 +13,7 @@ import {
   type ItemFormValues,
 } from "@/components/items/ItemFormFields";
 import { Button } from "@/components/ui/button";
-import type { FieldErrors } from "@/lib/action-result";
+import { ITEM_UPDATE_FAILED, type FieldErrors } from "@/lib/action-result";
 import { getContentEditorKind, getEditableItemFields } from "@/lib/item-types";
 import type { ItemDetail } from "@/types/items";
 import { callAction } from "@/lib/action-call";
@@ -44,7 +43,6 @@ interface ItemDrawerEditFormProps {
  * drops them. Type and dates stay display-only.
  */
 export function ItemDrawerEditForm({ item, onCancel, onSaved }: ItemDrawerEditFormProps) {
-  const router = useRouter();
   const [values, setValues] = useState(() => toFormValues(item));
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [pending, startTransition] = useTransition();
@@ -64,14 +62,13 @@ export function ItemDrawerEditForm({ item, onCancel, onSaved }: ItemDrawerEditFo
       }
       if (result.success && result.data) {
         toast.success("Item saved");
+        // updateItem re-renders the cards behind in its own response.
         onSaved(result.data);
-        // Re-renders the server components so the cards behind show the edit.
-        router.refresh();
         return;
       }
 
       setFieldErrors(result.fieldErrors);
-      toast.error(result.error ?? "Couldn't save your changes. Please try again.");
+      toast.error(result.error ?? ITEM_UPDATE_FAILED);
     });
   }
 

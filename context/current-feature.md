@@ -1,16 +1,31 @@
-# Current Feature
+# Current Feature: Actions Refactor (Refactor Scan Findings 1-5)
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+Fix all five findings from the 2026-11-22 `refactor-scanner` scan of `src/actions/`, with no change to what users see except where noted:
+
+1. **Shared failure helpers.** Add `actionFailure(error)`, `formFailure(error, fieldErrors = {})` and `validationFailure(zodError)` (first issue's message plus `getFieldErrors()`) to `src/lib/action-result.ts`, keeping it client-safe (Zod type-only). Replace the 14 private helpers (`failure`, `updateFailure`, `deleteFailure`, `favoriteFailure`, `pinFailure`, `contentFailure`, `moveItemFailure`, `failed`, folders' `invalid()`) in `items.ts`, `collections.ts`, `folders.ts`, `billing.ts` and `profile.ts`, the inline `{ success: false, data: null, error }` literals in `ai.ts`, `profile.ts` and `editor-preferences.ts`, and the four `failure(parsed.error.issues[0].message, getFieldErrors(...))` branches
+2. **Shared failure copy.** Move messages typed in both an action and a component or route into `action-result.ts` constants (`ITEM_TYPE_UNAVAILABLE`, `ITEM_UPDATE_FAILED`, `ITEM_DELETE_FAILED`, `FOLDER_DELETE_FAILED`, `ACCOUNT_DELETE_FAILED`, plus the other inline folder strings) and import them in `ItemDrawerEditForm`, `ItemDeleteDialog`, `FolderDeleteDialog`, `DeleteAccountDialog` and `POST /api/items/upload`; reword the "Could not ..." messages in `profile.ts` and `auth.ts` to "Couldn't ...", matching every other constant (a visible copy change)
+3. **Shared rate-limit check.** Add `getRateLimitError(name, key): Promise<string | null>` to `src/lib/rate-limit.ts` and use it in `ai.ts`, `profile.ts` and `auth.ts` (whose `checkRateLimit()` keeps only its key building); the register and upload routes keep `rateLimit()` because they need `reset` for `Retry-After`
+4. **Shared owned-row write.** Add `runOwnedWrite(write, { notFound, failed, logLabel }): Promise<string | null>` and use it in `setItemFavorite`, `toggleItemPin`, `setCollectionFavorite` and `deleteCollection`, with the session and id checks and `refresh()` staying in each action; merge `isFavoriteSchema` and `isPinnedSchema` into one wanted-state schema
+5. **One way to refresh.** Call `refresh()` from `next/cache` on success in `createItem`, `updateItem`, `deleteItem`, `createCollection`, `updateCollection` and the folder actions (`createFolder`, `renameFolder`, `moveFolder`, `deleteFolder`, `moveItem`), and remove the client `router.refresh()` calls in `NewItemForm`, `ItemDrawerEditForm`, `ItemDeleteDialog`, `FolderDeleteDialog`, `MoveToDialog`, `FolderNameDialog`, `NewCollectionDialog` and `EditCollectionDialog`
+
+- Unit tests: the three failure helpers, `getRateLimitError()` (allowed, failing open, blocked) and `runOwnedWrite()` (true, false, a throw with a log); each action's tests assert `refresh()` runs only on success; existing action tests keep passing (updated only where the copy in goal 2 changes)
+- Browser check that create, edit, delete, favorite, pin and the folder actions still update the page, and that a collection delete from its page still lands on `/collections`
+- `npm test`, lint and build pass
 
 ## Notes
 
-<!-- Any extra notes -->
+- Source: the refactor-scanner report of 2026-11-22. Findings 1 and 5 were partly tracked already (Collection Edit, Delete & Favorite Actions: identical `failure()` / `updateFailure()`, and server vs client refresh)
+- Leave as they are: the `error: null` + `fieldErrors` replies in `auth.ts`, `profile.ts` and `editor-preferences.ts` (those forms show field errors inline rather than as a toast); the session / Pro / id checks at the top of each action (a wrapper would hide the auth check); `ai.ts`'s existing `checkAiAccess()` / `callModel()` / `loadSavedItem()`; the demo-account refusals' differing copy
+- Goal 5 exception: a file upload in `NewItemForm` goes through `POST /api/items/upload`, a route handler, which can't call `refresh()` (server actions only), so that path keeps `router.refresh()`. Check `node_modules/next/dist/docs/` for `refresh()` before relying on it in each action
+- Goal 5 risk: dialogs that call `router.replace()` / `push()` after a mutation must keep navigating; the server `refresh()` re-renders in the action's own response, which is why `deleteCollection` already uses it
+- Out of scope: the optional generic `ActionResult<T>` / `FormActionResult<T>` replacing the 15+ hand-written result types in `src/types/`
+- Decision to confirm at start: whether goal 2's "Could not" → "Couldn't" wording change is wanted (default: yes, for consistency)
 
 ## History
 

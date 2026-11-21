@@ -1,6 +1,11 @@
 "use server";
 
-import { BILLING_PORTAL_FAILED, CHECKOUT_FAILED, SESSION_EXPIRED } from "@/lib/action-result";
+import {
+  BILLING_PORTAL_FAILED,
+  CHECKOUT_FAILED,
+  SESSION_EXPIRED,
+  actionFailure,
+} from "@/lib/action-result";
 import { getAppUrl } from "@/lib/app-url";
 import { billingIntervalSchema } from "@/lib/billing-schemas";
 import {
@@ -19,10 +24,6 @@ function getSettingsUrl(): string {
   return `${getAppUrl()}/settings`;
 }
 
-function failure(error: string): BillingRedirectResult {
-  return { success: false, data: null, error };
-}
-
 const DEMO_BILLING_CLOSED = "The demo account is shared, so its billing can't be changed.";
 
 /**
@@ -35,18 +36,18 @@ const DEMO_BILLING_CLOSED = "The demo account is shared, so its billing can't be
 export async function createCheckoutSession(interval: unknown): Promise<BillingRedirectResult> {
   const userId = await getSessionUserId();
   if (!userId) {
-    return failure(SESSION_EXPIRED);
+    return actionFailure(SESSION_EXPIRED);
   }
 
   const parsed = billingIntervalSchema.safeParse(interval);
   if (!parsed.success) {
-    return failure("Choose monthly or yearly billing.");
+    return actionFailure("Choose monthly or yearly billing.");
   }
 
   try {
     const status = await getBillingStatus(userId);
     if (status?.isDemo) {
-      return failure(DEMO_BILLING_CLOSED);
+      return actionFailure(DEMO_BILLING_CLOSED);
     }
     if (status?.isPro) {
       return createPortalSession();
@@ -79,7 +80,7 @@ export async function createCheckoutSession(interval: unknown): Promise<BillingR
     return { success: true, data: { url: session.url }, error: null };
   } catch (error) {
     console.error("Creating checkout session failed", error);
-    return failure(CHECKOUT_FAILED);
+    return actionFailure(CHECKOUT_FAILED);
   }
 }
 
@@ -90,12 +91,12 @@ export async function createCheckoutSession(interval: unknown): Promise<BillingR
 export async function createPortalSession(): Promise<BillingRedirectResult> {
   const userId = await getSessionUserId();
   if (!userId) {
-    return failure(SESSION_EXPIRED);
+    return actionFailure(SESSION_EXPIRED);
   }
 
   try {
     if ((await getBillingStatus(userId))?.isDemo) {
-      return failure(DEMO_BILLING_CLOSED);
+      return actionFailure(DEMO_BILLING_CLOSED);
     }
 
     const portal = await getStripe().billingPortal.sessions.create({
@@ -105,6 +106,6 @@ export async function createPortalSession(): Promise<BillingRedirectResult> {
     return { success: true, data: { url: portal.url }, error: null };
   } catch (error) {
     console.error("Creating billing portal session failed", error);
-    return failure(BILLING_PORTAL_FAILED);
+    return actionFailure(BILLING_PORTAL_FAILED);
   }
 }

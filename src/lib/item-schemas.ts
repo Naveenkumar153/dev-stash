@@ -10,12 +10,6 @@ export const URL_REQUIRED = "URL is required";
 /** Item ids are Prisma cuids, so anything else can't match a row. */
 export const itemIdSchema = z.cuid();
 
-/**
- * The pinned state to save. The Pin button sends the state it wants rather
- * than asking to flip it, so a double click or two tabs can't invert each other.
- */
-export const isPinnedSchema = z.boolean();
-
 /** Optional text: trimmed, with a blank value saved as null. */
 const optionalText = z
   .string()

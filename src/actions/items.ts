@@ -7,12 +7,17 @@ import {
   CONTENT_SAVE_FAILED,
   FAVORITE_UPDATE_FAILED,
   ITEM_CREATE_FAILED,
+  ITEM_DELETE_FAILED,
   ITEM_LIMIT_REACHED,
   ITEM_NOT_FOUND,
+  ITEM_TYPE_UNAVAILABLE,
+  ITEM_UPDATE_FAILED,
   PIN_UPDATE_FAILED,
   SESSION_EXPIRED,
-  getFieldErrors,
-  type FieldErrors,
+  actionFailure,
+  formFailure,
+  runOwnedWrite,
+  validationFailure,
 } from "@/lib/action-result";
 import { ownsCollections } from "@/lib/db/collections";
 import {
@@ -23,11 +28,9 @@ import {
   setItemPinned,
   updateItem as updateItemRecord,
 } from "@/lib/db/item-writes";
-import { isFavoriteSchema } from "@/lib/favorite-schemas";
 import {
   createItemSchema,
   URL_REQUIRED,
-  isPinnedSchema,
   itemContentSchema,
   itemIdSchema,
   updateItemSchema,
@@ -37,6 +40,7 @@ import {
 import { getSessionUserId } from "@/lib/session";
 import { getThumbnailKey } from "@/lib/file-upload";
 import { discardStoredFiles } from "@/lib/stored-files";
+import { wantedStateSchema } from "@/lib/toggle-schemas";
 import { createItemWithinLimit, getSessionEntitlements } from "@/lib/usage-limits";
 import type { SetFavoriteResult } from "@/types/favorites";
 import type {
@@ -47,13 +51,9 @@ import type {
   UpdateItemResult,
 } from "@/types/items";
 
-function failure(error: string, fieldErrors: FieldErrors = {}): UpdateItemResult {
-  return { success: false, data: null, error, fieldErrors };
-}
-
 /** Shown on the Collections field when one of them isn't the user's. */
 const collectionsFailure = () =>
-  failure(COLLECTIONS_NOT_FOUND, { collectionIds: COLLECTIONS_NOT_FOUND });
+  formFailure(COLLECTIONS_NOT_FOUND, { collectionIds: COLLECTIONS_NOT_FOUND });
 
 /**
  * Creates an item from the New Item dialog for the signed-in user and returns
@@ -64,13 +64,13 @@ const collectionsFailure = () =>
 export async function createItem(data: CreateItemInput): Promise<CreateItemResult> {
   const entitlements = await getSessionEntitlements();
   if (!entitlements) {
-    return failure(SESSION_EXPIRED);
+    return formFailure(SESSION_EXPIRED);
   }
   const { userId, hasProAccess } = entitlements;
 
   const parsed = createItemSchema.safeParse(data);
   if (!parsed.success) {
-    return failure(parsed.error.issues[0].message, getFieldErrors(parsed.error));
+    return validationFailure(parsed.error);
   }
 
   try {
@@ -83,16 +83,17 @@ export async function createItem(data: CreateItemInput): Promise<CreateItemResul
       createItemRecord(userId, parsed.data, db),
     );
     if (!created.allowed) {
-      return failure(ITEM_LIMIT_REACHED);
+      return formFailure(ITEM_LIMIT_REACHED);
     }
     if (!created.value) {
-      return failure("This item type isn't available.");
+      return formFailure(ITEM_TYPE_UNAVAILABLE);
     }
 
+    refresh();
     return { success: true, data: created.value, error: null, fieldErrors: {} };
   } catch (error) {
     console.error("Creating item failed", error);
-    return failure(ITEM_CREATE_FAILED);
+    return formFailure(ITEM_CREATE_FAILED);
   }
 }
 
@@ -108,16 +109,16 @@ export async function updateItem(
 ): Promise<UpdateItemResult> {
   const userId = await getSessionUserId();
   if (!userId) {
-    return failure(SESSION_EXPIRED);
+    return formFailure(SESSION_EXPIRED);
   }
 
   if (!itemIdSchema.safeParse(itemId).success) {
-    return failure(ITEM_NOT_FOUND);
+    return formFailure(ITEM_NOT_FOUND);
   }
 
   const parsed = updateItemSchema.safeParse(data);
   if (!parsed.success) {
-    return failure(parsed.error.issues[0].message, getFieldErrors(parsed.error));
+    return validationFailure(parsed.error);
   }
 
   try {
@@ -127,21 +128,18 @@ export async function updateItem(
 
     const outcome = await updateItemRecord(itemId, userId, parsed.data);
     if (outcome.status === "not-found") {
-      return failure(ITEM_NOT_FOUND);
+      return formFailure(ITEM_NOT_FOUND);
     }
     if (outcome.status === "url-required") {
-      return failure(URL_REQUIRED, { url: URL_REQUIRED });
+      return formFailure(URL_REQUIRED, { url: URL_REQUIRED });
     }
 
+    refresh();
     return { success: true, data: outcome.item, error: null, fieldErrors: {} };
   } catch (error) {
     console.error("Updating item failed", error);
-    return failure("Couldn't save your changes. Please try again.");
+    return formFailure(ITEM_UPDATE_FAILED);
   }
-}
-
-function deleteFailure(error: string): DeleteItemResult {
-  return { success: false, data: null, error };
 }
 
 /**
@@ -153,11 +151,11 @@ function deleteFailure(error: string): DeleteItemResult {
 export async function deleteItem(itemId: string): Promise<DeleteItemResult> {
   const userId = await getSessionUserId();
   if (!userId) {
-    return deleteFailure(SESSION_EXPIRED);
+    return actionFailure(SESSION_EXPIRED);
   }
 
   if (!itemIdSchema.safeParse(itemId).success) {
-    return deleteFailure(ITEM_NOT_FOUND);
+    return actionFailure(ITEM_NOT_FOUND);
   }
 
   let deleted;
@@ -165,11 +163,11 @@ export async function deleteItem(itemId: string): Promise<DeleteItemResult> {
     deleted = await deleteItemRecord(itemId, userId);
   } catch (error) {
     console.error("Deleting item failed", error);
-    return deleteFailure("Couldn't delete this item. Please try again.");
+    return actionFailure(ITEM_DELETE_FAILED);
   }
 
   if (!deleted) {
-    return deleteFailure(ITEM_NOT_FOUND);
+    return actionFailure(ITEM_NOT_FOUND);
   }
 
   // The row is already gone, so a failure here only leaves an unreachable file.
@@ -178,11 +176,8 @@ export async function deleteItem(itemId: string): Promise<DeleteItemResult> {
     await discardStoredFiles([deleted.fileKey, getThumbnailKey(deleted.fileKey)]);
   }
 
+  refresh();
   return { success: true, data: { id: itemId }, error: null };
-}
-
-function favoriteFailure(error: string): SetFavoriteResult {
-  return { success: false, data: null, error };
 }
 
 /**
@@ -197,33 +192,29 @@ export async function setItemFavorite(
 ): Promise<SetFavoriteResult> {
   const userId = await getSessionUserId();
   if (!userId) {
-    return favoriteFailure(SESSION_EXPIRED);
+    return actionFailure(SESSION_EXPIRED);
   }
 
   if (!itemIdSchema.safeParse(itemId).success) {
-    return favoriteFailure(ITEM_NOT_FOUND);
+    return actionFailure(ITEM_NOT_FOUND);
   }
 
-  const parsed = isFavoriteSchema.safeParse(isFavorite);
+  const parsed = wantedStateSchema.safeParse(isFavorite);
   if (!parsed.success) {
-    return favoriteFailure(FAVORITE_UPDATE_FAILED);
+    return actionFailure(FAVORITE_UPDATE_FAILED);
   }
 
-  try {
-    if (!(await setItemFavoriteRecord(userId, itemId, parsed.data))) {
-      return favoriteFailure(ITEM_NOT_FOUND);
-    }
-  } catch (error) {
-    console.error("Updating item favorite failed", error);
-    return favoriteFailure(FAVORITE_UPDATE_FAILED);
+  const error = await runOwnedWrite(() => setItemFavoriteRecord(userId, itemId, parsed.data), {
+    notFound: ITEM_NOT_FOUND,
+    failed: FAVORITE_UPDATE_FAILED,
+    logLabel: "Updating item favorite failed",
+  });
+  if (error) {
+    return actionFailure(error);
   }
 
   refresh();
   return { success: true, data: { id: itemId, isFavorite: parsed.data }, error: null };
-}
-
-function pinFailure(error: string): ToggleItemPinResult {
-  return { success: false, data: null, error };
 }
 
 /**
@@ -239,33 +230,29 @@ export async function toggleItemPin(
 ): Promise<ToggleItemPinResult> {
   const userId = await getSessionUserId();
   if (!userId) {
-    return pinFailure(SESSION_EXPIRED);
+    return actionFailure(SESSION_EXPIRED);
   }
 
   if (!itemIdSchema.safeParse(itemId).success) {
-    return pinFailure(ITEM_NOT_FOUND);
+    return actionFailure(ITEM_NOT_FOUND);
   }
 
-  const parsed = isPinnedSchema.safeParse(isPinned);
+  const parsed = wantedStateSchema.safeParse(isPinned);
   if (!parsed.success) {
-    return pinFailure(PIN_UPDATE_FAILED);
+    return actionFailure(PIN_UPDATE_FAILED);
   }
 
-  try {
-    if (!(await setItemPinned(userId, itemId, parsed.data))) {
-      return pinFailure(ITEM_NOT_FOUND);
-    }
-  } catch (error) {
-    console.error("Updating item pin failed", error);
-    return pinFailure(PIN_UPDATE_FAILED);
+  const error = await runOwnedWrite(() => setItemPinned(userId, itemId, parsed.data), {
+    notFound: ITEM_NOT_FOUND,
+    failed: PIN_UPDATE_FAILED,
+    logLabel: "Updating item pin failed",
+  });
+  if (error) {
+    return actionFailure(error);
   }
 
   refresh();
   return { success: true, data: { id: itemId, isPinned: parsed.data }, error: null };
-}
-
-function contentFailure(error: string): SetItemContentResult {
-  return { success: false, data: null, error };
 }
 
 /**
@@ -279,16 +266,16 @@ export async function setItemContent(
 ): Promise<SetItemContentResult> {
   const userId = await getSessionUserId();
   if (!userId) {
-    return contentFailure(SESSION_EXPIRED);
+    return actionFailure(SESSION_EXPIRED);
   }
 
   if (!itemIdSchema.safeParse(itemId).success) {
-    return contentFailure(ITEM_NOT_FOUND);
+    return actionFailure(ITEM_NOT_FOUND);
   }
 
   const parsed = itemContentSchema.safeParse(content);
   if (!parsed.success) {
-    return contentFailure(parsed.error.issues[0].message);
+    return actionFailure(parsed.error.issues[0].message);
   }
 
   let saved: Awaited<ReturnType<typeof setItemContentRecord>>;
@@ -296,10 +283,10 @@ export async function setItemContent(
     saved = await setItemContentRecord(userId, itemId, parsed.data);
   } catch (error) {
     console.error("Saving item content failed", error);
-    return contentFailure(CONTENT_SAVE_FAILED);
+    return actionFailure(CONTENT_SAVE_FAILED);
   }
   if (!saved) {
-    return contentFailure(ITEM_NOT_FOUND);
+    return actionFailure(ITEM_NOT_FOUND);
   }
 
   refresh();
