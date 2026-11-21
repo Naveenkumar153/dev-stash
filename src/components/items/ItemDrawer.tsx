@@ -10,6 +10,7 @@ import { ItemDrawerSkeleton } from "@/components/items/ItemDrawerSkeleton";
 import { Badge } from "@/components/ui/badge";
 import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import type { ItemDetailState } from "@/hooks/use-item-detail";
+import { getLanguageLabel } from "@/lib/code-editor";
 import { getItemCopyText } from "@/lib/item-copy";
 import { getItemTypeLabel, getItemTypeStyleByName } from "@/lib/item-types";
 import { cn } from "@/lib/utils";
@@ -176,7 +177,7 @@ function ItemDrawerHeader({ title, typeName, language }: ItemDrawerHeaderProps) 
         <SheetTitle className="text-lg font-semibold wrap-break-word">{title}</SheetTitle>
         <div className="flex flex-wrap items-center gap-1.5">
           <Badge variant="secondary">{getItemTypeLabel(typeName)}</Badge>
-          {language && <Badge variant="outline">{language}</Badge>}
+          {language && <Badge variant="outline">{getLanguageLabel(language)}</Badge>}
         </div>
       </div>
     </div>

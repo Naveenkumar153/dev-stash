@@ -1,16 +1,29 @@
-# Current Feature
+# Current Feature: Language Dropdown for Code Items
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- Replace the free-text Language input on snippets and commands with a dropdown of supported languages, in both the New Item dialog and the item drawer's edit form
+- Move the Language field so it sits directly above the Content (code editor) field instead of below it
+- Picking a language immediately switches the Monaco editor's syntax highlighting, so code is highlighted as it's typed
+- Include a "Plain text" option that saves no language (null), and show the picked language's label in the code editor's header
+- Editing an item whose stored language isn't in the list (e.g. a value typed before this change) keeps that value selectable instead of silently clearing it on Save
+- Prompts, notes, links, files and images are unchanged (no Language field)
 
 ## Notes
 
-<!-- Any extra notes -->
+- Today: `ItemFormFields` (`src/components/items/ItemFormFields.tsx`) renders Language as an `Input` after Content, shown when `getEditableItemFields()` says `language` (snippet and command, `CODE_TYPE_NAMES` in `src/lib/item-types.ts`); `CodeEditor` / `MonacoEditor` already re-highlight live from `values.language` through `toMonacoLanguage()` in `src/lib/code-editor.ts`, so the change is mostly the control and its position
+- Proposed defaults (confirm or change at `start`):
+  - A curated language list in `src/lib/code-editor.ts` (value + label), roughly: Plain text, Bash/Shell, TypeScript, JavaScript, JSON, Python, Go, Rust, Java, Kotlin, C, C++, C#, PHP, Ruby, Swift, SQL, HTML, CSS, SCSS, YAML, Markdown, Dockerfile, PowerShell, GraphQL — every entry must map to a Monaco language that's actually bundled (`languages/definitions/register.all`)
+  - Stored values are lowercase ids matching the existing data (`bash`, `typescript`, `dockerfile` in the seed), so current items need no migration and `toMonacoLanguage()` keeps mapping them
+  - ~~The shadcn `select`~~ Changed after review at the user's request: a searchable picker, the shadcn `combobox` (already installed for `CollectionPicker`) in Base UI's input-inside-popup pattern — a select-style trigger opening a popup with a "Search languages..." box that filters by label, and "No languages found." when nothing matches
+  - New items start on Plain text for both types
+  - The server schema stays a bounded free-text field (`ITEM_LIMITS.language`), so legacy values still save; only the UI narrows the choice
+- No migration expected; unit tests for the language list / label helpers in `src/lib/code-editor.ts`
+- Verify in the browser: New Snippet and New Command, the drawer's edit mode, switching languages while typing, Plain text saving null, a legacy value preserved, 390px
 
 ## History
 

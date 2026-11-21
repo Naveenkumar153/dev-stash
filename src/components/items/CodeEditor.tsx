@@ -6,6 +6,7 @@ import dynamic from "next/dynamic";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { copyToClipboard } from "@/lib/clipboard";
+import { getLanguageLabel } from "@/lib/code-editor";
 import { cn } from "@/lib/utils";
 
 // Monaco needs the browser and is a large bundle, so it loads on first use and
@@ -81,7 +82,7 @@ function CodeEditorHeader({ value, language }: Readonly<{ value: string; languag
       </div>
 
       <span className="ml-auto truncate font-mono text-xs text-muted-foreground">
-        {language?.trim() || "plain text"}
+        {getLanguageLabel(language)}
       </span>
 
       <Button

@@ -2,6 +2,7 @@ import { useId } from "react";
 
 import { CodeEditor } from "@/components/items/CodeEditor";
 import { CollectionPicker } from "@/components/items/CollectionPicker";
+import { LanguageSelect } from "@/components/items/LanguageSelect";
 import { MarkdownEditor } from "@/components/items/MarkdownEditor";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
@@ -112,6 +113,18 @@ export function ItemFormFields({
         )}
       </Field>
 
+      {fields.language && (
+        <Field {...field("language")} label="Language">
+          {(control) => (
+            <LanguageSelect
+              {...control}
+              value={values.language}
+              onChange={(value) => onChange("language", value)}
+            />
+          )}
+        </Field>
+      )}
+
       {fields.content && (
         <Field {...field("content")} label="Content">
           {(control) => {
@@ -149,20 +162,6 @@ export function ItemFormFields({
               />
             );
           }}
-        </Field>
-      )}
-
-      {fields.language && (
-        <Field {...field("language")} label="Language">
-          {(control) => (
-            <Input
-              {...control}
-              {...bind("language")}
-              placeholder="typescript"
-              spellCheck={false}
-              maxLength={ITEM_LIMITS.language}
-            />
-          )}
         </Field>
       )}
 
