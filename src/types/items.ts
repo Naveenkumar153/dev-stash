@@ -101,3 +101,10 @@ export interface ToggleItemPinResult {
   data: { id: string; isPinned: boolean } | null;
   error: string | null;
 }
+
+/** Result of `setItemContent()`: what the drawer merges into the item it shows. */
+export interface SetItemContentResult {
+  success: boolean;
+  data: { id: string; content: string; updatedAt: string } | null;
+  error: string | null;
+}

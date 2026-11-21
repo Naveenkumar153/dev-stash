@@ -4,6 +4,7 @@ import { refresh } from "next/cache";
 
 import {
   COLLECTIONS_NOT_FOUND,
+  CONTENT_SAVE_FAILED,
   FAVORITE_UPDATE_FAILED,
   ITEM_CREATE_FAILED,
   ITEM_LIMIT_REACHED,
@@ -18,6 +19,7 @@ import {
   createItem as createItemRecord,
   deleteItem as deleteItemRecord,
   setItemFavorite as setItemFavoriteRecord,
+  setItemContent as setItemContentRecord,
   setItemPinned,
   updateItem as updateItemRecord,
 } from "@/lib/db/item-writes";
@@ -26,6 +28,7 @@ import {
   createItemSchema,
   URL_REQUIRED,
   isPinnedSchema,
+  itemContentSchema,
   itemIdSchema,
   updateItemSchema,
   type CreateItemInput,
@@ -39,6 +42,7 @@ import type { SetFavoriteResult } from "@/types/favorites";
 import type {
   CreateItemResult,
   DeleteItemResult,
+  SetItemContentResult,
   ToggleItemPinResult,
   UpdateItemResult,
 } from "@/types/items";
@@ -258,4 +262,50 @@ export async function toggleItemPin(
 
   refresh();
   return { success: true, data: { id: itemId, isPinned: parsed.data }, error: null };
+}
+
+function contentFailure(error: string): SetItemContentResult {
+  return { success: false, data: null, error };
+}
+
+/**
+ * Replaces an item's content and nothing else, for the drawer's "Use updated
+ * prompt" and its Undo. The content is saved exactly as given. Refreshes the
+ * pages behind the drawer so card previews follow.
+ */
+export async function setItemContent(
+  itemId: string,
+  content: string,
+): Promise<SetItemContentResult> {
+  const userId = await getSessionUserId();
+  if (!userId) {
+    return contentFailure(SESSION_EXPIRED);
+  }
+
+  if (!itemIdSchema.safeParse(itemId).success) {
+    return contentFailure(ITEM_NOT_FOUND);
+  }
+
+  const parsed = itemContentSchema.safeParse(content);
+  if (!parsed.success) {
+    return contentFailure(parsed.error.issues[0].message);
+  }
+
+  let saved: Awaited<ReturnType<typeof setItemContentRecord>>;
+  try {
+    saved = await setItemContentRecord(userId, itemId, parsed.data);
+  } catch (error) {
+    console.error("Saving item content failed", error);
+    return contentFailure(CONTENT_SAVE_FAILED);
+  }
+  if (!saved) {
+    return contentFailure(ITEM_NOT_FOUND);
+  }
+
+  refresh();
+  return {
+    success: true,
+    data: { id: itemId, content: saved.content, updatedAt: saved.updatedAt.toISOString() },
+    error: null,
+  };
 }

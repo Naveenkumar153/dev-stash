@@ -5,6 +5,7 @@ import {
   createFileItem,
   createItem,
   deleteItem,
+  setItemContent,
   setItemFavorite,
   setItemPinned,
   updateItem,
@@ -535,3 +536,59 @@ describe("setItemPinned", () => {
   });
 });
 
+
+describe("setItemContent", () => {
+  const UPDATED = new Date("2026-11-21T12:00:00.000Z");
+
+  it("writes only the content and its preview, scoped to the user", async () => {
+    vi.mocked(prisma.item.findFirst).mockResolvedValue({ itemType: { name: "prompt" } } as never);
+    vi.mocked(prisma.item.update).mockResolvedValue({ content: "  New prompt  ", updatedAt: UPDATED } as never);
+
+    expect(await setItemContent("user-1", ITEM_ID, "  New prompt  ")).toEqual({
+      content: "  New prompt  ",
+      updatedAt: UPDATED,
+    });
+    expect(prisma.item.findFirst).toHaveBeenCalledWith({
+      where: { id: ITEM_ID, userId: "user-1" },
+      select: { itemType: { select: { name: true } } },
+    });
+    expect(prisma.item.update).toHaveBeenCalledWith({
+      where: { id: ITEM_ID, userId: "user-1" },
+      data: {
+        content: "  New prompt  ",
+        preview: getItemPreview({ content: "  New prompt  ", url: null, fileName: null }),
+      },
+      select: { content: true, updatedAt: true },
+    });
+  });
+
+  it.each(["link", "file", "image"])("refuses a %s, which has no content, without writing", async (name) => {
+    vi.mocked(prisma.item.findFirst).mockResolvedValue({ itemType: { name } } as never);
+
+    expect(await setItemContent("user-1", ITEM_ID, "text")).toBeNull();
+    expect(prisma.item.update).not.toHaveBeenCalled();
+  });
+
+  it("returns null for someone else's item or a missing one, without writing", async () => {
+    vi.mocked(prisma.item.findFirst).mockResolvedValue(null);
+
+    expect(await setItemContent("user-1", ITEM_ID, "text")).toBeNull();
+    expect(prisma.item.update).not.toHaveBeenCalled();
+  });
+
+  it("returns null when the item is deleted between the lookup and the write", async () => {
+    vi.mocked(prisma.item.findFirst).mockResolvedValue({ itemType: { name: "note" } } as never);
+    vi.mocked(prisma.item.update).mockRejectedValue(
+      new Prisma.PrismaClientKnownRequestError("Record not found", { code: "P2025", clientVersion: "7" }),
+    );
+
+    expect(await setItemContent("user-1", ITEM_ID, "text")).toBeNull();
+  });
+
+  it("rethrows other database errors", async () => {
+    vi.mocked(prisma.item.findFirst).mockResolvedValue({ itemType: { name: "prompt" } } as never);
+    vi.mocked(prisma.item.update).mockRejectedValue(new Error("connection lost"));
+
+    await expect(setItemContent("user-1", ITEM_ID, "text")).rejects.toThrow("connection lost");
+  });
+});

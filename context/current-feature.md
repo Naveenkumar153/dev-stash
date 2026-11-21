@@ -1,16 +1,36 @@
-# Current Feature
+# Current Feature: AI Prompt Optimizer
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- [x] An "Optimize" button (Sparkles icon) in the header of a prompt's content box in the item drawer's read view, beside Copy, like Explain on snippets and commands
+- [x] Only for prompt items; not in the New Item dialog or the edit form, and not for other types
+- [x] Looks at the current (saved) prompt and refines it only if needed: a prompt that's already good comes back as "No changes needed" instead of a rewrite for its own sake
+- [x] `optimizePrompt` server action: session, Pro gating, Zod validation, the shared `ai` rate limit, OpenAI Responses API in JSON mode, `{ success, data, error }` result with `{ changed, optimizedPrompt, changes }`
+- [x] The refined prompt keeps the original's intent, placeholders (`{{name}}`, `[VARIABLE]`), requirements and language, and the model never carries the prompt out
+- [x] "Optimizing..." with a Loader2 spinner while it runs
+- [x] After a refinement, Original / Optimized tabs in the header switch the box between the saved prompt and the refined one, both rendered as Markdown, with a short "What changed" list
+- [x] Then asks whether to use the updated prompt: "Use this prompt?" with "Use updated prompt" and "Keep original"; using it saves the refined text as the item's content, with a toast offering Undo; keeping the original dismisses the suggestion
+- [x] Free users see the button with a Crown icon and the tooltip "AI features require Pro subscription", and a click shows the upgrade toast
+- [x] Errors via toast: Pro gating (with Upgrade), rate limit, AI service errors
+- [x] Unit tests for the server action(s) and new utilities
 
 ## Notes
 
-<!-- Any extra notes -->
+- Inline request: "Implement prompt optimization for the prompt item types. It should look at the current prompt and refine if needed, then ask if the user wants to use the updated prompt. Put the "Optimize" button in the header, much like the "Explain" button on snippets and commands." (Replaces an earlier, rougher load of the same feature.)
+- Follows AI Explain Code: `ExplainableCodeEditor` / `useExplainCode` / `ExplainCodeButton` have the same shape, so the prompt version wraps `MarkdownEditor` the same way (it needs header and body slots like `CodeEditor` gained). The Free-user crown button can be shared with Explain.
+- Differs from `docs/ai-integration-plan.md` §4.4, which put Optimize in New Item and edit mode and used a JSON route handler: the request asks for the drawer header like Explain, so the input is `{ itemId }` and the action reads the saved prompt, scoped to the session user.
+- "Refine if needed": the reply carries `changed: false` when the prompt is already clear and complete; the UI then toasts "This prompt is already in good shape." and shows no tabs or question.
+- "Ask if the user wants to use it" (proposed): an inline bar under the box, rather than a modal, so both versions stay readable while deciding. Choosing "Use updated prompt" saves immediately; Undo in the toast writes the original back.
+- Saving (proposed): a new scoped action that writes only the content (ownership checked, `preview` refreshed, orphaned nothing since tags are untouched, `refresh()` so cards update), then the drawer shows the saved item.
+- Transport (proposed): a server action like Explain rather than the plan's route handler. Trade-off: an optimize of 5-15 s holds the tab's server-action queue, so a favorite, pin or Save in the same tab waits behind it, and it can't be cancelled.
+- Length (proposed): prompts over 12,000 characters are refused rather than cut (plan §3), with effort `low`, about 5,000 output tokens and a 60 s timeout per plan §3.
+- Not stored otherwise: an undecided suggestion is lost when the drawer moves to another item.
+- Model: `AI_MODEL` (`gpt-6-luna`).
+- Plan copy (plan §9): add "AI prompt optimizer" to `PRO_PLAN_FEATURES` in `src/lib/plans.ts`.
 
 ## History
 

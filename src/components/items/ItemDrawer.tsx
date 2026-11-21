@@ -127,7 +127,7 @@ function ItemDrawerPanel({
           />
 
           <div className="flex-1 overflow-y-auto p-6">
-            <ItemDrawerBody detail={detail} />
+            <ItemDrawerBody detail={detail} onItemPatched={onItemPatched} />
           </div>
         </>
       )}
@@ -135,9 +135,12 @@ function ItemDrawerPanel({
   );
 }
 
-function ItemDrawerBody({ detail }: Readonly<{ detail: ItemDetailState }>) {
+function ItemDrawerBody({
+  detail,
+  onItemPatched,
+}: Readonly<{ detail: ItemDetailState; onItemPatched: ItemDrawerPanelProps["onItemPatched"] }>) {
   if (detail.status === "ready") {
-    return <ItemDrawerDetails item={detail.item} />;
+    return <ItemDrawerDetails item={detail.item} onContentSaved={onItemPatched} />;
   }
 
   if (detail.status === "error") {

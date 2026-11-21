@@ -87,6 +87,12 @@ export const AI_DESCRIPTION_FAILED = "Couldn't write a description. Please try a
 /** Explaining code failed for a reason a retry can fix. */
 export const AI_EXPLAIN_FAILED = "Couldn't explain this code. Please try again.";
 
+/** Optimizing a prompt failed for a reason a retry can fix. */
+export const AI_OPTIMIZE_FAILED = "Couldn't optimize this prompt. Please try again.";
+
+/** Saving an item's content (e.g. an optimized prompt) failed. */
+export const CONTENT_SAVE_FAILED = "Couldn't save the prompt. Please try again.";
+
 /** Starting Stripe Checkout failed for a reason the user can't act on. */
 export const CHECKOUT_FAILED = "Couldn't start checkout. Please try again.";
 

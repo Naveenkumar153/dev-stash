@@ -25,6 +25,14 @@ export interface AiItemDraft {
   tags: string[];
 }
 
+/** A saved item as the drawer's AI actions (Explain, Optimize) read it from the database. */
+export interface SavedAiItem {
+  typeName: string;
+  title: string;
+  language: string | null;
+  content: string;
+}
+
 /**
  * Whether the draft gives the model anything to read: a title, content, a URL
  * or a file name. The form and the server schema share it, so the AI buttons

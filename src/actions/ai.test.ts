@@ -7,11 +7,12 @@ import {
 } from "openai";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { explainCode, generateAutoTags, generateDescription } from "@/actions/ai";
+import { explainCode, generateAutoTags, generateDescription, optimizePrompt } from "@/actions/ai";
 import { auth } from "@/auth";
 import {
   AI_DESCRIPTION_FAILED,
   AI_EXPLAIN_FAILED,
+  AI_OPTIMIZE_FAILED,
   AI_PRO_REQUIRED,
   AI_TAGS_FAILED,
   AI_UNAVAILABLE,
@@ -25,12 +26,18 @@ import {
   EXPLAIN_NO_CODE,
   EXPLAIN_TOO_LONG,
   EXPLAIN_WRONG_TYPE,
-  type ExplainableItem,
 } from "@/lib/ai-explain";
-import { AI_CONTENT_LIMIT, AI_NEEDS_INPUT } from "@/lib/ai-item";
+import { AI_CONTENT_LIMIT, AI_NEEDS_INPUT, type SavedAiItem } from "@/lib/ai-item";
 import type { AiDraftInput } from "@/lib/ai-schemas";
+import {
+  AI_OPTIMIZE_LIMIT,
+  OPTIMIZE_INSTRUCTIONS,
+  OPTIMIZE_NO_PROMPT,
+  OPTIMIZE_TOO_LONG,
+  OPTIMIZE_WRONG_TYPE,
+} from "@/lib/ai-optimize";
 import { TAG_INSTRUCTIONS } from "@/lib/ai-tags";
-import { getItemCode } from "@/lib/db/items";
+import { getItemForAi } from "@/lib/db/items";
 import { AI_MODEL, getOpenAI, getSafetyIdentifier } from "@/lib/openai";
 import { rateLimit } from "@/lib/rate-limit";
 
@@ -46,7 +53,7 @@ vi.mock("@/lib/openai", async (importOriginal) => ({
 // Explain reads the item through this query; the rest of the module is real.
 vi.mock("@/lib/db/items", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/db/items")>()),
-  getItemCode: vi.fn(),
+  getItemForAi: vi.fn(),
 }));
 vi.mock("@/lib/rate-limit", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/rate-limit")>()),
@@ -374,7 +381,7 @@ describe("generateDescription", () => {
 
 describe("explainCode", () => {
   const ITEM_ID = "cmtg169y00002zzx5wxanksok";
-  const item: ExplainableItem = {
+  const item: SavedAiItem = {
     typeName: "command",
     title: "Prune Docker",
     language: "bash",
@@ -382,7 +389,7 @@ describe("explainCode", () => {
   };
 
   beforeEach(() => {
-    vi.mocked(getItemCode).mockResolvedValue(item);
+    vi.mocked(getItemForAi).mockResolvedValue(item);
     reply("Removes every unused Docker object.\n\n- `-a` also removes unused images.");
   });
 
@@ -397,7 +404,7 @@ describe("explainCode", () => {
   it("reads the saved item for the session user and sends all of it as plain text", async () => {
     await explainCode(ITEM_ID);
 
-    expect(getItemCode).toHaveBeenCalledWith("user-1", ITEM_ID);
+    expect(getItemForAi).toHaveBeenCalledWith("user-1", ITEM_ID);
     const [request, options] = create.mock.calls[0];
     expect(request).toMatchObject({
       model: AI_MODEL,
@@ -415,7 +422,7 @@ describe("explainCode", () => {
   });
 
   it("sends code right at the limit whole", async () => {
-    vi.mocked(getItemCode).mockResolvedValue({ ...item, content: `${"a".repeat(AI_EXPLAIN_LIMIT - 4)}TAIL` });
+    vi.mocked(getItemForAi).mockResolvedValue({ ...item, content: `${"a".repeat(AI_EXPLAIN_LIMIT - 4)}TAIL` });
 
     await explainCode(ITEM_ID);
     expect(create.mock.calls[0][0].input).toContain("TAIL");
@@ -430,7 +437,7 @@ describe("explainCode", () => {
     mockAuth.mockResolvedValue(null);
 
     expect(await explainCode(ITEM_ID)).toEqual({ success: false, data: null, error: SESSION_EXPIRED });
-    expect(getItemCode).not.toHaveBeenCalled();
+    expect(getItemForAi).not.toHaveBeenCalled();
   });
 
   it("refuses a Free account while gating is on, before reading or calling", async () => {
@@ -438,7 +445,7 @@ describe("explainCode", () => {
     signIn(false);
 
     expect(await explainCode(ITEM_ID)).toEqual({ success: false, data: null, error: AI_PRO_REQUIRED });
-    expect(getItemCode).not.toHaveBeenCalled();
+    expect(getItemForAi).not.toHaveBeenCalled();
     expect(rateLimit).not.toHaveBeenCalled();
     expect(create).not.toHaveBeenCalled();
   });
@@ -447,22 +454,22 @@ describe("explainCode", () => {
     vi.stubEnv("OPENAI_API_KEY", "");
 
     expect(await explainCode(ITEM_ID)).toEqual({ success: false, data: null, error: AI_UNAVAILABLE });
-    expect(getItemCode).not.toHaveBeenCalled();
+    expect(getItemForAi).not.toHaveBeenCalled();
   });
 
   it("rejects a malformed id without a query", async () => {
     expect(await explainCode("not-a-cuid")).toEqual({ success: false, data: null, error: ITEM_NOT_FOUND });
-    expect(getItemCode).not.toHaveBeenCalled();
+    expect(getItemForAi).not.toHaveBeenCalled();
   });
 
-  it.each<[string, ExplainableItem | null, string]>([
+  it.each<[string, SavedAiItem | null, string]>([
     ["someone else's or a missing item", null, ITEM_NOT_FOUND],
     ["a note", { ...item, typeName: "note" }, EXPLAIN_WRONG_TYPE],
     ["a link", { ...item, typeName: "link" }, EXPLAIN_WRONG_TYPE],
     ["blank code", { ...item, content: "  \n " }, EXPLAIN_NO_CODE],
     ["code over the limit", { ...item, content: "a".repeat(AI_EXPLAIN_LIMIT + 1) }, EXPLAIN_TOO_LONG],
   ])("refuses %s without spending quota", async (_label, found, error) => {
-    vi.mocked(getItemCode).mockResolvedValue(found);
+    vi.mocked(getItemForAi).mockResolvedValue(found);
 
     expect(await explainCode(ITEM_ID)).toEqual({ success: false, data: null, error });
     expect(rateLimit).not.toHaveBeenCalled();
@@ -471,7 +478,7 @@ describe("explainCode", () => {
 
   it("answers its own failure message when loading the item fails", async () => {
     vi.spyOn(console, "error").mockImplementation(() => {});
-    vi.mocked(getItemCode).mockRejectedValue(new Error("db down"));
+    vi.mocked(getItemForAi).mockRejectedValue(new Error("db down"));
 
     expect(await explainCode(ITEM_ID)).toEqual({ success: false, data: null, error: AI_EXPLAIN_FAILED });
     expect(create).not.toHaveBeenCalled();
@@ -507,5 +514,134 @@ describe("explainCode", () => {
     create.mockRejectedValue(new InternalServerError(500, undefined, "boom", new Headers()));
 
     expect(await explainCode(ITEM_ID)).toEqual({ success: false, data: null, error: AI_EXPLAIN_FAILED });
+  });
+});
+
+describe("optimizePrompt", () => {
+  const ITEM_ID = "cmtg169y00002zzx5wxanksok";
+  const prompt: SavedAiItem = {
+    typeName: "prompt",
+    title: "Summarizer",
+    language: null,
+    content: "Summarize {{article}}",
+  };
+
+  beforeEach(() => {
+    vi.mocked(getItemForAi).mockResolvedValue(prompt);
+    reply(
+      JSON.stringify({
+        changed: true,
+        optimizedPrompt: "Summarize {{article}} in three bullet points for a busy engineer.",
+        changes: ["Set the format", "Named the audience"],
+      }),
+    );
+  });
+
+  it("returns the refined prompt and what changed", async () => {
+    expect(await optimizePrompt(ITEM_ID)).toEqual({
+      success: true,
+      data: {
+        changed: true,
+        optimizedPrompt: "Summarize {{article}} in three bullet points for a busy engineer.",
+        changes: ["Set the format", "Named the audience"],
+      },
+      error: null,
+    });
+  });
+
+  it("returns no changes needed for a prompt that's already good", async () => {
+    reply('{"changed": false, "optimizedPrompt": "", "changes": []}');
+
+    expect(await optimizePrompt(ITEM_ID)).toEqual({ success: true, data: { changed: false }, error: null });
+  });
+
+  it("reads the saved prompt for the session user and asks in JSON mode", async () => {
+    await optimizePrompt(ITEM_ID);
+
+    expect(getItemForAi).toHaveBeenCalledWith("user-1", ITEM_ID);
+    const [request, options] = create.mock.calls[0];
+    expect(request).toMatchObject({
+      model: AI_MODEL,
+      instructions: OPTIMIZE_INSTRUCTIONS,
+      text: { format: { type: "json_object" } },
+      reasoning: { effort: "low" },
+      max_output_tokens: 5_000,
+      store: false,
+      safety_identifier: getSafetyIdentifier("user-1"),
+    });
+    expect(request.input).toMatch(/json/i);
+    expect(request.input).toContain("Summarize {{article}}");
+    expect(options).toEqual({ timeout: 60_000 });
+  });
+
+  it("counts against the same AI limit as the other features", async () => {
+    await optimizePrompt(ITEM_ID);
+    expect(rateLimit).toHaveBeenCalledWith("ai", "user-1");
+  });
+
+  it("refuses a signed-out request without reading the item", async () => {
+    mockAuth.mockResolvedValue(null);
+
+    expect(await optimizePrompt(ITEM_ID)).toEqual({ success: false, data: null, error: SESSION_EXPIRED });
+    expect(getItemForAi).not.toHaveBeenCalled();
+  });
+
+  it("refuses a Free account while gating is on, before reading or calling", async () => {
+    vi.stubEnv("PRO_GATING_ENABLED", "true");
+    signIn(false);
+
+    expect(await optimizePrompt(ITEM_ID)).toEqual({ success: false, data: null, error: AI_PRO_REQUIRED });
+    expect(getItemForAi).not.toHaveBeenCalled();
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it("rejects a malformed id without a query", async () => {
+    expect(await optimizePrompt("not-a-cuid")).toEqual({ success: false, data: null, error: ITEM_NOT_FOUND });
+    expect(getItemForAi).not.toHaveBeenCalled();
+  });
+
+  it.each<[string, SavedAiItem | null, string]>([
+    ["someone else's or a missing item", null, ITEM_NOT_FOUND],
+    ["a snippet", { ...prompt, typeName: "snippet" }, OPTIMIZE_WRONG_TYPE],
+    ["a note", { ...prompt, typeName: "note" }, OPTIMIZE_WRONG_TYPE],
+    ["a blank prompt", { ...prompt, content: " \n" }, OPTIMIZE_NO_PROMPT],
+    ["a prompt over the limit", { ...prompt, content: "a".repeat(AI_OPTIMIZE_LIMIT + 1) }, OPTIMIZE_TOO_LONG],
+  ])("refuses %s without spending quota", async (_label, found, error) => {
+    vi.mocked(getItemForAi).mockResolvedValue(found);
+
+    expect(await optimizePrompt(ITEM_ID)).toEqual({ success: false, data: null, error });
+    expect(rateLimit).not.toHaveBeenCalled();
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it("answers its own failure message when loading the prompt fails", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(getItemForAi).mockRejectedValue(new Error("db down"));
+
+    expect(await optimizePrompt(ITEM_ID)).toEqual({ success: false, data: null, error: AI_OPTIMIZE_FAILED });
+  });
+
+  it.each(["", "not json", '{"changed": true}', '{"result": "Better"}'])(
+    "fails on a reply that isn't the expected JSON: %j",
+    async (outputText) => {
+      vi.spyOn(console, "error").mockImplementation(() => {});
+      reply(outputText);
+
+      expect(await optimizePrompt(ITEM_ID)).toEqual({ success: false, data: null, error: AI_OPTIMIZE_FAILED });
+    },
+  );
+
+  it("answers unavailable for an account out of credits", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    create.mockRejectedValue(new RateLimitError(429, { type: "insufficient_quota" }, "no credits", new Headers()));
+
+    expect(await optimizePrompt(ITEM_ID)).toEqual({ success: false, data: null, error: AI_UNAVAILABLE });
+  });
+
+  it("answers its own failure message for other errors", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    create.mockRejectedValue(new InternalServerError(500, undefined, "boom", new Headers()));
+
+    expect(await optimizePrompt(ITEM_ID)).toEqual({ success: false, data: null, error: AI_OPTIMIZE_FAILED });
   });
 });

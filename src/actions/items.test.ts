@@ -5,6 +5,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import {
   createItem,
   deleteItem,
+  setItemContent,
   setItemFavorite,
   toggleItemPin,
   updateItem,
@@ -16,6 +17,7 @@ import { prisma } from "@/lib/prisma";
 import {
   createItem as createItemRecord,
   deleteItem as deleteItemRecord,
+  setItemContent as setItemContentRecord,
   setItemFavorite as setItemFavoriteRecord,
   setItemPinned,
   updateItem as updateItemRecord,
@@ -27,7 +29,7 @@ import type { ItemDetail } from "@/types/items";
 // tests also cover what the action sends to the database.
 vi.mock("@/auth", () => ({ auth: vi.fn() }));
 vi.mock("next/cache", () => ({ refresh: vi.fn() }));
-vi.mock("@/lib/db/item-writes", () => ({ createItem: vi.fn(), updateItem: vi.fn(), deleteItem: vi.fn(), setItemFavorite: vi.fn(), setItemPinned: vi.fn() }));
+vi.mock("@/lib/db/item-writes", () => ({ createItem: vi.fn(), updateItem: vi.fn(), deleteItem: vi.fn(), setItemFavorite: vi.fn(), setItemPinned: vi.fn(), setItemContent: vi.fn() }));
 vi.mock("@/lib/r2", () => ({ deleteFile: vi.fn() }));
 vi.mock("@/lib/db/collections", () => ({ ownsCollections: vi.fn() }));
 // The real usage limits run against this count; with PRO_GATING_ENABLED unset
@@ -593,6 +595,68 @@ describe("toggleItemPin", () => {
       success: false,
       data: null,
       error: FAILED,
+    });
+    expect(refresh).not.toHaveBeenCalled();
+  });
+});
+
+describe("setItemContent", () => {
+  const UPDATED = new Date("2026-11-21T12:00:00.000Z");
+
+  beforeEach(() => {
+    signInAs("user-1");
+    vi.mocked(setItemContentRecord).mockResolvedValue({ content: "Better prompt\n", updatedAt: UPDATED });
+  });
+
+  it("saves the content exactly as given and refreshes the pages", async () => {
+    expect(await setItemContent(ITEM_ID, "Better prompt\n")).toEqual({
+      success: true,
+      data: { id: ITEM_ID, content: "Better prompt\n", updatedAt: "2026-11-21T12:00:00.000Z" },
+      error: null,
+    });
+    expect(setItemContentRecord).toHaveBeenCalledWith("user-1", ITEM_ID, "Better prompt\n");
+    expect(refresh).toHaveBeenCalledOnce();
+  });
+
+  it("refuses when signed out, without a query", async () => {
+    mockAuth.mockResolvedValue(null);
+
+    expect(await setItemContent(ITEM_ID, "text")).toEqual({
+      success: false,
+      data: null,
+      error: "Your session has expired. Sign in again.",
+    });
+    expect(setItemContentRecord).not.toHaveBeenCalled();
+  });
+
+  it("treats an id that isn't a cuid as not found, without a query", async () => {
+    expect(await setItemContent("../etc", "text")).toEqual({ success: false, data: null, error: NOT_FOUND });
+    expect(setItemContentRecord).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["blank", "  \n ", "Content can't be empty"],
+    ["too long", "a".repeat(100_001), "Content can be up to 100,000 characters"],
+  ])("rejects %s content without a query", async (_label, content, error) => {
+    expect(await setItemContent(ITEM_ID, content)).toEqual({ success: false, data: null, error });
+    expect(setItemContentRecord).not.toHaveBeenCalled();
+  });
+
+  it("answers not found for another user's item, a missing one or one without content", async () => {
+    vi.mocked(setItemContentRecord).mockResolvedValue(null);
+
+    expect(await setItemContent(ITEM_ID, "text")).toEqual({ success: false, data: null, error: NOT_FOUND });
+    expect(refresh).not.toHaveBeenCalled();
+  });
+
+  it("answers a generic failure when the write fails", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(setItemContentRecord).mockRejectedValue(new Error("db down"));
+
+    expect(await setItemContent(ITEM_ID, "text")).toEqual({
+      success: false,
+      data: null,
+      error: "Couldn't save the prompt. Please try again.",
     });
     expect(refresh).not.toHaveBeenCalled();
   });

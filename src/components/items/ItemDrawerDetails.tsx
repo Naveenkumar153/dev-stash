@@ -3,8 +3,11 @@ import Image from "next/image";
 
 import { ExplainableCodeEditor } from "@/components/items/ExplainableCodeEditor";
 import { MarkdownEditor } from "@/components/items/MarkdownEditor";
+import { OptimizablePromptEditor } from "@/components/items/OptimizablePromptEditor";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import type { ContentSaved } from "@/hooks/use-optimize-prompt";
+import { canOptimize } from "@/lib/ai-optimize";
 import { getItemFileUrl, isImageFileName } from "@/lib/file-upload";
 import { formatFileSize, formatLongDate } from "@/lib/format";
 import { getContentEditorKind, getItemTypeLabel } from "@/lib/item-types";
@@ -80,19 +83,30 @@ interface ItemContentProps {
   typeName: string;
   content: string;
   language: string | null;
+  onContentSaved: ContentSaved;
 }
 
 /**
  * Read-only content: snippets and commands in the code editor with AI
- * Explain, notes and prompts as rendered markdown, anything else as plain
- * preformatted text.
+ * Explain, prompts as rendered markdown with AI Optimize, notes as rendered
+ * markdown, anything else as plain preformatted text.
  */
-function ItemContent({ itemId, typeName, content, language }: Readonly<ItemContentProps>) {
+function ItemContent({
+  itemId,
+  typeName,
+  content,
+  language,
+  onContentSaved,
+}: Readonly<ItemContentProps>) {
   switch (getContentEditorKind(typeName)) {
     case "code":
       return <ExplainableCodeEditor itemId={itemId} content={content} language={language} />;
     case "markdown":
-      return <MarkdownEditor value={content} readOnly ariaLabel="Content" />;
+      return canOptimize(typeName) ? (
+        <OptimizablePromptEditor itemId={itemId} content={content} onContentSaved={onContentSaved} />
+      ) : (
+        <MarkdownEditor value={content} readOnly ariaLabel="Content" />
+      );
     case "plain":
       return (
         <pre className="overflow-x-auto rounded-lg border border-border bg-muted/30 p-4 font-mono text-[13px] leading-relaxed">
@@ -153,7 +167,10 @@ function ItemFile({ itemId, fileName, fileSize }: Readonly<ItemFileProps>) {
  * The drawer body once the full item has loaded. Sections with nothing to show
  * are left out.
  */
-export function ItemDrawerDetails({ item }: Readonly<{ item: ItemDetail }>) {
+export function ItemDrawerDetails({
+  item,
+  onContentSaved,
+}: Readonly<{ item: ItemDetail; onContentSaved: ContentSaved }>) {
   return (
     <div className="flex flex-col gap-8">
       {item.description && (
@@ -192,6 +209,7 @@ export function ItemDrawerDetails({ item }: Readonly<{ item: ItemDetail }>) {
             typeName={item.typeName}
             content={item.content}
             language={item.language}
+            onContentSaved={onContentSaved}
           />
         </DrawerSection>
       )}

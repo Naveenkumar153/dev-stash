@@ -1,7 +1,7 @@
 import { connection } from "next/server";
 
 import { Prisma } from "@/generated/prisma/client";
-import type { ExplainableItem } from "@/lib/ai-explain";
+import type { SavedAiItem } from "@/lib/ai-item";
 import { getAvailableTypes, getItemTypeBySlug } from "@/lib/db/item-types";
 import { getCurrentUserId } from "@/lib/db/user";
 import {
@@ -446,11 +446,12 @@ export async function getItemFile(id: string): Promise<ItemFile | null> {
 }
 
 /**
- * What Explain reads about one of the user's items: its type, title, language
- * and content. Takes the user explicitly, since the action has already
- * checked the session; null when the item isn't that user's.
+ * What the drawer's AI actions (Explain, Optimize) read about one of the
+ * user's items: its type, title, language and content. Takes the user
+ * explicitly, since the action has already checked the session; null when the
+ * item isn't that user's.
  */
-export async function getItemCode(userId: string, id: string): Promise<ExplainableItem | null> {
+export async function getItemForAi(userId: string, id: string): Promise<SavedAiItem | null> {
   const item = await prisma.item.findFirst({
     where: { id, userId },
     select: { title: true, content: true, language: true, itemType: { select: { name: true } } },

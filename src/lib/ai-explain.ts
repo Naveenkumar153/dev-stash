@@ -1,4 +1,4 @@
-import { AI_DATA_RULE } from "@/lib/ai-item";
+import { AI_DATA_RULE, type SavedAiItem } from "@/lib/ai-item";
 import { getContentEditorKind } from "@/lib/item-types";
 
 /**
@@ -32,15 +32,8 @@ Write about 200 to 300 words of Markdown:
 
 ${AI_DATA_RULE}`;
 
-export interface ExplainableItem {
-  typeName: string;
-  title: string;
-  language: string | null;
-  content: string;
-}
-
 /** The item as delimited text: its type, language and title, then the whole code. */
-export function buildExplainInput(item: ExplainableItem): string {
+export function buildExplainInput(item: SavedAiItem): string {
   const language = item.language ? ` language="${item.language}"` : "";
 
   return [

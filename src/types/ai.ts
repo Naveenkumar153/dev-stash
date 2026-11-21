@@ -1,3 +1,5 @@
+import type { PromptOptimization } from "@/lib/ai-optimize";
+
 /** Result of the `generateAutoTags` server action: the suggested tags, or why there are none. */
 export interface GenerateAutoTagsResult {
   success: boolean;
@@ -16,5 +18,12 @@ export interface GenerateDescriptionResult {
 export interface ExplainCodeResult {
   success: boolean;
   data: { explanation: string } | null;
+  error: string | null;
+}
+
+/** Result of the `optimizePrompt` server action: a refined prompt, "no changes needed", or why there's neither. */
+export interface OptimizePromptResult {
+  success: boolean;
+  data: PromptOptimization | null;
   error: string | null;
 }

@@ -4,7 +4,7 @@ import dynamic from "next/dynamic";
 
 import { useProAccess } from "@/components/billing/ProAccessProvider";
 import { CodeEditor } from "@/components/items/CodeEditor";
-import { ExplainCodeButton } from "@/components/items/ExplainCodeButton";
+import { AiHeaderButton } from "@/components/items/AiHeaderButton";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { useExplainCode, type CodeView } from "@/hooks/use-explain-code";
@@ -55,7 +55,14 @@ export function ExplainableCodeEditor({ itemId, content, language }: Explainable
           )
         }
         headerEnd={
-          <ExplainCodeButton hasProAccess={hasProAccess} pending={pending} onClick={explain} />
+          <AiHeaderButton
+            hasProAccess={hasProAccess}
+            pending={pending}
+            onClick={explain}
+            label="Explain"
+            pendingLabel="Explaining..."
+            title="Explain this code with AI"
+          />
         }
         renderBody={(editor) => (
           <>

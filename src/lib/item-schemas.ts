@@ -48,6 +48,15 @@ const optionalContent = z
   .transform((value) => (value?.trim() ? value : null));
 
 /**
+ * Content saved on its own, such as an optimized prompt the user chose to
+ * use: kept exactly as written, and it can't be blank.
+ */
+export const itemContentSchema = z
+  .string()
+  .max(ITEM_LIMITS.content, tooLong("Content", ITEM_LIMITS.content))
+  .refine((value) => value.trim().length > 0, "Content can't be empty");
+
+/**
  * Optional link, http or https only. `z.url()` alone accepts any scheme,
  * `javascript:` included, while `z.httpUrl()` also rejects localhost and IP
  * addresses, which developers do save links to.

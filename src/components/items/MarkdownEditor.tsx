@@ -2,6 +2,7 @@
 
 import { Copy } from "lucide-react";
 import dynamic from "next/dynamic";
+import { useState } from "react";
 
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
@@ -19,6 +20,13 @@ const MarkdownPreview = dynamic(
 
 type MarkdownTab = "write" | "preview";
 
+/** One read-only version of the text, shown as its own tab (e.g. Original / Optimized). */
+export interface MarkdownView {
+  value: string;
+  label: string;
+  content: string;
+}
+
 interface MarkdownEditorProps {
   value: string;
   /** Display only: just the Preview tab. Omit `onChange` as well. */
@@ -31,6 +39,16 @@ interface MarkdownEditorProps {
   /** Ids of the field's hint and error, read out with the textarea. */
   describedBy?: string;
   invalid?: boolean;
+  /**
+   * Read-only only: several versions to switch between, each its own tab, in
+   * place of the single Preview of `value`. Copy copies the one on show.
+   */
+  views?: MarkdownView[];
+  /** The view on show, when the parent controls it. */
+  view?: string;
+  onViewChange?: (view: string) => void;
+  /** Shown before the copy button, e.g. an action. */
+  headerEnd?: React.ReactNode;
 }
 
 /**
@@ -47,10 +65,29 @@ export function MarkdownEditor({
   id,
   describedBy,
   invalid = false,
+  views,
+  view,
+  onViewChange,
+  headerEnd,
 }: MarkdownEditorProps) {
+  const previews: MarkdownView[] =
+    readOnly && views ? views : [{ value: "preview" satisfies MarkdownTab, label: "Preview", content: value }];
+  const [ownTab, setOwnTab] = useState<string>(readOnly ? previews[0].value : "write");
+  // Views can come and go (an optimized prompt dismissed), so a tab that no
+  // longer exists falls back to the first.
+  const tab =
+    view ?? (readOnly && !previews.some((preview) => preview.value === ownTab) ? previews[0].value : ownTab);
+  const copyText = previews.find((preview) => preview.value === tab)?.content ?? value;
+
+  function changeTab(next: string) {
+    setOwnTab(next);
+    onViewChange?.(next);
+  }
+
   return (
     <Tabs
-      defaultValue={(readOnly ? "preview" : "write") satisfies MarkdownTab}
+      value={tab}
+      onValueChange={(next) => changeTab(String(next))}
       className={cn(
         // min-w-0: inside a grid field, wide tables and code blocks scroll instead of widening the form.
         "min-w-0 gap-0 rounded-lg border transition-colors",
@@ -63,20 +100,26 @@ export function MarkdownEditor({
       <div className="flex items-center gap-3 border-b border-border py-1.5 pr-1.5 pl-1.5">
         <TabsList aria-label={ariaLabel} className="group-data-horizontal/tabs:h-7">
           {!readOnly && <MarkdownTabTrigger value="write">Write</MarkdownTabTrigger>}
-          <MarkdownTabTrigger value="preview">Preview</MarkdownTabTrigger>
+          {previews.map((preview) => (
+            <MarkdownTabTrigger key={preview.value} value={preview.value}>
+              {preview.label}
+            </MarkdownTabTrigger>
+          ))}
         </TabsList>
 
-        <Button
-          type="button"
-          variant="ghost"
-          size="icon-xs"
-          aria-label="Copy content"
-          disabled={!value}
-          onClick={() => void copyToClipboard(value)}
-          className="ml-auto"
-        >
-          <Copy aria-hidden />
-        </Button>
+        <div className="ml-auto flex items-center gap-1">
+          {headerEnd}
+          <Button
+            type="button"
+            variant="ghost"
+            size="icon-xs"
+            aria-label="Copy content"
+            disabled={!copyText}
+            onClick={() => void copyToClipboard(copyText)}
+          >
+            <Copy aria-hidden />
+          </Button>
+        </div>
       </div>
 
       {!readOnly && (
@@ -98,23 +141,25 @@ export function MarkdownEditor({
         </TabsContent>
       )}
 
-      <TabsContent
-        value="preview"
-        aria-label={`${ariaLabel} preview`}
-        className={cn(
-          "max-h-100 overflow-y-auto rounded-b-lg px-4 py-3",
-          "focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset",
-          !readOnly && "min-h-40",
-        )}
-      >
-        {value.trim() ? (
-          <div className="markdown-preview">
-            <MarkdownPreview value={value} />
-          </div>
-        ) : (
-          <p className="text-sm text-muted-foreground">Nothing to preview</p>
-        )}
-      </TabsContent>
+      {previews.map((preview) => (
+        <TabsContent
+          key={preview.value}
+          value={preview.value}
+          className={cn(
+            "max-h-100 overflow-y-auto rounded-b-lg px-4 py-3",
+            "focus-visible:ring-2 focus-visible:ring-ring/50 focus-visible:ring-inset",
+            !readOnly && "min-h-40",
+          )}
+        >
+          {preview.content.trim() ? (
+            <div className="markdown-preview">
+              <MarkdownPreview value={preview.content} />
+            </div>
+          ) : (
+            <p className="text-sm text-muted-foreground">Nothing to preview</p>
+          )}
+        </TabsContent>
+      ))}
     </Tabs>
   );
 }
@@ -122,7 +167,7 @@ export function MarkdownEditor({
 function MarkdownTabTrigger({
   value,
   children,
-}: Readonly<{ value: MarkdownTab; children: React.ReactNode }>) {
+}: Readonly<{ value: string; children: React.ReactNode }>) {
   return (
     <TabsTrigger value={value} className="px-2.5 text-xs">
       {children}

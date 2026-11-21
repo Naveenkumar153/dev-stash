@@ -60,6 +60,7 @@ export const PRO_PLAN_FEATURES: readonly PlanFeature[] = [
   { label: "All item types including Files & Images", included: true },
   { label: "AI auto-tagging & summaries", included: true },
   { label: 'AI "Explain This Code"', included: true },
+  { label: "AI prompt optimizer", included: true },
   { label: "Data export (JSON/ZIP)", included: true },
 ];
 

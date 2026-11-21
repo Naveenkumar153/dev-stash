@@ -185,6 +185,42 @@ export async function createFileItem(
   return toItemDetail(item);
 }
 
+/**
+ * Replaces the content of one of `userId`'s items, refreshing its search
+ * preview, and returns the saved content and time. Only types with a content
+ * field qualify, so a file or link can't be given content. Null when there's
+ * no such item, it's someone else's, or its type has no content.
+ */
+export async function setItemContent(
+  userId: string,
+  itemId: string,
+  content: string,
+): Promise<{ content: string; updatedAt: Date } | null> {
+  const owned = await prisma.item.findFirst({
+    where: { id: itemId, userId },
+    select: { itemType: { select: { name: true } } },
+  });
+  if (!owned || !getEditableItemFields(owned.itemType.name).content) {
+    return null;
+  }
+
+  try {
+    const item = await prisma.item.update({
+      // Scoped to the owner again, so the write itself can't land elsewhere.
+      where: { id: itemId, userId },
+      data: { content, preview: getItemPreview({ content, url: null, fileName: null }) },
+      select: { content: true, updatedAt: true },
+    });
+    return { content: item.content ?? content, updatedAt: item.updatedAt };
+  } catch (error) {
+    // Deleted between the lookup and the write.
+    if (error instanceof Prisma.PrismaClientKnownRequestError && error.code === "P2025") {
+      return null;
+    }
+    throw error;
+  }
+}
+
 /** How saving the drawer's edits ended. */
 export type UpdateItemOutcome =
   | { status: "saved"; item: ItemDetail }

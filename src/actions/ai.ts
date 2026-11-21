@@ -5,6 +5,7 @@ import { AuthenticationError, PermissionDeniedError, RateLimitError } from "open
 import {
   AI_DESCRIPTION_FAILED,
   AI_EXPLAIN_FAILED,
+  AI_OPTIMIZE_FAILED,
   AI_PRO_REQUIRED,
   AI_TAGS_FAILED,
   AI_UNAVAILABLE,
@@ -26,9 +27,18 @@ import {
   EXPLAIN_TOO_LONG,
   EXPLAIN_WRONG_TYPE,
   normalizeExplanation,
-  type ExplainableItem,
 } from "@/lib/ai-explain";
-import type { AiItemDraft } from "@/lib/ai-item";
+import type { AiItemDraft, SavedAiItem } from "@/lib/ai-item";
+import {
+  AI_OPTIMIZE_LIMIT,
+  buildOptimizeInput,
+  canOptimize,
+  OPTIMIZE_INSTRUCTIONS,
+  OPTIMIZE_NO_PROMPT,
+  OPTIMIZE_TOO_LONG,
+  OPTIMIZE_WRONG_TYPE,
+  parseOptimizeReply,
+} from "@/lib/ai-optimize";
 import { aiDraftSchema, type AiDraftInput } from "@/lib/ai-schemas";
 import {
   buildTagInput,
@@ -36,7 +46,7 @@ import {
   parseTagReply,
   TAG_INSTRUCTIONS,
 } from "@/lib/ai-tags";
-import { getItemCode } from "@/lib/db/items";
+import { getItemForAi } from "@/lib/db/items";
 import { itemIdSchema } from "@/lib/item-schemas";
 import { AI_MODEL, getOpenAI, getSafetyIdentifier, isAiConfigured } from "@/lib/openai";
 import { getRateLimitMessage, rateLimit } from "@/lib/rate-limit";
@@ -45,6 +55,7 @@ import type {
   ExplainCodeResult,
   GenerateAutoTagsResult,
   GenerateDescriptionResult,
+  OptimizePromptResult,
 } from "@/types/ai";
 
 /** Tags and a description are both short JSON replies; 200 tokens leaves room without paying for rambling. */
@@ -61,6 +72,12 @@ const EXPLAIN_OUTPUT_TOKENS = 2_000;
 
 /** A longer answer than tags or a description, so it gets the client's full timeout. */
 const EXPLAIN_TIMEOUT_MS = 30_000;
+
+/** A whole rewritten prompt (up to 12,000 characters in) plus `low` effort's reasoning. */
+const OPTIMIZE_OUTPUT_TOKENS = 5_000;
+
+/** Rewriting a long prompt can take a while; the per-request timeout overrides the client's 30 s. */
+const OPTIMIZE_TIMEOUT_MS = 60_000;
 
 /**
  * A revoked or restricted key, or an OpenAI account out of credits: an
@@ -243,34 +260,50 @@ export async function generateDescription(
   return { success: true, data: { description }, error: null };
 }
 
-/** Loads the item to explain, scoped to the user, and checks it's code within the limit. */
-async function loadExplainableItem(
+/** What a drawer AI action accepts, and the message for each refusal. */
+interface SavedItemRules {
+  /** Names the load in error logs. */
+  label: string;
+  accepts: (typeName: string) => boolean;
+  wrongType: string;
+  empty: string;
+  maxLength: number;
+  tooLong: string;
+  failedMessage: string;
+}
+
+/**
+ * Loads a saved item for a drawer AI action, scoped to the user, and checks
+ * its type, that it has content, and that the content is within the limit.
+ */
+async function loadSavedItem(
   userId: string,
   itemId: string,
-): Promise<Outcome<{ item: ExplainableItem }>> {
+  rules: SavedItemRules,
+): Promise<Outcome<{ item: SavedAiItem }>> {
   if (!itemIdSchema.safeParse(itemId).success) {
     return { ok: false, error: ITEM_NOT_FOUND };
   }
 
-  let item: ExplainableItem | null;
+  let item: SavedAiItem | null;
   try {
-    item = await getItemCode(userId, itemId);
+    item = await getItemForAi(userId, itemId);
   } catch (error) {
-    console.error("Loading the item to explain failed", error);
-    return { ok: false, error: AI_EXPLAIN_FAILED };
+    console.error(`${rules.label} failed`, error);
+    return { ok: false, error: rules.failedMessage };
   }
 
   if (!item) {
     return { ok: false, error: ITEM_NOT_FOUND };
   }
-  if (!canExplain(item.typeName)) {
-    return { ok: false, error: EXPLAIN_WRONG_TYPE };
+  if (!rules.accepts(item.typeName)) {
+    return { ok: false, error: rules.wrongType };
   }
   if (!item.content.trim()) {
-    return { ok: false, error: EXPLAIN_NO_CODE };
+    return { ok: false, error: rules.empty };
   }
-  if (item.content.length > AI_EXPLAIN_LIMIT) {
-    return { ok: false, error: EXPLAIN_TOO_LONG };
+  if (item.content.length > rules.maxLength) {
+    return { ok: false, error: rules.tooLong };
   }
   return { ok: true, item };
 }
@@ -287,7 +320,15 @@ export async function explainCode(itemId: string): Promise<ExplainCodeResult> {
     return { success: false, data: null, error: access.error };
   }
 
-  const loaded = await loadExplainableItem(access.userId, itemId);
+  const loaded = await loadSavedItem(access.userId, itemId, {
+    label: "Loading the item to explain",
+    accepts: canExplain,
+    wrongType: EXPLAIN_WRONG_TYPE,
+    empty: EXPLAIN_NO_CODE,
+    maxLength: AI_EXPLAIN_LIMIT,
+    tooLong: EXPLAIN_TOO_LONG,
+    failedMessage: AI_EXPLAIN_FAILED,
+  });
   if (!loaded.ok) {
     return { success: false, data: null, error: loaded.error };
   }
@@ -313,4 +354,52 @@ export async function explainCode(itemId: string): Promise<ExplainCodeResult> {
   }
 
   return { success: true, data: { explanation }, error: null };
+}
+
+/**
+ * Reviews a saved prompt and refines it only if it needs it. Takes only the
+ * item's id, like Explain, so it reviews exactly what's saved. Nothing is
+ * written here: the drawer asks the user whether to use the refined prompt
+ * and saves it through `setItemContent`.
+ */
+export async function optimizePrompt(itemId: string): Promise<OptimizePromptResult> {
+  const access = await checkAiAccess();
+  if (!access.ok) {
+    return { success: false, data: null, error: access.error };
+  }
+
+  const loaded = await loadSavedItem(access.userId, itemId, {
+    label: "Loading the prompt to optimize",
+    accepts: canOptimize,
+    wrongType: OPTIMIZE_WRONG_TYPE,
+    empty: OPTIMIZE_NO_PROMPT,
+    maxLength: AI_OPTIMIZE_LIMIT,
+    tooLong: OPTIMIZE_TOO_LONG,
+    failedMessage: AI_OPTIMIZE_FAILED,
+  });
+  if (!loaded.ok) {
+    return { success: false, data: null, error: loaded.error };
+  }
+
+  const reply = await callModel(access.userId, {
+    label: "Optimizing a prompt",
+    instructions: OPTIMIZE_INSTRUCTIONS,
+    input: buildOptimizeInput(loaded.item),
+    json: true,
+    effort: "low",
+    maxOutputTokens: OPTIMIZE_OUTPUT_TOKENS,
+    timeoutMs: OPTIMIZE_TIMEOUT_MS,
+    failedMessage: AI_OPTIMIZE_FAILED,
+  });
+  if (!reply.ok) {
+    return { success: false, data: null, error: reply.error };
+  }
+
+  const optimization = parseOptimizeReply(reply.text, loaded.item.content);
+  if (!optimization) {
+    console.error("AI prompt optimization reply wasn't the expected JSON");
+    return { success: false, data: null, error: AI_OPTIMIZE_FAILED };
+  }
+
+  return { success: true, data: optimization, error: null };
 }
