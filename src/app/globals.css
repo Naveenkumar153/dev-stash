@@ -231,10 +231,11 @@
     }
 }
 
-/* Rendered markdown in MarkdownEditor's preview (notes and prompts). */
+/* Rendered markdown in MarkdownEditor's preview (notes and prompts). 16px for
+   reading, and every heading level stays at or above the body. */
 @layer components {
   .markdown-preview {
-    @apply text-sm leading-relaxed break-words text-foreground;
+    @apply text-base leading-relaxed break-words text-foreground;
 
     & > :first-child {
       @apply mt-0;
@@ -263,10 +264,10 @@
       @apply text-base;
     }
     & h5 {
-      @apply text-sm;
+      @apply text-base font-medium;
     }
     & h6 {
-      @apply text-sm text-muted-foreground;
+      @apply text-base font-medium text-muted-foreground;
     }
 
     & a {

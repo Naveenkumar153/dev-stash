@@ -1,3 +1,5 @@
+import type { EditorFontSize } from "@/lib/editor-preferences";
+
 /** Monaco's id for text with no syntax highlighting. */
 export const PLAIN_TEXT_LANGUAGE = "plaintext";
 
@@ -16,6 +18,20 @@ const LINE_HEIGHT_RATIO = CODE_EDITOR_LINE_HEIGHT / 13;
 export function getEditorLineHeight(fontSize: number) {
   return Math.round(fontSize * LINE_HEIGHT_RATIO);
 }
+
+/**
+ * Tailwind classes for text that follows the editor font size preference
+ * outside Monaco (the markdown Write textarea), with the same line heights as
+ * `getEditorLineHeight()`. Literal strings, so Tailwind finds them; `md:`
+ * overrides the textarea's own `md:text-sm`.
+ */
+export const EDITOR_TEXT_CLASSES: Record<EditorFontSize, string> = {
+  12: "text-[12px] leading-[18px] md:text-[12px]",
+  13: "text-[13px] leading-[20px] md:text-[13px]",
+  14: "text-[14px] leading-[22px] md:text-[14px]",
+  16: "text-[16px] leading-[25px] md:text-[16px]",
+  18: "text-[18px] leading-[28px] md:text-[18px]",
+};
 
 /**
  * Monaco language ids for common ways of writing a language in an item's

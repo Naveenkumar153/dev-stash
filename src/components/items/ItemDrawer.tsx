@@ -177,7 +177,7 @@ function ItemDrawerHeader({ title, typeName, language }: ItemDrawerHeaderProps) 
       </span>
 
       <div className="flex min-w-0 flex-1 flex-col gap-2">
-        <SheetTitle className="text-lg font-semibold wrap-break-word">{title}</SheetTitle>
+        <SheetTitle className="text-xl font-semibold wrap-break-word">{title}</SheetTitle>
         <div className="flex flex-wrap items-center gap-1.5">
           <Badge variant="secondary">{getItemTypeLabel(typeName)}</Badge>
           {language && <Badge variant="outline">{getLanguageLabel(language)}</Badge>}

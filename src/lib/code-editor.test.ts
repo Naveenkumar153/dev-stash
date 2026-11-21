@@ -4,6 +4,7 @@ import {
   CODE_EDITOR_LINE_HEIGHT,
   CODE_EDITOR_MAX_HEIGHT,
   CODE_LANGUAGES,
+  EDITOR_TEXT_CLASSES,
   clampEditorHeight,
   estimateEditorHeight,
   findCodeLanguage,
@@ -15,6 +16,7 @@ import {
   toLanguageSelectValue,
   toMonacoLanguage,
 } from "@/lib/code-editor";
+import { EDITOR_FONT_SIZES } from "@/lib/editor-preferences";
 
 describe("toMonacoLanguage", () => {
   it.each([
@@ -191,5 +193,13 @@ describe("listed languages and Monaco", () => {
     for (const { value } of CODE_LANGUAGES) {
       expect(bundled).toContain(toMonacoLanguage(value));
     }
+  });
+});
+
+describe("EDITOR_TEXT_CLASSES", () => {
+  it.each(EDITOR_FONT_SIZES)("sizes %ipx text with the editor's line height", (fontSize) => {
+    expect(EDITOR_TEXT_CLASSES[fontSize]).toBe(
+      `text-[${fontSize}px] leading-[${getEditorLineHeight(fontSize)}px] md:text-[${fontSize}px]`,
+    );
   });
 });

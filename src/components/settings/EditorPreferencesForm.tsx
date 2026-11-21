@@ -60,7 +60,7 @@ export function EditorPreferencesForm({
 
   return (
     <div className="grid gap-5">
-      <Setting id={ids.fontSize} label="Font size" description="Text size in the code editor.">
+      <Setting id={ids.fontSize} label="Font size" description="Text size in the code and Markdown editors.">
         <Select value={preferences.fontSize} onValueChange={(value) => value && save({ fontSize: value })}>
           <SelectTrigger id={ids.fontSize} className="w-32">
             <SelectValue>{(size: number) => `${size}px`}</SelectValue>

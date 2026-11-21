@@ -4,11 +4,13 @@ import { Copy } from "lucide-react";
 import dynamic from "next/dynamic";
 import { useState } from "react";
 
+import { useEditorPreferences } from "@/components/editor/EditorPreferencesProvider";
 import { Button } from "@/components/ui/button";
 import { Skeleton } from "@/components/ui/skeleton";
 import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs";
 import { Textarea } from "@/components/ui/textarea";
 import { copyToClipboard } from "@/lib/clipboard";
+import { EDITOR_TEXT_CLASSES } from "@/lib/code-editor";
 import { cn } from "@/lib/utils";
 
 // The markdown parser only matters once something is previewed, so it stays
@@ -72,6 +74,7 @@ export function MarkdownEditor({
 }: MarkdownEditorProps) {
   const previews: MarkdownView[] =
     readOnly && views ? views : [{ value: "preview" satisfies MarkdownTab, label: "Preview", content: value }];
+  const { fontSize } = useEditorPreferences();
   const [ownTab, setOwnTab] = useState<string>(readOnly ? previews[0].value : "write");
   // Views can come and go (an optimized prompt dismissed), so a tab that no
   // longer exists falls back to the first.
@@ -134,7 +137,9 @@ export function MarkdownEditor({
             spellCheck={false}
             className={cn(
               "max-h-100 min-h-40 overflow-y-auto rounded-none rounded-b-lg border-0 bg-transparent px-3 py-2.5",
-              "font-mono text-[13px] leading-relaxed md:text-[13px]",
+              // The user's editor font size, as in the code editor.
+              "font-mono",
+              EDITOR_TEXT_CLASSES[fontSize],
               "focus-visible:ring-0 aria-invalid:ring-0 dark:bg-transparent",
             )}
           />
@@ -169,7 +174,7 @@ function MarkdownTabTrigger({
   children,
 }: Readonly<{ value: string; children: React.ReactNode }>) {
   return (
-    <TabsTrigger value={value} className="px-2.5 text-xs">
+    <TabsTrigger value={value} className="px-2.5 text-[13px]">
       {children}
     </TabsTrigger>
   );

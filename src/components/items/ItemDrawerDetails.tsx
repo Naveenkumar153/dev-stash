@@ -35,7 +35,7 @@ function DateRow({ label, iso }: Readonly<{ label: string; iso: string }>) {
   return (
     <>
       <dt className="text-muted-foreground">{label}</dt>
-      <dd className="text-right">
+      <dd className="text-right text-base">
         <time dateTime={iso}>{formatLongDate(new Date(iso))}</time>
       </dd>
     </>
@@ -70,7 +70,7 @@ export function ItemDatesSection({
 }: Readonly<{ createdAt: string; updatedAt: string }>) {
   return (
     <DrawerSection title="Details" icon={<Calendar aria-hidden className="size-4" />}>
-      <dl className="grid grid-cols-[auto_1fr] gap-x-4 gap-y-2 text-sm">
+      <dl className="grid grid-cols-[auto_1fr] items-baseline gap-x-4 gap-y-2 text-sm">
         <DateRow label="Created" iso={createdAt} />
         <DateRow label="Updated" iso={updatedAt} />
       </dl>
@@ -175,7 +175,7 @@ export function ItemDrawerDetails({
     <div className="flex flex-col gap-8">
       {item.description && (
         <DrawerSection title="Description">
-          <p className="text-sm leading-relaxed">{item.description}</p>
+          <p className="text-base leading-relaxed">{item.description}</p>
         </DrawerSection>
       )}
 
@@ -185,7 +185,7 @@ export function ItemDrawerDetails({
             href={item.url}
             target="_blank"
             rel="noopener noreferrer"
-            className="inline-flex items-start gap-2 text-sm break-all text-type-link hover:underline"
+            className="inline-flex items-start gap-2 text-base break-all text-type-link hover:underline"
           >
             {item.url}
             <ExternalLink aria-hidden className="mt-0.5 size-3.5 shrink-0" />

@@ -1,16 +1,48 @@
-# Current Feature
+# Current Feature: Item Drawer Font Sizes
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- [x] Drawer body text (description, URL, plain content, details) from 14px to 16px (`text-base`), keeping its relaxed line height
+- [x] Markdown preview (prompts and notes, in the drawer and the editors' Preview tab) from 14px to 16px, with its headings rescaled so every level stays above the body: h1 24px, h2 20px, h3 18px, h4-h6 16px (h5 / h6 told apart by weight and color, not by shrinking below the body)
+- [x] Markdown Write textarea (New Item and edit mode, prompts and notes) follows the user's editor font size preference (12-18px, Settings > Editor preferences) like Monaco does, instead of a fixed 13px, with line height from the same `getEditorLineHeight()` scale
+- [x] Drawer title from 18px to 20px (`text-xl`) so it stays above the 16px body
+- [x] Content-box tab triggers (Preview / Write, Original / Optimized, Code / Explain) from 12px to 13px
+- [x] Section headings (Description, Content, Tags...) stay 14px muted medium: with a 16px body they read as labels rather than being the same size as the text under them
+- [x] Badges (type, language, tags, collections), the action bar and the details rows unchanged
+- [x] Verified with Playwright: computed sizes measured before and after on a prompt, a note, a link and a snippet, screenshots at 1440 and 390px, no horizontal scroll or new truncation
 
 ## Notes
 
-<!-- Any extra notes -->
+- Request: "I have some concerns about the font size in certain areas, specifically the item drawer. The code editor is good as that is controlled by the user. The rest of the drawer seem really small as well as the markdown editor for types that are not snippets and commands. Use Playwright to inspect the UI and review the font sizes and make suggestions."
+- Measured 2026-11-21 with headless Chromium at 1440x1000 as the demo user (root font 16px; drawer 512px wide, `sm:max-w-lg`; the demo's editor preference is 18px):
+
+  | Element | Now |
+  | --- | --- |
+  | Title (`SheetTitle`) | 18px / 28px semibold |
+  | Type and language badges, tag and collection badges | 12px / 16px |
+  | Action bar (Favorite, Pin, Copy, Edit) | 14px / 20px |
+  | Section headings (Description, Content, Tags, Collections, Details) | 14px / 20px, muted |
+  | Description | 14px / 22.75px |
+  | URL | 14px / 20px |
+  | Markdown preview body (p, li) | 14px / 22.75px (`.markdown-preview` is `text-sm`) |
+  | Markdown headings | h1 24, h2 20, h3 18, h4 16, h5 14, h6 14 muted |
+  | Content-box tabs | 12px / 16px |
+  | Details (dt / dd) | 14px / 20px |
+  | Code editor header language | 12px mono |
+  | Monaco lines | 18px / 28px (the user's preference) |
+  | Edit form: labels / inputs | 14px |
+  | Edit form: markdown Write textarea | 13px / 21px mono, fixed |
+
+- The main issue: a snippet's code shows at the user's 18px while every line of prose around it, and a whole prompt or note, is 14px, and the Write textarea is a fixed 13px. 16px is the browser default and the usual body size for reading longer text; 14px suits dense UI chrome (buttons, labels), which stays as it is.
+- `.markdown-preview` lives in `src/app/globals.css`; changing its base size also changes the editors' Preview tab in New Item and edit mode, which is intended so Write and Preview don't differ wildly.
+- The Write textarea reading the editor preference uses `useEditorPreferences()` (already provided in the `(app)` shell) and `getEditorLineHeight()` from `src/lib/code-editor.ts`; the setting's label may want to say it covers code and Markdown.
+- Scope: the drawer and the markdown editor only. Cards, lists, the dashboard and other forms' inputs (14px, shadcn's `md:text-sm`) are unchanged.
+- Optional, not in the goals: widen the drawer from 512px to 576px (`sm:max-w-xl`) on wide screens so 16px text keeps a comfortable line length; at 16px the 464px content column fits about 60-65 characters per line, which is already within the usual 45-75 range, so it isn't needed.
+- No server, schema or data changes, so no migration and likely no unit tests beyond anything touched in `src/lib`.
 
 ## History
 

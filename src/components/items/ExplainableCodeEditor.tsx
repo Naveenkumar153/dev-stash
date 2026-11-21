@@ -45,10 +45,10 @@ export function ExplainableCodeEditor({ itemId, content, language }: Explainable
         headerStart={
           explanation && (
             <TabsList aria-label="Content view" className="group-data-horizontal/tabs:h-7">
-              <TabsTrigger value="code" className="px-2.5 text-xs">
+              <TabsTrigger value="code" className="px-2.5 text-[13px]">
                 Code
               </TabsTrigger>
-              <TabsTrigger value="explain" className="px-2.5 text-xs">
+              <TabsTrigger value="explain" className="px-2.5 text-[13px]">
                 Explain
               </TabsTrigger>
             </TabsList>
