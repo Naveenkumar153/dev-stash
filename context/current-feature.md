@@ -1,16 +1,37 @@
-# Current Feature
+# Current Feature: AI Auto-Tagging
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- OpenAI foundation for the AI features: the standard `openai` SDK, a lazy server-only client in `src/lib/openai.ts` with one `AI_MODEL` constant, calling the **Responses API** (`client.responses.create`, `instructions` + `input`, `text.format: json_object`, reading `response.output_text`), never Chat Completions
+- `generateAutoTags` server action: session check, Pro gating (server-side, authoritative), Zod validation of the input, the AI rate limit, content truncated to 2000 characters before the call, and the `{ success, data, error }` result
+- An AI rate limit rule of 20 requests per hour per user (keyed by user id) added to `RATE_LIMITS` in `src/lib/rate-limit.ts`
+- The model's reply parsed by hand from JSON, accepting both `{"tags": [...]}` and a bare `[...]`, normalized to lowercase, 3-5 freeform tags (not limited to tags already in the database)
+- A "Suggest Tags" button (lucide `Sparkles`, ghost variant) near the Tags input in the New Item dialog and the item drawer's edit mode
+- Suggestions shown as badges, each with accept (check) and reject (X) controls; accepting adds the tag to the item's tag list, rejecting removes the suggestion
+- The button hidden for users without Pro access (UI gating)
+- Errors shown as toasts: Pro required, rate limited, AI service failure
+- Unit tests for the server action (and the parsing / normalizing helpers)
 
 ## Notes
 
-<!-- Any extra notes -->
+- Spec: `context/features/ai-auto-tag-spec.md`; architecture: `docs/ai-integration-plan.md` (§3 SDK setup, §4.1 tags, §5 action pattern, §7 errors, §8 rate limits, §9 gating, §11.2 accept / reject). Where the spec and the plan differ, the spec wins: 20 / hour rather than the plan's 10 / min + 100 / day, the button hidden for Free users rather than shown with a PRO badge, per-tag accept / reject rather than chips + "Add all", and no existing-tag vocabulary in the prompt (tags are freeform)
+- **Model, to confirm at `start`:** the spec names `gpt-5-luna`, the plan recommends `gpt-6-luna` (OpenAI's named replacement for `gpt-5-nano`, which shuts down on Dec 11, 2026), and `context/project-overview.md` still says `gpt-5-nano`. `gpt-5-luna` doesn't appear in the plan's model research and may be a typo for `gpt-6-luna`. Whatever is chosen lives only in `AI_MODEL`
+- Already in place: `OPENAI_API_KEY` is set in `.env` (not `.env.production`); `.env.example` has an uncommitted, cut-off OpenAI comment from the AI research (plan §3.1 has replacement text); the `openai` package isn't installed yet; `vitest.setup.ts` must clear `OPENAI_API_KEY` like the other service keys
+- The spec's note that `isPro` isn't available to the create / edit UI is out of date: `ProAccessProvider` in the `(app)` layout exposes `useProAccess()` (`hasProAccess = isPro || !PRO_GATING_ENABLED`), already read by `NewItemForm`, and both the New Item dialog and the drawer sit inside it. Server-side gating uses `getSessionEntitlements().hasProAccess`, the same rule as uploads, so with gating off every account gets the feature
+- Proposed defaults (confirm or change at `start`):
+  - The button sits beside the Tags label in the shared `ItemFormFields`, so both forms get it from one place, for every creatable type, enabled once the title or content isn't blank
+  - Input to the model: type, title, description, content (2000 chars), URL and language, plus the current tags so it doesn't repeat them; suggestions already in the Tags input are filtered out
+  - Normalization: lowercase, trimmed, spaces to hyphens, at most `ITEM_LIMITS` tag length, duplicates removed, at most 5; accepting appends through the existing comma-separated input and respects the 20-tag limit
+  - Suggestions are form state: discarded with the form, and nothing is saved until Create / Save
+  - A new `AI_PRO_REQUIRED` message added to the upgrade errors so the toast offers Upgrade; rate-limit copy from `getRateLimitMessage()`
+- Unit tests mock `@/lib/openai` (never call OpenAI), `@/lib/rate-limit` and the session; one manual smoke call against the real API with the dev key during browser verification
+- **Decided at start:** `AI_MODEL` is `gpt-6-luna`, and `context/project-overview.md` §5 was updated to match
+- **Found against the real API:** OpenAI refuses `json_object` mode unless the word "JSON" is in the `input`, not only the `instructions` (400), so the input now opens with `TAG_INPUT_PREAMBLE`; and the dev key's OpenAI account has **no credits** (429, `type: insufficient_quota`, `code: credit_balance_exhausted`), which is now reported as "AI features are unavailable right now." rather than "please try again"
+- **Not yet verified in the browser:** real suggestions, accept / reject and saving an accepted tag, blocked until credits are added to the OpenAI account; the demo account was given `isPro` on `development` for the test and set back to false afterwards
 
 ## History
 

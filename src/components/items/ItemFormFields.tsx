@@ -1,16 +1,21 @@
 import { useId } from "react";
+import { toast } from "sonner";
 
+import { useProAccess } from "@/components/billing/ProAccessProvider";
 import { CodeEditor } from "@/components/items/CodeEditor";
 import { CollectionPicker } from "@/components/items/CollectionPicker";
 import { LanguageSelect } from "@/components/items/LanguageSelect";
 import { MarkdownEditor } from "@/components/items/MarkdownEditor";
+import { SuggestTagsButton, TagSuggestionList } from "@/components/items/TagSuggestions";
 import { Input } from "@/components/ui/input";
 import { Label } from "@/components/ui/label";
 import { Textarea } from "@/components/ui/textarea";
+import { useAutoTags } from "@/hooks/use-auto-tags";
 import { useCollectionOptions, type CollectionOptionsState } from "@/hooks/use-collection-options";
 import type { FieldErrors } from "@/lib/action-result";
+import type { AutoTagInput } from "@/lib/ai-schemas";
 import type { UpdateItemInput } from "@/lib/item-schemas";
-import { parseTagInput } from "@/lib/tags";
+import { addTagToInput, parseTagInput } from "@/lib/tags";
 import type { ContentEditorKind, EditableItemFields } from "@/lib/item-types";
 import type { CollectionOption } from "@/types/collections";
 import { ITEM_LIMITS } from "@/lib/item-limits";
@@ -66,6 +71,8 @@ export function toItemInput(values: ItemFormValues, fields: EditableItemFields):
 }
 
 interface ItemFormFieldsProps {
+  /** The item's type, sent with the draft when asking for tag suggestions. */
+  typeName: string;
   values: ItemFormValues;
   errors: FieldErrors;
   fields: EditableItemFields;
@@ -79,6 +86,7 @@ interface ItemFormFieldsProps {
  * fields. The user's collections are loaded when the fields mount.
  */
 export function ItemFormFields({
+  typeName,
   values,
   errors,
   fields,
@@ -87,6 +95,8 @@ export function ItemFormFields({
 }: ItemFormFieldsProps) {
   const id = useId();
   const collectionOptions = useCollectionOptions();
+  const hasProAccess = useProAccess();
+  const autoTags = useAutoTags();
   const field = (name: keyof ItemFormValues) => ({ id: `${id}-${name}`, error: errors[name] });
   const bind = (name: TextFieldName) => ({
     value: values[name],
@@ -180,8 +190,39 @@ export function ItemFormFields({
         </Field>
       )}
 
-      <Field {...field("tags")} label="Tags" hint="Separate tags with commas">
-        {(control) => <Input {...control} {...bind("tags")} placeholder="react, hooks" />}
+      <Field
+        {...field("tags")}
+        label="Tags"
+        hint="Separate tags with commas"
+        labelAside={
+          hasProAccess && (
+            <SuggestTagsButton
+              pending={autoTags.pending}
+              canSuggest={hasAutoTagInput(values, fields)}
+              onClick={() => autoTags.suggest(toAutoTagInput(typeName, values, fields))}
+            />
+          )
+        }
+      >
+        {(control) => (
+          <>
+            <Input {...control} {...bind("tags")} placeholder="react, hooks" />
+            <TagSuggestionList
+              suggestions={autoTags.suggestions}
+              onAccept={(tag) => {
+                const next = addTagToInput(values.tags, tag);
+                // A tag already in the input adds nothing, so only a new one can hit the cap.
+                if (next !== values.tags && parseTagInput(values.tags).length >= ITEM_LIMITS.tagCount) {
+                  toast.error(`Add up to ${ITEM_LIMITS.tagCount} tags`);
+                  return;
+                }
+                onChange("tags", next);
+                autoTags.remove(tag);
+              }}
+              onReject={autoTags.remove}
+            />
+          </>
+        )}
       </Field>
 
       <Field
@@ -201,6 +242,32 @@ export function ItemFormFields({
       </Field>
     </div>
   );
+}
+
+/**
+ * Whether there's anything for the model to read: a title, or content in a
+ * type that has content. Content typed under another type (before switching
+ * to Link, say) isn't sent, so it doesn't count.
+ */
+function hasAutoTagInput(values: ItemFormValues, fields: EditableItemFields): boolean {
+  return Boolean(values.title.trim() || (fields.content && values.content.trim()));
+}
+
+/** The draft the model reads: only the fields this type uses, plus the tags it already has. */
+function toAutoTagInput(
+  typeName: string,
+  values: ItemFormValues,
+  fields: EditableItemFields,
+): AutoTagInput {
+  return {
+    typeName,
+    title: values.title,
+    description: values.description,
+    content: fields.content ? values.content : "",
+    url: fields.url ? values.url : "",
+    language: fields.language ? values.language : "",
+    tags: parseTagInput(values.tags),
+  };
 }
 
 /** What the Collections field says under the picker while it loads, fails or has nothing to list. */
@@ -226,6 +293,8 @@ interface FieldControlProps {
 interface FieldProps {
   id: string;
   label: string;
+  /** Shown at the end of the label row, e.g. the Tags field's Suggest button. */
+  labelAside?: React.ReactNode;
   error?: string;
   hint?: string;
   /** Renders the control, given the props that tie it to the label, hint and error. */
@@ -233,14 +302,21 @@ interface FieldProps {
 }
 
 /** A labelled control with its hint and validation message wired up for screen readers. */
-function Field({ id, label, error, hint, children }: FieldProps) {
+function Field({ id, label, labelAside, error, hint, children }: FieldProps) {
   const hintId = `${id}-hint`;
   const errorId = `${id}-error`;
   const describedBy = [hint && hintId, error && errorId].filter(Boolean).join(" ");
 
   return (
     <div className="grid gap-2">
-      <Label htmlFor={id}>{label}</Label>
+      {labelAside ? (
+        <div className="flex min-h-6 items-center justify-between gap-2">
+          <Label htmlFor={id}>{label}</Label>
+          {labelAside}
+        </div>
+      ) : (
+        <Label htmlFor={id}>{label}</Label>
+      )}
       {children({
         id,
         "aria-invalid": error ? true : undefined,

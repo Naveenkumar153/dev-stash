@@ -17,6 +17,8 @@ const RATE_LIMITS = {
   resendVerification: { limit: 3, window: "15 m" }, // IP + email
   changePassword: { limit: 5, window: "15 m" }, // user id
   upload: { limit: 30, window: "1 h" }, // user id
+  // AI requests (tag suggestions today), shared by every AI feature.
+  ai: { limit: 20, window: "1 h" }, // user id
   // Email: "you already have an account" notices, so the form can't flood an inbox.
   accountExistsNotice: { limit: 1, window: "1 h" },
 } as const satisfies Record<string, RateLimitRule>;

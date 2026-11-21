@@ -19,6 +19,7 @@ const SERVICE_VARS = [
   "STRIPE_WEBHOOK_SECRET",
   "STRIPE_PRICE_ID_MONTHLY",
   "STRIPE_PRICE_ID_YEARLY",
+  "OPENAI_API_KEY",
 ];
 
 // App settings, cleared so a value exported in the shell can't change a

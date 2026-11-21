@@ -345,7 +345,7 @@ model Tag {
 
 ### AI Integration
 
-- **OpenAI** — `gpt-5-nano` model.
+- **OpenAI** — `gpt-6-luna` model (the named replacement for `gpt-5-nano`, which OpenAI shuts down on Dec 11, 2026).
 
 ### Styling
 

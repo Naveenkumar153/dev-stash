@@ -91,6 +91,7 @@ export function ItemDrawerEditForm({ item, onCancel, onSaved }: ItemDrawerEditFo
 
       <div className="flex flex-1 flex-col gap-8 overflow-y-auto p-6">
         <ItemFormFields
+          typeName={item.typeName}
           values={values}
           errors={fieldErrors}
           fields={fields}

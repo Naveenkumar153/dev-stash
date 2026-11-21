@@ -13,3 +13,17 @@ export function parseTagInput(input: string): string[] {
 
   return [...new Set(names)];
 }
+
+/**
+ * The comma-separated tags with `tag` appended, as an accepted AI suggestion
+ * joins them. Unchanged when the input already has it, ignoring case.
+ * "react, hooks" + "state" -> "react, hooks, state"
+ */
+export function addTagToInput(input: string, tag: string): string {
+  const tags = parseTagInput(input);
+  if (tags.some((name) => name.toLowerCase() === tag.toLowerCase())) {
+    return input;
+  }
+
+  return [...tags, tag].join(", ");
+}

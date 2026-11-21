@@ -72,6 +72,15 @@ export const COLLECTION_LIMIT_REACHED = `You've reached the Free plan's limit of
 /** A Free account tried a Pro-only feature (file and image uploads today). */
 export const PRO_REQUIRED = "File and image uploads are a Pro feature.";
 
+/** A Free account tried an AI feature. Kept apart from `PRO_REQUIRED`, whose copy is about uploads. */
+export const AI_PRO_REQUIRED = "AI features are part of DevStash Pro.";
+
+/** No OpenAI key is configured, or OpenAI refused the key. */
+export const AI_UNAVAILABLE = "AI features are unavailable right now.";
+
+/** Suggesting tags failed for a reason the user can't act on, such as a timeout. */
+export const AI_TAGS_FAILED = "Couldn't suggest tags. Please try again.";
+
 /** Starting Stripe Checkout failed for a reason the user can't act on. */
 export const CHECKOUT_FAILED = "Couldn't start checkout. Please try again.";
 
@@ -83,6 +92,7 @@ const UPGRADE_ERRORS: ReadonlySet<string> = new Set([
   ITEM_LIMIT_REACHED,
   COLLECTION_LIMIT_REACHED,
   PRO_REQUIRED,
+  AI_PRO_REQUIRED,
 ]);
 
 export function isUpgradeError(error: string | null): boolean {

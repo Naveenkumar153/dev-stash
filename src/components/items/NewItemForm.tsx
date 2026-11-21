@@ -144,6 +144,7 @@ export function NewItemForm({
           />
         )}
         <ItemFormFields
+          typeName={typeName}
           values={values}
           errors={fieldErrors}
           fields={fields}

@@ -2,6 +2,8 @@ import { describe, expect, it } from "vitest";
 import { z } from "zod";
 
 import {
+  AI_PRO_REQUIRED,
+  AI_UNAVAILABLE,
   COLLECTION_LIMIT_REACHED,
   ITEM_CREATE_FAILED,
   ITEM_LIMIT_REACHED,
@@ -49,7 +51,7 @@ describe("getFieldErrors", () => {
 });
 
 describe("isUpgradeError", () => {
-  it.each([ITEM_LIMIT_REACHED, COLLECTION_LIMIT_REACHED, PRO_REQUIRED])(
+  it.each([ITEM_LIMIT_REACHED, COLLECTION_LIMIT_REACHED, PRO_REQUIRED, AI_PRO_REQUIRED])(
     "is true for %j",
     (error) => {
       expect(isUpgradeError(error)).toBe(true);
@@ -58,6 +60,7 @@ describe("isUpgradeError", () => {
 
   it("is false for other errors and none", () => {
     expect(isUpgradeError(ITEM_CREATE_FAILED)).toBe(false);
+    expect(isUpgradeError(AI_UNAVAILABLE)).toBe(false);
     expect(isUpgradeError(null)).toBe(false);
   });
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 
-import { parseTagInput } from "@/lib/tags";
+import { addTagToInput, parseTagInput } from "@/lib/tags";
 
 describe("parseTagInput", () => {
   it("splits on commas and trims each name", () => {
@@ -19,5 +19,24 @@ describe("parseTagInput", () => {
 
   it("keeps the case as typed", () => {
     expect(parseTagInput("React, react")).toEqual(["React", "react"]);
+  });
+});
+
+describe("addTagToInput", () => {
+  it("appends the tag after the existing ones", () => {
+    expect(addTagToInput("react, hooks", "state")).toBe("react, hooks, state");
+  });
+
+  it("starts an empty input with the tag", () => {
+    expect(addTagToInput("", "react")).toBe("react");
+    expect(addTagToInput("  ", "react")).toBe("react");
+  });
+
+  it("tidies stray commas and spaces as it appends", () => {
+    expect(addTagToInput(" react,, hooks , ", "state")).toBe("react, hooks, state");
+  });
+
+  it("leaves the input as typed when it already has the tag, ignoring case", () => {
+    expect(addTagToInput("React , hooks", "react")).toBe("React , hooks");
   });
 });
