@@ -1,10 +1,9 @@
 "use client";
 
 import { Star } from "lucide-react";
-import Link from "next/link";
 import { usePathname } from "next/navigation";
 
-import { buttonVariants } from "@/components/ui/button";
+import { ButtonLink } from "@/components/common/ButtonLink";
 import { cn } from "@/lib/utils";
 
 export const FAVORITES_PATH = "/favorites";
@@ -17,13 +16,15 @@ export function FavoritesLink({ className }: Readonly<{ className?: string }>) {
   const active = usePathname() === FAVORITES_PATH;
 
   return (
-    <Link
+    <ButtonLink
       href={FAVORITES_PATH}
       aria-label="Favorites"
       aria-current={active ? "page" : undefined}
-      className={cn(buttonVariants({ variant: "ghost", size: "icon-lg" }), className)}
+      variant="ghost"
+      size="icon-lg"
+      className={className}
     >
       <Star aria-hidden className={cn(active && "fill-amber-400 text-amber-400")} />
-    </Link>
+    </ButtonLink>
   );
 }

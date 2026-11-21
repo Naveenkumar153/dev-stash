@@ -3,7 +3,7 @@
 import { ChevronDown, FilePlus, FolderPlus, Plus } from "lucide-react";
 import { useRef, useState } from "react";
 
-import { NewCollectionDialog } from "@/components/collections/NewCollectionDialog";
+import { CollectionFormDialog } from "@/components/collections/CollectionFormDialog";
 import { NewItemDialog } from "@/components/items/NewItemDialog";
 import { Button } from "@/components/ui/button";
 import {
@@ -54,7 +54,7 @@ export function NewMenu() {
         onOpenChange={setDialogOpen("item")}
         returnFocusRef={triggerRef}
       />
-      <NewCollectionDialog
+      <CollectionFormDialog
         open={openDialog === "collection"}
         onOpenChange={setDialogOpen("collection")}
         returnFocusRef={triggerRef}

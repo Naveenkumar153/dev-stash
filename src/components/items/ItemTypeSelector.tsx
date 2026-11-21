@@ -1,7 +1,7 @@
 import { useId } from "react";
 
 import { ProBadge } from "@/components/billing/ProBadge";
-import { Label } from "@/components/ui/label";
+import { Field } from "@/components/forms/Field";
 import {
   Select,
   SelectContent,
@@ -33,26 +33,27 @@ export function ItemTypeSelector({ value, onChange, disabled }: ItemTypeSelector
   const id = useId();
 
   return (
-    <div className="grid gap-2">
-      <Label htmlFor={id}>Type</Label>
-      <Select
-        value={value}
-        // A selection is always required, so a cleared value is ignored.
-        onValueChange={(next) => next && onChange(next)}
-        disabled={disabled}
-      >
-        <SelectTrigger id={id} className="h-9 w-full">
-          <SelectValue>{(type: CreatableItemType) => <ItemTypeOption type={type} />}</SelectValue>
-        </SelectTrigger>
-        <SelectContent>
-          {CREATABLE_ITEM_TYPES.map((type) => (
-            <SelectItem key={type} value={type}>
-              <ItemTypeOption type={type} />
-            </SelectItem>
-          ))}
-        </SelectContent>
-      </Select>
-    </div>
+    <Field id={id} label="Type">
+      {(control) => (
+        <Select
+          value={value}
+          // A selection is always required, so a cleared value is ignored.
+          onValueChange={(next) => next && onChange(next)}
+          disabled={disabled}
+        >
+          <SelectTrigger {...control} className="h-9 w-full">
+            <SelectValue>{(type: CreatableItemType) => <ItemTypeOption type={type} />}</SelectValue>
+          </SelectTrigger>
+          <SelectContent>
+            {CREATABLE_ITEM_TYPES.map((type) => (
+              <SelectItem key={type} value={type}>
+                <ItemTypeOption type={type} />
+              </SelectItem>
+            ))}
+          </SelectContent>
+        </Select>
+      )}
+    </Field>
   );
 }
 

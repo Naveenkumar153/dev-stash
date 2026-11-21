@@ -1,16 +1,45 @@
-# Current Feature
+# Current Feature: Components Refactor (Phases 1 & 2)
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+From the 2026-11-22 `refactor-scanner` scan of `src/components/` (16 duplication findings, 8 split candidates). Phase 1 is dialogs, links and the three bugs; phase 2 is forms and cards. The rest (routes file, AI buttons, auth form hook, the remaining splits) is phase 3, not this feature.
+
+### Phase 1 - dialogs, links and bugs
+
+- **Pending dialog guard:** `usePendingDialog(onOpenChange)` in `src/hooks/use-pending-dialog.ts` returning `{ pending, startTransition, handleOpenChange }`, replacing the hand-written `if (!pending) onOpenChange(next)` guard in all 8 dialogs (`MoveToDialog`, `FolderNameDialog`, `NewItemDialog`, `NewCollectionDialog`, `EditCollectionDialog`, `ItemDeleteDialog`, `FolderDeleteDialog`, `DeleteCollectionDialog`)
+- **One confirm-delete dialog:** `src/components/dialogs/ConfirmDeleteDialog.tsx` (title, description, confirm label, `onConfirm` returning `{ success, error }`, failure fallback, success toast, `onDeleted`, `finalFocus`, optional trigger) behind `ItemDeleteDialog`, `FolderDeleteDialog`, `DeleteCollectionDialog` and `DeleteAccountDialog`, with one title wrap rule (`wrap-anywhere`)
+- **Bug: account delete closable mid-delete:** `DeleteAccountDialog` gets the pending guard through `ConfirmDeleteDialog`, so Escape and the backdrop can't close it while the delete runs
+- **Form dialog shell and footer:** a `FormDialog` shell (`DialogContent gap-0 p-0` + `DialogHeader p-6 pb-4`, title, description, `finalFocus`) and a `DialogActions` footer (Cancel disabled while pending, submit with its pending label) in `src/components/dialogs/`, used by the 5 form dialogs and the 4 footers (`CollectionForm`, `FolderNameDialog`, `NewItemForm`, `MoveToDialog`)
+- **New and Edit collection dialogs as one:** `CollectionFormDialog({ collection?, open, onOpenChange, returnFocusRef })` replaces `NewCollectionDialog` and `EditCollectionDialog`; the edit/delete open state shared by `CollectionActions` and `CollectionCardMenu` moves to one `useCollectionDialogs()` hook or `CollectionDialogs` component
+- **ButtonLink:** a server-safe `src/components/common/ButtonLink.tsx` (`href`, `variant`, `size`, `className`, `download?` for an `<a>`) rendering a plain link with `buttonVariants`; `HomeButtonLink` becomes a tone wrapper over it; the hand-built copies in `SidebarUser`, `FavoritesLink`, `UpgradeLink`, `UpgradeCallout` and `BillingCard` use it
+- **Bug: links announced as buttons:** the five `Button render={<Link />}` / `render={<a download />}` links (`RegisterForm`, `ForgotPasswordForm`, `ResetPasswordForm`, `FileRow`, `ItemDrawerDetails`) become `ButtonLink`, so they no longer carry `role="button"`
+- **Bug: `CollectionDot` fallback color:** uses the shared fallback style's `dotClass` instead of `bg-muted-foreground/50`
+
+### Phase 2 - forms and cards
+
+- **Shared field:** promote `ItemFormFields`' private `Field` (label row with `labelAside`, hint, error, render-prop control props) to `src/components/forms/Field.tsx`; `FormField` becomes a thin `Input` wrapper over it, and `CollectionForm`'s description textarea and `ItemTypeSelector` use it
+- **Split `ItemFormFields.tsx` (354 lines):** `DescriptionField` (owns `useAiDescription`), `TagsField` (owns `useAutoTags` and the suggestion list), `CollectionsField` (owns `useCollectionOptions`) and `ContentField` (the editor switch), leaving the parent at about 100 lines; the accept-tag / 20-tag-cap rule moves to `acceptSuggestedTag()` in `src/lib/tags.ts`
+- **Card pieces:** `TagList`, `ItemCardTitle`, `ItemCardMeta` and a `ClickableCard` wrapper (in `src/components/items/`) shared by `ItemCard`, `ImageCard` and the drawer's tag list; `ImageCard` picks up `ItemCard`'s two-line title with the date and buttons on the tag row (visible change); `CollectionCard` uses `ClickableCard` and gains the whole-card focus ring item cards have (visible change, closing the tracked open item)
+- **IconTile and PageHeader:** `src/components/common/IconTile.tsx` (`IconTile`, `ItemTypeIconTile`) for the tiles in `ItemCard`, `ItemDrawer` and `CommandPalette`; `src/components/layout/PageHeader.tsx` (icon, title, subtitle, actions) for the five page headers in `items/[type]`, `collections`, `collections/[id]`, `favorites` and `upgrade`
+
+### Checks
+
+- Unit tests for `acceptSuggestedTag()` (already present ignoring case, a new tag, at the 20-tag cap); hooks and components aren't unit tested per the standards
+- Browser check of every touched dialog (open, Escape, pending guard, success and failure toasts, focus return), the links' roles, cards and page headers at 375 / 768 / 1280px, the New Item and edit forms (AI buttons with Pro, tags, collections, content editors)
+- No visual change other than the ones marked above; `npm test`, lint and build pass
 
 ## Notes
 
-<!-- Any extra notes -->
+- Source: the refactor-scanner report of 2026-11-22. Already tracked in History: the pending guard in every dialog, `FormField` only wrapping `Input`, `ImageCard` copying `ItemCard`, the disabled Favorite / Pin fallback buttons, collection cards' missing focus ring
+- Rules: never edit `src/components/ui/` (wrap instead); `ButtonLink`, `PageHeader` and `IconTile` must stay usable from server components (no hooks, no `'use client'`); placement follows `src/components/[feature]/`, with shared pieces in new `common/`, `dialogs/`, `forms/` and `layout/` folders
+- Base UI's `Button` with `nativeButton={false}` adds `role="button"` to a link, which is why `ButtonLink` renders a plain `next/link` (or `<a>` for downloads) styled with `buttonVariants`
+- `ConfirmDeleteDialog` must cover `DeleteAccountDialog`'s different copy ("Delete account", the Pro cancellation line) and its redirect-on-success, and keep each dialog's existing toast text
+- Deleting `NewCollectionDialog.tsx` / `EditCollectionDialog.tsx` once `CollectionFormDialog` replaces them removes files; confirm at start (default: replace them)
+- Out of scope (phase 3): `src/lib/routes.ts`, the AI button / `LiveStatus` merge, `useActionForm` and `CheckEmailPanel`, `getCollectionStyle()`, `StretchedLink`, `EditorBox`, `PreferenceSelect`, the Pro plan card, the smaller repeats, and the splits of `ItemDrawerDetails`, `MonacoEditor`, `MoveToDialog`, `FileList`, `PreviewSearchDemo`, `UpgradePlanPicker` and `RegisterForm`
 
 ## History
 

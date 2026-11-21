@@ -5,7 +5,7 @@ import Link from "next/link";
 import { LogOut, Settings, User } from "lucide-react";
 
 import { signOutUser } from "@/actions/auth";
-import { buttonVariants } from "@/components/ui/button";
+import { ButtonLink } from "@/components/common/ButtonLink";
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -76,13 +76,9 @@ export function SidebarUser({ user, collapsed }: SidebarUserProps) {
       </DropdownMenu>
 
       {!collapsed && (
-        <Link
-          href={SETTINGS_PATH}
-          aria-label="Settings"
-          className={buttonVariants({ variant: "ghost", size: "icon-sm" })}
-        >
+        <ButtonLink href={SETTINGS_PATH} aria-label="Settings" variant="ghost" size="icon-sm">
           <Settings />
-        </Link>
+        </ButtonLink>
       )}
     </div>
   );

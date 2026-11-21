@@ -1,10 +1,10 @@
 import { Download, Folder, FolderInput } from "lucide-react";
 import Link from "next/link";
 
+import { ButtonLink } from "@/components/common/ButtonLink";
 import { FileTypeIcon } from "@/components/items/FileTypeIcon";
 import { OpenItemButton } from "@/components/items/OpenItemButton";
 import { RowActionsMenu } from "@/components/items/RowActionsMenu";
-import { Button } from "@/components/ui/button";
 import { DropdownMenuItem } from "@/components/ui/dropdown-menu";
 import { getFileCategory } from "@/lib/file-filters";
 import { getItemFileUrl } from "@/lib/file-upload";
@@ -80,16 +80,16 @@ export function FileRow({ item, folderPath, onMove }: Readonly<FileRowProps>) {
 
       <div className={FILE_ROW_ACTIONS}>
         {item.fileName && (
-          <Button
+          <ButtonLink
+            href={getItemFileUrl(item.id, true)}
+            download={item.fileName}
             variant="ghost"
             size="icon-sm"
             className="relative z-10 shrink-0"
-            render={<a href={getItemFileUrl(item.id, true)} download={item.fileName} />}
-            nativeButton={false}
             aria-label={`Download ${item.fileName}`}
           >
             <Download aria-hidden />
-          </Button>
+          </ButtonLink>
         )}
         <RowActionsMenu label={`Actions for ${item.title}`}>
           <DropdownMenuItem onClick={onMove}>

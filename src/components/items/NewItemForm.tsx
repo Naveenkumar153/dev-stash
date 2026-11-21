@@ -7,6 +7,7 @@ import { toast } from "sonner";
 import { createItem } from "@/actions/items";
 import { useProAccess } from "@/components/billing/ProAccessProvider";
 import { UpgradeCallout } from "@/components/billing/UpgradeCallout";
+import { DialogActions } from "@/components/dialogs/DialogActions";
 import { FileUpload, type SelectedFile } from "@/components/items/FileUpload";
 import {
   EMPTY_ITEM_FORM,
@@ -16,8 +17,6 @@ import {
   type ItemFormValues,
 } from "@/components/items/ItemFormFields";
 import { ItemTypeSelector } from "@/components/items/ItemTypeSelector";
-import { Button } from "@/components/ui/button";
-import { DialogClose, DialogFooter } from "@/components/ui/dialog";
 import { useUpgradeErrorToast } from "@/hooks/use-upgrade-error-toast";
 import { ITEM_CREATE_FAILED, type FieldErrors } from "@/lib/action-result";
 import {
@@ -158,14 +157,12 @@ export function NewItemForm({
         />
       </div>
 
-      <DialogFooter className="mx-0 mb-0 px-6">
-        <DialogClose render={<Button type="button" variant="outline" disabled={pending} />}>
-          Cancel
-        </DialogClose>
-        <Button type="submit" disabled={pending || !values.title.trim() || (needsFile && !upload)}>
-          {pending ? (needsFile ? "Uploading..." : "Creating...") : "Create"}
-        </Button>
-      </DialogFooter>
+      <DialogActions
+        pending={pending}
+        submitLabel="Create"
+        pendingLabel={needsFile ? "Uploading..." : "Creating..."}
+        submitDisabled={!values.title.trim() || (needsFile && !upload)}
+      />
     </form>
   );
 }

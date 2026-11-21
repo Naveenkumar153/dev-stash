@@ -1,11 +1,11 @@
 "use client";
 
 import { startTransition, useActionState } from "react";
-import Link from "next/link";
 
 import { resetPassword, type ResetPasswordState } from "@/actions/auth";
 import { FormField } from "@/components/auth/FormField";
 import { FormMessage } from "@/components/auth/FormMessage";
+import { ButtonLink } from "@/components/common/ButtonLink";
 import { Button } from "@/components/ui/button";
 import { useRateLimitToast } from "@/hooks/use-rate-limit-toast";
 import { FORGOT_PASSWORD_PATH } from "@/lib/auth-redirect";
@@ -72,9 +72,9 @@ export function ResetLinkFailed({ message }: ResetLinkFailedProps) {
   return (
     <div className="grid gap-4">
       <FormMessage>{message}</FormMessage>
-      <Button render={<Link href={FORGOT_PASSWORD_PATH} />} nativeButton={false} className="w-full">
+      <ButtonLink href={FORGOT_PASSWORD_PATH} className="w-full">
         Request a new link
-      </Button>
+      </ButtonLink>
     </div>
   );
 }

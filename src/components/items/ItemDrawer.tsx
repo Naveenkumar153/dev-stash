@@ -3,6 +3,7 @@
 import type { Dialog } from "@base-ui/react/dialog";
 import { useState } from "react";
 
+import { ItemTypeIconTile } from "@/components/common/IconTile";
 import { ItemDrawerActions } from "@/components/items/ItemDrawerActions";
 import { ItemDrawerDetails } from "@/components/items/ItemDrawerDetails";
 import { ItemDrawerEditForm } from "@/components/items/ItemDrawerEditForm";
@@ -12,8 +13,7 @@ import { Sheet, SheetContent, SheetTitle } from "@/components/ui/sheet";
 import type { ItemDetailState } from "@/hooks/use-item-detail";
 import { getLanguageLabel } from "@/lib/code-editor";
 import { getItemCopyText } from "@/lib/item-copy";
-import { getItemTypeLabel, getItemTypeStyleByName } from "@/lib/item-types";
-import { cn } from "@/lib/utils";
+import { getItemTypeLabel } from "@/lib/item-types";
 import type { ItemDetail, ItemDrawerSummary } from "@/types/items";
 
 interface ItemDrawerProps {
@@ -162,19 +162,10 @@ interface ItemDrawerHeaderProps {
 }
 
 function ItemDrawerHeader({ title, typeName, language }: ItemDrawerHeaderProps) {
-  const { icon: Icon, colorClass, bgClass } = getItemTypeStyleByName(typeName);
-
   return (
     // Right padding clears the sheet's own close button.
     <div className="flex items-start gap-4 p-6 pr-14">
-      <span
-        className={cn(
-          "flex size-12 shrink-0 items-center justify-center rounded-lg",
-          bgClass,
-        )}
-      >
-        <Icon aria-hidden className={cn("size-6", colorClass)} />
-      </span>
+      <ItemTypeIconTile typeName={typeName} size="lg" />
 
       <div className="flex min-w-0 flex-1 flex-col gap-2">
         <SheetTitle className="text-xl font-semibold wrap-break-word">{title}</SheetTitle>

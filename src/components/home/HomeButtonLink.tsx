@@ -1,7 +1,6 @@
-import Link from "next/link";
 import type { ReactNode } from "react";
 
-import { buttonVariants } from "@/components/ui/button";
+import { ButtonLink } from "@/components/common/ButtonLink";
 import { cn } from "@/lib/utils";
 
 const SIZE_CLASSES = {
@@ -29,9 +28,8 @@ interface HomeButtonLinkProps {
 }
 
 /**
- * A link styled as the homepage's buttons: shadcn's `buttonVariants` at the
- * mockup's larger sizes, plus the brand gradient for primary actions. A plain
- * `next/link`, since Base UI's `Button` adds `role="button"` to anchors.
+ * A link styled as the homepage's buttons: `ButtonLink` at the mockup's larger
+ * sizes, plus the brand gradient for primary actions.
  */
 export function HomeButtonLink({
   href,
@@ -43,17 +41,12 @@ export function HomeButtonLink({
   const { variant, className: toneClassName } = TONES[tone];
 
   return (
-    <Link
+    <ButtonLink
       href={href}
-      className={cn(
-        buttonVariants({ variant }),
-        "font-semibold",
-        SIZE_CLASSES[size],
-        toneClassName,
-        className,
-      )}
+      variant={variant}
+      className={cn("font-semibold", SIZE_CLASSES[size], toneClassName, className)}
     >
       {children}
-    </Link>
+    </ButtonLink>
   );
 }

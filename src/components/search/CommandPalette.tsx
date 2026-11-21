@@ -3,6 +3,7 @@
 import { FolderOpen } from "lucide-react";
 import { useMemo, useState } from "react";
 
+import { IconTile, ItemTypeIconTile } from "@/components/common/IconTile";
 import {
   Command,
   CommandDialog,
@@ -16,7 +17,6 @@ import {
 import { formatCount } from "@/lib/format";
 import { getItemTypeLabel, getItemTypeStyleByName } from "@/lib/item-types";
 import { searchPaletteData } from "@/lib/search-filter";
-import { cn } from "@/lib/utils";
 import type { SearchCollection, SearchData, SearchItem } from "@/types/search";
 
 interface CommandPaletteProps {
@@ -120,17 +120,9 @@ function ItemResult({
   item,
   onSelect,
 }: Readonly<{ item: SearchItem; onSelect: (item: SearchItem) => void }>) {
-  const style = getItemTypeStyleByName(item.typeName);
-  const Icon = style.icon;
-
   return (
     <CommandItem value={`item:${item.id}`} onSelect={() => onSelect(item)} className="gap-3">
-      <span
-        aria-hidden
-        className={cn("flex size-7 shrink-0 items-center justify-center rounded-md", style.bgClass)}
-      >
-        <Icon className={cn("size-4", style.colorClass)} />
-      </span>
+      <ItemTypeIconTile typeName={item.typeName} size="sm" />
       <span className="flex min-w-0 flex-1 flex-col">
         <span className="truncate">{item.title}</span>
         {item.preview && (
@@ -159,9 +151,7 @@ function CollectionResult({
       onSelect={() => onSelect(collection)}
       className="gap-3"
     >
-      <span aria-hidden className="flex size-7 shrink-0 items-center justify-center rounded-md bg-muted">
-        <FolderOpen className={cn("size-4", colorClass)} />
-      </span>
+      <IconTile icon={FolderOpen} size="sm" iconClassName={colorClass} />
       <span className="min-w-0 flex-1 truncate">{collection.name}</span>
       <CommandShortcut className="tracking-normal">
         {formatCount(collection.itemCount, "item")}

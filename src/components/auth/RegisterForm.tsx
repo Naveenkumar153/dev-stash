@@ -1,13 +1,13 @@
 "use client";
 
 import { useState } from "react";
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { toast } from "sonner";
 
 import { FormField } from "@/components/auth/FormField";
 import { FormMessage } from "@/components/auth/FormMessage";
 import { ResendVerificationButton } from "@/components/auth/ResendVerificationButton";
+import { ButtonLink } from "@/components/common/ButtonLink";
 import { Button } from "@/components/ui/button";
 import { SIGN_IN_PATH } from "@/lib/auth-redirect";
 import { getFieldErrors, type FieldErrors } from "@/lib/action-result";
@@ -91,9 +91,9 @@ export function RegisterForm({ alternative }: Readonly<RegisterFormProps>) {
           activate your account, then sign in. The link expires in 24 hours.
         </p>
         <ResendVerificationButton email={registeredEmail} />
-        <Button render={<Link href={SIGN_IN_PATH} />} nativeButton={false} className="w-full">
+        <ButtonLink href={SIGN_IN_PATH} className="w-full">
           Go to sign in
-        </Button>
+        </ButtonLink>
       </div>
     );
   }

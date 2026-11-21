@@ -4,8 +4,10 @@ import { notFound, redirect } from "next/navigation";
 import { cache } from "react";
 import { ChevronLeft, FolderOpen } from "lucide-react";
 
+import { IconTile } from "@/components/common/IconTile";
 import { CollectionActions } from "@/components/collections/CollectionActions";
 import { ItemCard } from "@/components/dashboard/ItemCard";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { ListPagination } from "@/components/pagination/ListPagination";
 import { collectionIdSchema } from "@/lib/collection-schemas";
 import { getCollection } from "@/lib/db/collections";
@@ -82,24 +84,20 @@ export default async function CollectionPage({
           All collections
         </Link>
 
-        <header className="flex items-start gap-4">
-          <span className="flex size-12 shrink-0 items-center justify-center rounded-lg bg-muted">
-            <FolderOpen aria-hidden className="size-6 text-muted-foreground" />
-          </span>
-          <div className="min-w-0 flex-1">
-            {/* The Favorite button beside it shows the favorite state. */}
-            <h1 className="font-heading text-3xl font-semibold wrap-anywhere">
-              {collection.name}
-            </h1>
-            <p className="mt-1 text-muted-foreground">{formatCount(total, "item")}</p>
-            {collection.description && (
-              <p className="mt-3 max-w-prose text-sm text-muted-foreground">
-                {collection.description}
-              </p>
-            )}
-          </div>
-          <CollectionActions collection={collection} />
-        </header>
+        {/* The Favorite button among the actions shows the favorite state. */}
+        <PageHeader
+          align="start"
+          icon={<IconTile icon={FolderOpen} size="lg" />}
+          title={collection.name}
+          subtitle={formatCount(total, "item")}
+          actions={<CollectionActions collection={collection} />}
+        >
+          {collection.description && (
+            <p className="mt-3 max-w-prose text-sm text-muted-foreground">
+              {collection.description}
+            </p>
+          )}
+        </PageHeader>
       </div>
 
       <section aria-labelledby="collection-items-heading" className="flex flex-1 flex-col">

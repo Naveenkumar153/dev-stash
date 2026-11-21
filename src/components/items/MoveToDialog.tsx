@@ -1,20 +1,13 @@
 "use client";
 
 import { ArrowLeft, ChevronRight, Folder } from "lucide-react";
-import { useEffect, useMemo, useRef, useState, useTransition, type TransitionStartFunction } from "react";
+import { useEffect, useMemo, useRef, useState, type TransitionStartFunction } from "react";
 import { toast } from "sonner";
 
 import { moveFolder, moveItem } from "@/actions/folders";
+import { DialogActions } from "@/components/dialogs/DialogActions";
+import { FormDialog } from "@/components/dialogs/FormDialog";
 import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
 import { sortFolders } from "@/lib/file-filters";
 import {
   ROOT_FOLDER_LABEL,
@@ -51,18 +44,15 @@ interface MoveToDialogProps {
  * sub-folders out of reach; the server refuses that move too.
  */
 export function MoveToDialog({ open, onOpenChange, subject, folders }: MoveToDialogProps) {
-  const [pending, startTransition] = useTransition();
-
-  function handleOpenChange(next: boolean) {
-    if (!pending) {
-      onOpenChange(next);
-    }
-  }
-
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="gap-0 p-0">
-        {subject && (
+    <FormDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={<>Move &ldquo;{subject?.name}&rdquo;</>}
+      description="Open the folder it should go in, then choose Move here."
+    >
+      {({ pending, startTransition, close }) =>
+        subject && (
           // Keyed so a picker reopened for another row mid-exit-animation
           // starts at that row's location instead of keeping the last one.
           <MovePicker
@@ -71,11 +61,11 @@ export function MoveToDialog({ open, onOpenChange, subject, folders }: MoveToDia
             folders={folders}
             pending={pending}
             startTransition={startTransition}
-            onMoved={() => onOpenChange(false)}
+            onMoved={close}
           />
-        )}
-      </DialogContent>
-    </Dialog>
+        )
+      }
+    </FormDialog>
   );
 }
 
@@ -142,11 +132,6 @@ function MovePicker({ subject, folders, pending, startTransition, onMoved }: Mov
 
   return (
     <>
-      <DialogHeader className="p-6 pb-4">
-        <DialogTitle className="wrap-break-word">Move &ldquo;{subject.name}&rdquo;</DialogTitle>
-        <DialogDescription>Open the folder it should go in, then choose Move here.</DialogDescription>
-      </DialogHeader>
-
       <div className="flex flex-col gap-2 px-6 pb-6">
         <div className="flex min-w-0 items-center gap-2">
           <Button
@@ -200,14 +185,13 @@ function MovePicker({ subject, folders, pending, startTransition, onMoved }: Mov
         </div>
       </div>
 
-      <DialogFooter className="mx-0 mb-0 px-6">
-        <DialogClose render={<Button type="button" variant="outline" disabled={pending} />}>
-          Cancel
-        </DialogClose>
-        <Button type="button" disabled={pending || !canMoveHere} onClick={handleMove}>
-          {pending ? "Moving..." : "Move here"}
-        </Button>
-      </DialogFooter>
+      <DialogActions
+        pending={pending}
+        submitLabel="Move here"
+        pendingLabel="Moving..."
+        submitDisabled={!canMoveHere}
+        onSubmit={handleMove}
+      />
     </>
   );
 }

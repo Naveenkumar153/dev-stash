@@ -2,7 +2,7 @@ import Link from "next/link";
 
 import { CollectionCardMenu } from "@/components/collections/CollectionCardMenu";
 import { FavoriteToggle } from "@/components/favorites/FavoriteToggle";
-import { Card } from "@/components/ui/card";
+import { ClickableCard } from "@/components/common/ClickableCard";
 import type { CollectionSummary } from "@/lib/db/collections";
 import { formatCount } from "@/lib/format";
 import { getItemTypeLabel, getItemTypeStyleByName } from "@/lib/item-types";
@@ -23,16 +23,12 @@ export function CollectionCard({
     : "border-l-border";
 
   return (
-    <Card
-      className={cn(
-        "relative gap-3 border-l-4 px-4 transition-colors hover:bg-accent/50",
-        accent,
-      )}
-    >
+    <ClickableCard className={cn("gap-3 border-l-4 px-4", accent)}>
       <div className="flex items-start gap-2">
         <div className="min-w-0 flex-1">
           <h3 className="flex items-center gap-2 font-heading text-base font-medium">
-            <Link href={`/collections/${id}`} className="truncate">
+            {/* outline-none: the card's own ring shows keyboard focus. */}
+            <Link href={`/collections/${id}`} className="truncate outline-none">
               {/* Stretches over the card so the whole surface is clickable. */}
               <span aria-hidden className="absolute inset-0" />
               {name}
@@ -73,6 +69,6 @@ export function CollectionCard({
           );
         })}
       </div>
-    </Card>
+    </ClickableCard>
   );
 }

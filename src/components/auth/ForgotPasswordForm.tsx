@@ -1,11 +1,11 @@
 "use client";
 
 import { startTransition, useActionState } from "react";
-import Link from "next/link";
 
 import { requestPasswordReset, type ForgotPasswordState } from "@/actions/auth";
 import { FormField } from "@/components/auth/FormField";
 import { FormMessage } from "@/components/auth/FormMessage";
+import { ButtonLink } from "@/components/common/ButtonLink";
 import { Button } from "@/components/ui/button";
 import { useRateLimitToast } from "@/hooks/use-rate-limit-toast";
 import { SIGN_IN_PATH } from "@/lib/auth-redirect";
@@ -33,9 +33,9 @@ export function ForgotPasswordForm() {
           <span className="font-medium text-foreground">{state.email}</span>, we sent a link to
           reset its password. The link expires in 1 hour.
         </p>
-        <Button render={<Link href={SIGN_IN_PATH} />} nativeButton={false} className="w-full">
+        <ButtonLink href={SIGN_IN_PATH} className="w-full">
           Back to sign in
-        </Button>
+        </ButtonLink>
       </div>
     );
   }

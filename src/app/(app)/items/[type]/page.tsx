@@ -1,11 +1,13 @@
 import type { Metadata } from "next";
 import { notFound, redirect } from "next/navigation";
 
+import { ItemTypeIconTile } from "@/components/common/IconTile";
 import { ItemCard } from "@/components/dashboard/ItemCard";
 import { FileList } from "@/components/items/FileList";
 import { ImageCard } from "@/components/items/ImageCard";
 import { NewFolderButton } from "@/components/items/NewFolderButton";
 import { NewItemButton } from "@/components/items/NewItemButton";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { ListPagination } from "@/components/pagination/ListPagination";
 import { getFolders } from "@/lib/db/folders";
 import { getItemTypeBySlug } from "@/lib/db/item-types";
@@ -19,7 +21,6 @@ import {
   getItemTypePlural,
   getProItemTypeForSlug,
   getItemTypeSlug,
-  getItemTypeStyleByName,
   isCreatableItemType,
 } from "@/lib/item-types";
 import {
@@ -30,7 +31,6 @@ import {
 } from "@/lib/pagination";
 import { UPGRADE_PATH } from "@/lib/plans";
 import { getSessionEntitlements } from "@/lib/usage-limits";
-import { cn } from "@/lib/utils";
 
 export async function generateMetadata({
   params,
@@ -116,35 +116,30 @@ export default async function ItemTypePage({
   if (openFolder === undefined) {
     notFound();
   }
-  const { icon: Icon, colorClass, bgClass } = getItemTypeStyleByName(typeName);
   const plural = getItemTypePlural(typeName);
   // Images get a thumbnail gallery; every other type keeps the row cards.
   const Card = typeName === "image" ? ImageCard : ItemCard;
 
   return (
     <div className="mx-auto flex min-h-full w-full max-w-7xl flex-col gap-8">
-      <header className="flex items-center gap-4">
-        <span
-          className={cn(
-            "flex size-12 shrink-0 items-center justify-center rounded-lg",
-            bgClass,
-          )}
-        >
-          <Icon aria-hidden className={cn("size-6", colorClass)} />
-        </span>
-        <div className="min-w-0 flex-1">
-          <h1 className="font-heading text-3xl font-semibold">{plural}</h1>
-          <p className="mt-1 text-muted-foreground">
-            {formatCount(cards ? cards.total : (files?.total ?? 0), "item")}
-          </p>
-        </div>
-        {isFilesPage && (
-          <NewFolderButton parentId={openFolder?.id ?? null} parentName={openFolder?.name ?? null} />
-        )}
-        {isCreatableItemType(typeName) && (
-          <NewItemButton defaultType={typeName} folderId={openFolder?.id ?? null} />
-        )}
-      </header>
+      <PageHeader
+        icon={<ItemTypeIconTile typeName={typeName} size="lg" />}
+        title={plural}
+        subtitle={formatCount(cards ? cards.total : (files?.total ?? 0), "item")}
+        actions={
+          <>
+            {isFilesPage && (
+              <NewFolderButton
+                parentId={openFolder?.id ?? null}
+                parentName={openFolder?.name ?? null}
+              />
+            )}
+            {isCreatableItemType(typeName) && (
+              <NewItemButton defaultType={typeName} folderId={openFolder?.id ?? null} />
+            )}
+          </>
+        }
+      />
 
       <section aria-labelledby="item-list-heading" className="flex flex-1 flex-col">
         {/* Keeps the outline h1 > h2 > h3 (card titles), like the dashboard. */}

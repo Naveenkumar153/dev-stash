@@ -1,22 +1,9 @@
 "use client";
 
-import { useTransition } from "react";
-import { toast } from "sonner";
-
 import { deleteFolder } from "@/actions/folders";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-} from "@/components/ui/alert-dialog";
-import { formatCount } from "@/lib/format";
-import { callAction } from "@/lib/action-call";
+import { ConfirmDeleteDialog } from "@/components/dialogs/ConfirmDeleteDialog";
 import { FOLDER_DELETE_FAILED } from "@/lib/action-result";
+import { formatCount } from "@/lib/format";
 
 interface FolderDeleteDialogProps {
   open: boolean;
@@ -43,56 +30,24 @@ function describeDeletion({ folders, files }: FolderDeleteDialogProps["contents"
 
 /**
  * The confirmation for deleting a folder, stating how many folders and files
- * go with it. Nothing is deleted until the user confirms; a failure is toasted
- * and leaves the dialog open so they can retry or cancel.
+ * go with it.
  */
 export function FolderDeleteDialog({ open, onOpenChange, folder, contents }: FolderDeleteDialogProps) {
-  const [pending, startTransition] = useTransition();
-
-  // Escape and the backdrop can't dismiss the dialog mid-delete.
-  function handleOpenChange(next: boolean) {
-    if (!pending) {
-      onOpenChange(next);
-    }
-  }
-
-  function handleDelete() {
-    if (!folder) return;
-
-    startTransition(async () => {
-      const result = await callAction(() => deleteFolder(folder.id));
-      if (!result) {
-        return;
-      }
-
-      if (!result.success) {
-        toast.error(result.error ?? FOLDER_DELETE_FAILED);
-        return;
-      }
-
-      onOpenChange(false);
-      // deleteFolder re-renders the list in its own response.
-      toast.success("Folder deleted");
-    });
-  }
-
   return (
-    <AlertDialog open={open} onOpenChange={handleOpenChange}>
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle className="wrap-break-word">
-            Delete &ldquo;{folder?.name}&rdquo;?
-          </AlertDialogTitle>
-          <AlertDialogDescription>{describeDeletion(contents)}</AlertDialogDescription>
-        </AlertDialogHeader>
-
-        <AlertDialogFooter>
-          <AlertDialogCancel disabled={pending}>Cancel</AlertDialogCancel>
-          <AlertDialogAction variant="destructive" disabled={pending} onClick={handleDelete}>
-            {pending ? "Deleting..." : "Delete"}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    <ConfirmDeleteDialog
+      open={open}
+      onOpenChange={onOpenChange}
+      title={<>Delete &ldquo;{folder?.name}&rdquo;?</>}
+      description={describeDeletion(contents)}
+      // The dialog is only opened for a folder; null is the closing animation.
+      onConfirm={() =>
+        folder
+          ? deleteFolder(folder.id)
+          : Promise.resolve({ success: false, error: null })
+      }
+      failedMessage={FOLDER_DELETE_FAILED}
+      // deleteFolder re-renders the list in its own response.
+      successMessage="Folder deleted"
+    />
   );
 }

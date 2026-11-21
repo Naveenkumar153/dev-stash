@@ -2,10 +2,12 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Sparkles } from "lucide-react";
 
+import { IconTile } from "@/components/common/IconTile";
 import { FormMessage } from "@/components/auth/FormMessage";
 import { PlanCard } from "@/components/billing/PlanCard";
 import { UpgradePlanPicker } from "@/components/billing/UpgradePlanPicker";
 import { PlanPrice } from "@/components/home/PlanPrice";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { SIGN_IN_PATH } from "@/lib/auth-redirect";
 import { getSessionUser } from "@/lib/db/user";
 import { BILLING_SETTINGS_PATH, FREE_PLAN_FEATURES, parseBillingInterval } from "@/lib/plans";
@@ -30,17 +32,18 @@ export default async function UpgradePage({ searchParams }: PageProps<"/upgrade"
 
   return (
     <div className="mx-auto flex w-full max-w-4xl flex-col gap-6">
-      <header className="flex items-center gap-4">
-        <span className="flex size-12 shrink-0 items-center justify-center rounded-lg bg-type-prompt/15">
-          <Sparkles aria-hidden className="size-6 text-violet-300" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <h1 className="font-heading text-3xl font-semibold">Upgrade to Pro</h1>
-          <p className="mt-1 text-muted-foreground">
-            Unlimited items and collections, file and image uploads, and AI features.
-          </p>
-        </div>
-      </header>
+      <PageHeader
+        icon={
+          <IconTile
+            icon={Sparkles}
+            size="lg"
+            className="bg-type-prompt/15"
+            iconClassName="text-violet-300"
+          />
+        }
+        title="Upgrade to Pro"
+        subtitle="Unlimited items and collections, file and image uploads, and AI features."
+      />
 
       {query.checkout === "canceled" && (
         <FormMessage tone="info">Checkout canceled. You&apos;re still on the Free plan.</FormMessage>

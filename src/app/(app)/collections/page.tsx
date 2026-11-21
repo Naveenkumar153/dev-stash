@@ -2,7 +2,9 @@ import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { Library } from "lucide-react";
 
+import { IconTile } from "@/components/common/IconTile";
 import { CollectionCard } from "@/components/dashboard/CollectionCard";
+import { PageHeader } from "@/components/layout/PageHeader";
 import { ListPagination } from "@/components/pagination/ListPagination";
 import { getCollectionPage } from "@/lib/db/collections";
 import { formatCount } from "@/lib/format";
@@ -35,17 +37,11 @@ export default async function CollectionsPage({ searchParams }: PageProps<"/coll
 
   return (
     <div className="mx-auto flex min-h-full w-full max-w-7xl flex-col gap-8">
-      <header className="flex items-center gap-4">
-        <span className="flex size-12 shrink-0 items-center justify-center rounded-lg bg-muted">
-          <Library aria-hidden className="size-6 text-muted-foreground" />
-        </span>
-        <div className="min-w-0 flex-1">
-          <h1 className="font-heading text-3xl font-semibold">Collections</h1>
-          <p className="mt-1 text-muted-foreground">
-            {formatCount(total, "collection")}
-          </p>
-        </div>
-      </header>
+      <PageHeader
+        icon={<IconTile icon={Library} size="lg" />}
+        title="Collections"
+        subtitle={formatCount(total, "collection")}
+      />
 
       <section aria-labelledby="collection-list-heading" className="flex flex-1 flex-col">
         {/* Keeps the outline h1 > h2 > h3 (card titles), like the dashboard. */}

@@ -2,10 +2,12 @@
 
 import { Pencil, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useRef, useState } from "react";
+import { useRef } from "react";
 
-import { DeleteCollectionDialog } from "@/components/collections/DeleteCollectionDialog";
-import { EditCollectionDialog } from "@/components/collections/EditCollectionDialog";
+import {
+  CollectionDialogs,
+  useCollectionDialogs,
+} from "@/components/collections/CollectionDialogs";
 import { FavoriteCollectionButton } from "@/components/collections/FavoriteCollectionButton";
 import { Button } from "@/components/ui/button";
 import type { CollectionHeader } from "@/lib/db/collections";
@@ -17,8 +19,7 @@ import type { CollectionHeader } from "@/lib/db/collections";
  */
 export function CollectionActions({ collection }: Readonly<{ collection: CollectionHeader }>) {
   const router = useRouter();
-  const [editOpen, setEditOpen] = useState(false);
-  const [deleteOpen, setDeleteOpen] = useState(false);
+  const dialogs = useCollectionDialogs();
   const editRef = useRef<HTMLButtonElement>(null);
   const deleteRef = useRef<HTMLButtonElement>(null);
 
@@ -33,7 +34,7 @@ export function CollectionActions({ collection }: Readonly<{ collection: Collect
         ref={editRef}
         variant="outline"
         aria-label="Edit collection"
-        onClick={() => setEditOpen(true)}
+        onClick={dialogs.openEdit}
       >
         <Pencil aria-hidden />
         <span className="hidden sm:inline">Edit</span>
@@ -43,23 +44,18 @@ export function CollectionActions({ collection }: Readonly<{ collection: Collect
         variant="outline"
         aria-label="Delete collection"
         className="text-destructive"
-        onClick={() => setDeleteOpen(true)}
+        onClick={dialogs.openDelete}
       >
         <Trash2 aria-hidden />
         <span className="hidden sm:inline">Delete</span>
       </Button>
 
-      <EditCollectionDialog
+      <CollectionDialogs
         collection={collection}
-        open={editOpen}
-        onOpenChange={setEditOpen}
-        returnFocusRef={editRef}
-      />
-      <DeleteCollectionDialog
-        collection={collection}
-        open={deleteOpen}
-        onOpenChange={setDeleteOpen}
-        returnFocusRef={deleteRef}
+        dialog={dialogs.dialog}
+        onClose={dialogs.close}
+        editFocusRef={editRef}
+        deleteFocusRef={deleteRef}
         // The action already refreshed the layout; the page itself is gone.
         onDeleted={() => router.replace("/collections")}
       />

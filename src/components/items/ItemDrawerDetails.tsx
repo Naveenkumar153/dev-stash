@@ -1,11 +1,12 @@
 import { Calendar, Download, ExternalLink, File as FileIcon, Folder, Tag } from "lucide-react";
 import Image from "next/image";
 
+import { ButtonLink } from "@/components/common/ButtonLink";
 import { ExplainableCodeEditor } from "@/components/items/ExplainableCodeEditor";
 import { MarkdownEditor } from "@/components/items/MarkdownEditor";
 import { OptimizablePromptEditor } from "@/components/items/OptimizablePromptEditor";
+import { TagList } from "@/components/items/TagList";
 import { Badge } from "@/components/ui/badge";
-import { Button } from "@/components/ui/button";
 import type { ContentSaved } from "@/hooks/use-optimize-prompt";
 import { canOptimize } from "@/lib/ai-optimize";
 import { getItemFileUrl, isImageFileName } from "@/lib/file-upload";
@@ -149,15 +150,15 @@ function ItemFile({ itemId, fileName, fileSize }: Readonly<ItemFileProps>) {
             <span className="text-xs text-muted-foreground">{formatFileSize(fileSize)}</span>
           )}
         </div>
-        <Button
+        <ButtonLink
+          href={getItemFileUrl(itemId, true)}
+          download={fileName}
           variant="outline"
           size="sm"
-          render={<a href={getItemFileUrl(itemId, true)} download={fileName} />}
-          nativeButton={false}
         >
           <Download aria-hidden />
           Download
-        </Button>
+        </ButtonLink>
       </div>
     </div>
   );
@@ -216,13 +217,7 @@ export function ItemDrawerDetails({
 
       {item.tags.length > 0 && (
         <DrawerSection title="Tags" icon={<Tag aria-hidden className="size-4" />}>
-          <div className="flex flex-wrap gap-1.5">
-            {item.tags.map((tag) => (
-              <Badge key={tag} variant="secondary">
-                {tag}
-              </Badge>
-            ))}
-          </div>
+          <TagList tags={item.tags} />
         </DrawerSection>
       )}
 

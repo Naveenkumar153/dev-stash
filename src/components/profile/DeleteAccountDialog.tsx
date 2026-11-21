@@ -1,22 +1,11 @@
 "use client";
 
-import { useTransition } from "react";
-import { toast } from "sonner";
+import { useState } from "react";
 
 import { deleteAccount } from "@/actions/profile";
-import {
-  AlertDialog,
-  AlertDialogAction,
-  AlertDialogCancel,
-  AlertDialogContent,
-  AlertDialogDescription,
-  AlertDialogFooter,
-  AlertDialogHeader,
-  AlertDialogTitle,
-  AlertDialogTrigger,
-} from "@/components/ui/alert-dialog";
+import { ConfirmDeleteDialog } from "@/components/dialogs/ConfirmDeleteDialog";
+import { AlertDialogTrigger } from "@/components/ui/alert-dialog";
 import { Button } from "@/components/ui/button";
-import { callAction } from "@/lib/action-call";
 import { ACCOUNT_DELETE_FAILED } from "@/lib/action-result";
 
 interface DeleteAccountDialogProps {
@@ -24,42 +13,29 @@ interface DeleteAccountDialogProps {
   isPro: boolean;
 }
 
+/**
+ * Confirms deleting the signed-in account. A successful delete signs out and
+ * redirects, so only failures come back to the dialog.
+ */
 export function DeleteAccountDialog({ isPro }: Readonly<DeleteAccountDialogProps>) {
-  const [pending, startTransition] = useTransition();
-
-  // A successful delete signs out and redirects, so only failures come back.
-  function handleDelete() {
-    startTransition(async () => {
-      const result = await callAction(() => deleteAccount());
-      if (result && !result.success) {
-        toast.error(result.error ?? ACCOUNT_DELETE_FAILED);
-      }
-    });
-  }
+  const [open, setOpen] = useState(false);
 
   return (
-    <AlertDialog>
-      <AlertDialogTrigger render={<Button variant="destructive" className="w-fit" />}>
-        Delete account
-      </AlertDialogTrigger>
-
-      <AlertDialogContent>
-        <AlertDialogHeader>
-          <AlertDialogTitle>Delete your account?</AlertDialogTitle>
-          <AlertDialogDescription>
-            This permanently deletes your account with all of its items and collections. It
-            can&apos;t be undone.
-            {isPro && " This also cancels your Pro subscription immediately."}
-          </AlertDialogDescription>
-        </AlertDialogHeader>
-
-        <AlertDialogFooter>
-          <AlertDialogCancel disabled={pending}>Cancel</AlertDialogCancel>
-          <AlertDialogAction variant="destructive" disabled={pending} onClick={handleDelete}>
-            {pending ? "Deleting..." : "Delete account"}
-          </AlertDialogAction>
-        </AlertDialogFooter>
-      </AlertDialogContent>
-    </AlertDialog>
+    <ConfirmDeleteDialog
+      open={open}
+      onOpenChange={setOpen}
+      trigger={
+        <AlertDialogTrigger render={<Button variant="destructive" className="w-fit" />}>
+          Delete account
+        </AlertDialogTrigger>
+      }
+      title="Delete your account?"
+      description={`This permanently deletes your account with all of its items and collections. It can't be undone.${
+        isPro ? " This also cancels your Pro subscription immediately." : ""
+      }`}
+      confirmLabel="Delete account"
+      onConfirm={deleteAccount}
+      failedMessage={ACCOUNT_DELETE_FAILED}
+    />
   );
 }

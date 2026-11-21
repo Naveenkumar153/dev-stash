@@ -3,9 +3,8 @@
 import { useId, useState, type TransitionStartFunction } from "react";
 
 import { FormField } from "@/components/auth/FormField";
-import { Button } from "@/components/ui/button";
-import { DialogClose, DialogFooter } from "@/components/ui/dialog";
-import { Label } from "@/components/ui/label";
+import { DialogActions } from "@/components/dialogs/DialogActions";
+import { Field } from "@/components/forms/Field";
 import { Textarea } from "@/components/ui/textarea";
 import { useUpgradeErrorToast } from "@/hooks/use-upgrade-error-toast";
 import type { FieldErrors } from "@/lib/action-result";
@@ -39,8 +38,8 @@ interface CollectionFormProps {
 }
 
 /**
- * A collection's Name and Description with Cancel and a submit button, shared
- * by the New Collection and Edit collection dialogs. It mounts with the
+ * A collection's Name and Description with Cancel and a submit button, for
+ * `CollectionFormDialog`. It mounts with the
  * dialog's popup, so every open starts from `initialValues`. A failure keeps
  * the input, marks the fields and toasts the error.
  */
@@ -58,8 +57,6 @@ export function CollectionForm({
   const [name, setName] = useState(initialValues?.name ?? "");
   const [description, setDescription] = useState(initialValues?.description ?? "");
   const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
-  const descriptionId = `${id}-description`;
-  const descriptionErrorId = `${descriptionId}-error`;
 
   const showError = useUpgradeErrorToast();
 
@@ -104,39 +101,31 @@ export function CollectionForm({
           autoFocus
         />
 
-        <div className="grid gap-2">
-          <Label htmlFor={descriptionId}>Description</Label>
-          <Textarea
-            id={descriptionId}
-            name="description"
-            value={description}
-            onChange={(event) => {
-              setDescription(event.target.value);
-              setFieldErrors((current) => ({ ...current, description: undefined }));
-            }}
-            placeholder="What goes in this collection?"
-            maxLength={COLLECTION_DESCRIPTION_MAX_LENGTH}
-            aria-invalid={fieldErrors.description ? true : undefined}
-            aria-describedby={fieldErrors.description ? descriptionErrorId : undefined}
-            readOnly={pending}
-            className="min-h-20"
-          />
-          {fieldErrors.description && (
-            <p id={descriptionErrorId} className="text-sm text-destructive">
-              {fieldErrors.description}
-            </p>
+        <Field id={`${id}-description`} label="Description" error={fieldErrors.description}>
+          {(control) => (
+            <Textarea
+              {...control}
+              name="description"
+              value={description}
+              onChange={(event) => {
+                setDescription(event.target.value);
+                setFieldErrors((current) => ({ ...current, description: undefined }));
+              }}
+              placeholder="What goes in this collection?"
+              maxLength={COLLECTION_DESCRIPTION_MAX_LENGTH}
+              readOnly={pending}
+              className="min-h-20"
+            />
           )}
-        </div>
+        </Field>
       </div>
 
-      <DialogFooter className="mx-0 mb-0 px-6">
-        <DialogClose render={<Button type="button" variant="outline" disabled={pending} />}>
-          Cancel
-        </DialogClose>
-        <Button type="submit" disabled={pending || !name.trim()}>
-          {pending ? pendingLabel : submitLabel}
-        </Button>
-      </DialogFooter>
+      <DialogActions
+        pending={pending}
+        submitLabel={submitLabel}
+        pendingLabel={pendingLabel}
+        submitDisabled={!name.trim()}
+      />
     </form>
   );
 }

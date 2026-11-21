@@ -1,10 +1,8 @@
-import Link from "next/link";
-
 import { FormMessage } from "@/components/auth/FormMessage";
+import { ButtonLink } from "@/components/common/ButtonLink";
 import { CheckoutPendingRefresh } from "@/components/settings/CheckoutPendingRefresh";
 import { ManageBillingButton } from "@/components/settings/ManageBillingButton";
 import { Badge } from "@/components/ui/badge";
-import { buttonVariants } from "@/components/ui/button";
 import {
   Card,
   CardContent,
@@ -80,9 +78,9 @@ export function BillingCard({ billing, usage, checkoutSucceeded }: Readonly<Bill
           <>
             {/* /upgrade is the one place to pick a plan and start Checkout. */}
             {!billing.isPro && (
-              <Link href={UPGRADE_PATH} className={buttonVariants({ size: "lg", className: "w-fit" })}>
+              <ButtonLink href={UPGRADE_PATH} size="lg" className="w-fit">
                 See plans and upgrade
-              </Link>
+              </ButtonLink>
             )}
             {(billing.isPro || billing.hasCustomer) && <ManageBillingButton />}
           </>

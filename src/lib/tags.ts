@@ -27,3 +27,27 @@ export function addTagToInput(input: string, tag: string): string {
 
   return [...tags, tag].join(", ");
 }
+
+/** What accepting a suggested tag does to the comma-separated input. */
+export type AcceptTagResult =
+  | { status: "added"; tags: string }
+  /** The input already has the tag, ignoring case, so nothing changes. */
+  | { status: "present"; tags: string }
+  /** The input already has `maxTags`, so the new tag doesn't fit. */
+  | { status: "full" };
+
+/**
+ * Accepts an AI-suggested tag into the comma-separated input, within the
+ * item's tag limit. A tag already there changes nothing, so only a new one can
+ * hit the limit.
+ */
+export function acceptSuggestedTag(input: string, tag: string, maxTags: number): AcceptTagResult {
+  const tags = addTagToInput(input, tag);
+  if (tags === input) {
+    return { status: "present", tags };
+  }
+  if (parseTagInput(input).length >= maxTags) {
+    return { status: "full" };
+  }
+  return { status: "added", tags };
+}

@@ -1,9 +1,7 @@
-import Link from "next/link";
 import { Sparkles } from "lucide-react";
 
-import { buttonVariants } from "@/components/ui/button";
+import { ButtonLink } from "@/components/common/ButtonLink";
 import { UPGRADE_PATH } from "@/lib/plans";
-import { cn } from "@/lib/utils";
 
 interface UpgradeCalloutProps {
   children: React.ReactNode;
@@ -20,9 +18,9 @@ export function UpgradeCallout({ children }: Readonly<UpgradeCalloutProps>) {
         <Sparkles aria-hidden className="mt-0.5 size-4 shrink-0 text-type-prompt" />
         <span>{children}</span>
       </p>
-      <Link href={UPGRADE_PATH} className={cn(buttonVariants({ size: "sm" }), "w-fit shrink-0")}>
+      <ButtonLink href={UPGRADE_PATH} size="sm" className="w-fit shrink-0">
         Upgrade to Pro
-      </Link>
+      </ButtonLink>
     </div>
   );
 }

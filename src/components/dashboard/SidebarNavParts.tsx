@@ -145,12 +145,8 @@ export function CollectionDot({ typeName }: Readonly<{ typeName: string | null }
   return (
     <span
       aria-hidden
-      className={cn(
-        "size-2.5 rounded-full",
-        typeName
-          ? getItemTypeStyleByName(typeName).dotClass
-          : "bg-muted-foreground/50",
-      )}
+      // An unknown or missing type falls back to the shared neutral style.
+      className={cn("size-2.5 rounded-full", getItemTypeStyleByName(typeName ?? "").dotClass)}
     />
   );
 }

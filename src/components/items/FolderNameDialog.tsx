@@ -1,19 +1,11 @@
 "use client";
 
-import { useId, useState, useTransition, type TransitionStartFunction } from "react";
+import { useId, useState, type TransitionStartFunction } from "react";
 import { toast } from "sonner";
 
 import { FormField } from "@/components/auth/FormField";
-import { Button } from "@/components/ui/button";
-import {
-  Dialog,
-  DialogClose,
-  DialogContent,
-  DialogDescription,
-  DialogFooter,
-  DialogHeader,
-  DialogTitle,
-} from "@/components/ui/dialog";
+import { DialogActions } from "@/components/dialogs/DialogActions";
+import { FormDialog } from "@/components/dialogs/FormDialog";
 import { FOLDER_NAME_MAX_LENGTH } from "@/lib/folders";
 import type { FolderResult } from "@/types/folders";
 import { callAction } from "@/lib/action-call";
@@ -40,30 +32,24 @@ interface FolderNameDialogProps {
  * shows on the field; any other failure is toasted. Escape and the backdrop
  * can't close it while the action runs, so the user always sees how it ended.
  */
-export function FolderNameDialog({ open, onOpenChange, ...formProps }: FolderNameDialogProps) {
-  const [pending, startTransition] = useTransition();
-
-  function handleOpenChange(next: boolean) {
-    if (!pending) {
-      onOpenChange(next);
-    }
-  }
-
+export function FolderNameDialog({
+  open,
+  onOpenChange,
+  title,
+  description,
+  ...formProps
+}: FolderNameDialogProps) {
   return (
-    <Dialog open={open} onOpenChange={handleOpenChange}>
-      <DialogContent className="gap-0 p-0">
-        <DialogHeader className="p-6 pb-4">
-          <DialogTitle>{formProps.title}</DialogTitle>
-          <DialogDescription className="wrap-break-word">{formProps.description}</DialogDescription>
-        </DialogHeader>
+    <FormDialog open={open} onOpenChange={onOpenChange} title={title} description={description}>
+      {({ pending, startTransition, close }) => (
         <FolderNameForm
           {...formProps}
           pending={pending}
           startTransition={startTransition}
-          onDone={() => onOpenChange(false)}
+          onDone={close}
         />
-      </DialogContent>
-    </Dialog>
+      )}
+    </FormDialog>
   );
 }
 
@@ -134,14 +120,12 @@ function FolderNameForm({
         />
       </div>
 
-      <DialogFooter className="mx-0 mb-0 px-6">
-        <DialogClose render={<Button type="button" variant="outline" disabled={pending} />}>
-          Cancel
-        </DialogClose>
-        <Button type="submit" disabled={pending || !name.trim() || unchanged}>
-          {pending ? pendingLabel : submitLabel}
-        </Button>
-      </DialogFooter>
+      <DialogActions
+        pending={pending}
+        submitLabel={submitLabel}
+        pendingLabel={pendingLabel}
+        submitDisabled={!name.trim() || unchanged}
+      />
     </form>
   );
 }

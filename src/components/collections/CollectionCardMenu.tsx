@@ -1,11 +1,13 @@
 "use client";
 
 import { Pencil, Star, Trash2 } from "lucide-react";
-import { useRef, useState } from "react";
+import { useRef } from "react";
 
 import { setCollectionFavorite } from "@/actions/collections";
-import { DeleteCollectionDialog } from "@/components/collections/DeleteCollectionDialog";
-import { EditCollectionDialog } from "@/components/collections/EditCollectionDialog";
+import {
+  CollectionDialogs,
+  useCollectionDialogs,
+} from "@/components/collections/CollectionDialogs";
 import { RowActionsMenu } from "@/components/items/RowActionsMenu";
 import { DropdownMenuItem, DropdownMenuSeparator } from "@/components/ui/dropdown-menu";
 import { useFavoriteToggle } from "@/hooks/use-favorite-toggle";
@@ -18,8 +20,7 @@ import type { CollectionHeader } from "@/lib/db/collections";
  * outside the menu, so they stay open after it closes.
  */
 export function CollectionCardMenu({ collection }: Readonly<{ collection: CollectionHeader }>) {
-  const [editOpen, setEditOpen] = useState(false);
-  const [deleteOpen, setDeleteOpen] = useState(false);
+  const dialogs = useCollectionDialogs();
   const triggerRef = useRef<HTMLButtonElement>(null);
   const favorite = useFavoriteToggle(collection.isFavorite, (next) =>
     setCollectionFavorite(collection.id, next),
@@ -28,7 +29,7 @@ export function CollectionCardMenu({ collection }: Readonly<{ collection: Collec
   return (
     <>
       <RowActionsMenu label={`Actions for ${collection.name}`} triggerRef={triggerRef}>
-        <DropdownMenuItem onClick={() => setEditOpen(true)}>
+        <DropdownMenuItem onClick={dialogs.openEdit}>
           <Pencil aria-hidden />
           Edit
         </DropdownMenuItem>
@@ -37,23 +38,17 @@ export function CollectionCardMenu({ collection }: Readonly<{ collection: Collec
           {favorite.isFavorite ? "Unfavorite" : "Favorite"}
         </DropdownMenuItem>
         <DropdownMenuSeparator />
-        <DropdownMenuItem variant="destructive" onClick={() => setDeleteOpen(true)}>
+        <DropdownMenuItem variant="destructive" onClick={dialogs.openDelete}>
           <Trash2 aria-hidden />
           Delete
         </DropdownMenuItem>
       </RowActionsMenu>
 
-      <EditCollectionDialog
+      <CollectionDialogs
         collection={collection}
-        open={editOpen}
-        onOpenChange={setEditOpen}
-        returnFocusRef={triggerRef}
-      />
-      <DeleteCollectionDialog
-        collection={collection}
-        open={deleteOpen}
-        onOpenChange={setDeleteOpen}
-        returnFocusRef={triggerRef}
+        dialog={dialogs.dialog}
+        onClose={dialogs.close}
+        editFocusRef={triggerRef}
       />
     </>
   );
