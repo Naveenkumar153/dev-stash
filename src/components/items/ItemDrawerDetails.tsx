@@ -1,7 +1,7 @@
 import { Calendar, Download, ExternalLink, File as FileIcon, Folder, Tag } from "lucide-react";
 import Image from "next/image";
 
-import { CodeEditor } from "@/components/items/CodeEditor";
+import { ExplainableCodeEditor } from "@/components/items/ExplainableCodeEditor";
 import { MarkdownEditor } from "@/components/items/MarkdownEditor";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -76,19 +76,21 @@ export function ItemDatesSection({
 }
 
 interface ItemContentProps {
+  itemId: string;
   typeName: string;
   content: string;
   language: string | null;
 }
 
 /**
- * Read-only content: snippets and commands in the code editor, notes and
- * prompts as rendered markdown, anything else as plain preformatted text.
+ * Read-only content: snippets and commands in the code editor with AI
+ * Explain, notes and prompts as rendered markdown, anything else as plain
+ * preformatted text.
  */
-function ItemContent({ typeName, content, language }: Readonly<ItemContentProps>) {
+function ItemContent({ itemId, typeName, content, language }: Readonly<ItemContentProps>) {
   switch (getContentEditorKind(typeName)) {
     case "code":
-      return <CodeEditor value={content} language={language} readOnly ariaLabel="Content" />;
+      return <ExplainableCodeEditor itemId={itemId} content={content} language={language} />;
     case "markdown":
       return <MarkdownEditor value={content} readOnly ariaLabel="Content" />;
     case "plain":
@@ -183,7 +185,14 @@ export function ItemDrawerDetails({ item }: Readonly<{ item: ItemDetail }>) {
 
       {item.content && (
         <DrawerSection title="Content">
-          <ItemContent typeName={item.typeName} content={item.content} language={item.language} />
+          <ItemContent
+            // A new item, or a saved edit, starts without the old explanation.
+            key={`${item.id}:${item.updatedAt}`}
+            itemId={item.id}
+            typeName={item.typeName}
+            content={item.content}
+            language={item.language}
+          />
         </DrawerSection>
       )}
 

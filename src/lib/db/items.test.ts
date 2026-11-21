@@ -4,6 +4,7 @@ import {
   getCollectionItems,
   getFavoriteItems,
   getFileListPage,
+  getItemCode,
   getItemFile,
   getItemsByType,
   getStoredBytes,
@@ -36,6 +37,44 @@ vi.mock("@/lib/db/item-types", () => ({ getAvailableTypes: vi.fn(), getItemTypeB
 vi.mock("next/server", () => ({ connection: vi.fn() }));
 
 const ITEM_ID = "cmtg169y00002zzx5wxanksok";
+
+describe("getItemCode", () => {
+  it("reads the item's type, title, language and content, scoped to the user", async () => {
+    vi.mocked(prisma.item.findFirst).mockResolvedValue({
+      title: "Prune Docker",
+      content: "docker system prune",
+      language: "bash",
+      itemType: { name: "command" },
+    } as never);
+
+    expect(await getItemCode("user-1", ITEM_ID)).toEqual({
+      typeName: "command",
+      title: "Prune Docker",
+      language: "bash",
+      content: "docker system prune",
+    });
+    expect(prisma.item.findFirst).toHaveBeenCalledWith({
+      where: { id: ITEM_ID, userId: "user-1" },
+      select: { title: true, content: true, language: true, itemType: { select: { name: true } } },
+    });
+  });
+
+  it("reads missing content as blank", async () => {
+    vi.mocked(prisma.item.findFirst).mockResolvedValue({
+      title: "Empty",
+      content: null,
+      language: null,
+      itemType: { name: "snippet" },
+    } as never);
+
+    expect(await getItemCode("user-1", ITEM_ID)).toMatchObject({ content: "", language: null });
+  });
+
+  it("returns null for someone else's item or a missing one", async () => {
+    vi.mocked(prisma.item.findFirst).mockResolvedValue(null);
+    expect(await getItemCode("user-1", ITEM_ID)).toBeNull();
+  });
+});
 
 describe("getItemFile", () => {
   it("finds a file item's storage key, scoped to the current user", async () => {

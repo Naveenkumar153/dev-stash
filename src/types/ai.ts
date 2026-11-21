@@ -11,3 +11,10 @@ export interface GenerateDescriptionResult {
   data: { description: string } | null;
   error: string | null;
 }
+
+/** Result of the `explainCode` server action: the explanation as Markdown, or why there is none. */
+export interface ExplainCodeResult {
+  success: boolean;
+  data: { explanation: string } | null;
+  error: string | null;
+}

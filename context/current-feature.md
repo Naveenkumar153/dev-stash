@@ -1,16 +1,35 @@
-# Current Feature
+# Current Feature: AI Explain Code
 
 ## Status
 
-<!-- Not Started|In Progress|Completed -->
+In Progress
 
 ## Goals
 
-<!-- Goals & requirements -->
+- [x] `explainCode` server action in `src/actions/ai.ts`: session, Pro gating, Zod validation, the shared `ai` rate limit, OpenAI Responses API, `{ success, data, error }` result
+- [x] "Explain" button (Sparkles icon) in the code editor's header, next to Copy
+- [x] Shown only for snippets and commands in the item drawer's read view, never in the New Item dialog or edit form
+- [x] After a successful explain, Code / Explain tabs in the editor header switch between the code and the explanation
+- [x] Explanation rendered as markdown in the same box as the editor
+- [x] Concise explanation, about 200-300 words: what the code does and the key concepts
+- [x] Loading state: Loader2 spinner while generating
+- [x] Free users see the button with a Crown icon and the tooltip "AI features require Pro subscription"
+- [x] Errors via toast: Pro gating (with Upgrade action), rate limit, AI service errors
+- [x] Follows the existing AI patterns (`requestAi()`, `callAction()`, `useUpgradeErrorToast()`)
+- [x] Unit tests for the server action and any new utilities
 
 ## Notes
 
-<!-- Any extra notes -->
+- Spec: `context/features/ai-explain-spec.md`; architecture in `docs/ai-integration-plan.md` §4.3 (the spec wins where they differ, as with tags and descriptions).
+- Model: the spec says `gpt-5-luna`; the app uses `AI_MODEL = "gpt-6-luna"` from `src/lib/openai.ts`, kept as for the earlier AI features.
+- Transport: the spec asks for a server action; the plan proposed a streaming route. Following the spec (non-streaming server action), with a longer output budget than tags/descriptions.
+- Input (proposed): `{ itemId }` only, as in plan §4.3. The action reads the item's title, type, language and content scoped to the session user, so it explains exactly what's saved and can't be pointed at arbitrary text; only snippet and command items are accepted.
+- Length (proposed): refuse code over a cap rather than truncate, since explaining part of a script silently drops the rest (plan §3).
+- Not saved to the database; regenerated on each click. Switching items or closing the drawer discards it.
+- Pro access: the spec says to pass `isPro` as a prop; `useProAccess()` already provides it in the `(app)` shell, so no prop threading is needed.
+- Free users: unlike Suggest Tags / Describe (hidden without Pro), this button is shown with a Crown icon and tooltip, per the spec. Clicking it would toast the Pro error with Upgrade.
+- Markdown rendering reuses the existing `MarkdownPreview` (react-markdown + remark-gfm, no raw HTML).
+- The dev OpenAI key works again (2026-11-21), so real explanations were verified in the browser.
 
 ## History
 

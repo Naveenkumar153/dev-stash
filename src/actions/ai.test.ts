@@ -7,19 +7,30 @@ import {
 } from "openai";
 import { beforeEach, describe, expect, it, vi } from "vitest";
 
-import { generateAutoTags, generateDescription } from "@/actions/ai";
+import { explainCode, generateAutoTags, generateDescription } from "@/actions/ai";
 import { auth } from "@/auth";
 import {
   AI_DESCRIPTION_FAILED,
+  AI_EXPLAIN_FAILED,
   AI_PRO_REQUIRED,
   AI_TAGS_FAILED,
   AI_UNAVAILABLE,
+  ITEM_NOT_FOUND,
   SESSION_EXPIRED,
 } from "@/lib/action-result";
 import { DESCRIPTION_INSTRUCTIONS } from "@/lib/ai-description";
+import {
+  AI_EXPLAIN_LIMIT,
+  EXPLAIN_INSTRUCTIONS,
+  EXPLAIN_NO_CODE,
+  EXPLAIN_TOO_LONG,
+  EXPLAIN_WRONG_TYPE,
+  type ExplainableItem,
+} from "@/lib/ai-explain";
 import { AI_CONTENT_LIMIT, AI_NEEDS_INPUT } from "@/lib/ai-item";
 import type { AiDraftInput } from "@/lib/ai-schemas";
 import { TAG_INSTRUCTIONS } from "@/lib/ai-tags";
+import { getItemCode } from "@/lib/db/items";
 import { AI_MODEL, getOpenAI, getSafetyIdentifier } from "@/lib/openai";
 import { rateLimit } from "@/lib/rate-limit";
 
@@ -31,6 +42,11 @@ vi.mock("@/lib/prisma", () => ({ prisma: {} }));
 vi.mock("@/lib/openai", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/openai")>()),
   getOpenAI: vi.fn(),
+}));
+// Explain reads the item through this query; the rest of the module is real.
+vi.mock("@/lib/db/items", async (importOriginal) => ({
+  ...(await importOriginal<typeof import("@/lib/db/items")>()),
+  getItemCode: vi.fn(),
 }));
 vi.mock("@/lib/rate-limit", async (importOriginal) => ({
   ...(await importOriginal<typeof import("@/lib/rate-limit")>()),
@@ -353,5 +369,143 @@ describe("generateDescription", () => {
       data: null,
       error: AI_DESCRIPTION_FAILED,
     });
+  });
+});
+
+describe("explainCode", () => {
+  const ITEM_ID = "cmtg169y00002zzx5wxanksok";
+  const item: ExplainableItem = {
+    typeName: "command",
+    title: "Prune Docker",
+    language: "bash",
+    content: "docker system prune -af --volumes",
+  };
+
+  beforeEach(() => {
+    vi.mocked(getItemCode).mockResolvedValue(item);
+    reply("Removes every unused Docker object.\n\n- `-a` also removes unused images.");
+  });
+
+  it("returns the explanation as Markdown", async () => {
+    expect(await explainCode(ITEM_ID)).toEqual({
+      success: true,
+      data: { explanation: "Removes every unused Docker object.\n\n- `-a` also removes unused images." },
+      error: null,
+    });
+  });
+
+  it("reads the saved item for the session user and sends all of it as plain text", async () => {
+    await explainCode(ITEM_ID);
+
+    expect(getItemCode).toHaveBeenCalledWith("user-1", ITEM_ID);
+    const [request, options] = create.mock.calls[0];
+    expect(request).toMatchObject({
+      model: AI_MODEL,
+      instructions: EXPLAIN_INSTRUCTIONS,
+      text: { format: { type: "text" } },
+      reasoning: { effort: "low" },
+      max_output_tokens: 2_000,
+      store: false,
+      safety_identifier: getSafetyIdentifier("user-1"),
+    });
+    expect(request.input).toContain('<item type="command" language="bash">');
+    expect(request.input).toContain("<title>Prune Docker</title>");
+    expect(request.input).toContain("docker system prune -af --volumes");
+    expect(options).toEqual({ timeout: 30_000 });
+  });
+
+  it("sends code right at the limit whole", async () => {
+    vi.mocked(getItemCode).mockResolvedValue({ ...item, content: `${"a".repeat(AI_EXPLAIN_LIMIT - 4)}TAIL` });
+
+    await explainCode(ITEM_ID);
+    expect(create.mock.calls[0][0].input).toContain("TAIL");
+  });
+
+  it("counts against the same AI limit as the other features", async () => {
+    await explainCode(ITEM_ID);
+    expect(rateLimit).toHaveBeenCalledWith("ai", "user-1");
+  });
+
+  it("refuses a signed-out request without reading the item", async () => {
+    mockAuth.mockResolvedValue(null);
+
+    expect(await explainCode(ITEM_ID)).toEqual({ success: false, data: null, error: SESSION_EXPIRED });
+    expect(getItemCode).not.toHaveBeenCalled();
+  });
+
+  it("refuses a Free account while gating is on, before reading or calling", async () => {
+    vi.stubEnv("PRO_GATING_ENABLED", "true");
+    signIn(false);
+
+    expect(await explainCode(ITEM_ID)).toEqual({ success: false, data: null, error: AI_PRO_REQUIRED });
+    expect(getItemCode).not.toHaveBeenCalled();
+    expect(rateLimit).not.toHaveBeenCalled();
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it("answers unavailable when no key is set", async () => {
+    vi.stubEnv("OPENAI_API_KEY", "");
+
+    expect(await explainCode(ITEM_ID)).toEqual({ success: false, data: null, error: AI_UNAVAILABLE });
+    expect(getItemCode).not.toHaveBeenCalled();
+  });
+
+  it("rejects a malformed id without a query", async () => {
+    expect(await explainCode("not-a-cuid")).toEqual({ success: false, data: null, error: ITEM_NOT_FOUND });
+    expect(getItemCode).not.toHaveBeenCalled();
+  });
+
+  it.each<[string, ExplainableItem | null, string]>([
+    ["someone else's or a missing item", null, ITEM_NOT_FOUND],
+    ["a note", { ...item, typeName: "note" }, EXPLAIN_WRONG_TYPE],
+    ["a link", { ...item, typeName: "link" }, EXPLAIN_WRONG_TYPE],
+    ["blank code", { ...item, content: "  \n " }, EXPLAIN_NO_CODE],
+    ["code over the limit", { ...item, content: "a".repeat(AI_EXPLAIN_LIMIT + 1) }, EXPLAIN_TOO_LONG],
+  ])("refuses %s without spending quota", async (_label, found, error) => {
+    vi.mocked(getItemCode).mockResolvedValue(found);
+
+    expect(await explainCode(ITEM_ID)).toEqual({ success: false, data: null, error });
+    expect(rateLimit).not.toHaveBeenCalled();
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it("answers its own failure message when loading the item fails", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    vi.mocked(getItemCode).mockRejectedValue(new Error("db down"));
+
+    expect(await explainCode(ITEM_ID)).toEqual({ success: false, data: null, error: AI_EXPLAIN_FAILED });
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it("returns the rate-limit message once the hour's requests are used", async () => {
+    vi.mocked(rateLimit).mockResolvedValue({ success: false, remaining: 0, reset: Date.now() + 60_000 });
+
+    const result = await explainCode(ITEM_ID);
+    expect(result).toMatchObject({ success: false, data: null });
+    expect(result.error).toMatch(/^Too many attempts/);
+    expect(create).not.toHaveBeenCalled();
+  });
+
+  it.each(["", "   ", "```markdown\n\n```"])("fails on an empty reply: %j", async (outputText) => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    reply(outputText);
+
+    expect(await explainCode(ITEM_ID)).toEqual({ success: false, data: null, error: AI_EXPLAIN_FAILED });
+  });
+
+  it("answers unavailable for an account out of credits", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    create.mockRejectedValue(
+      new RateLimitError(429, { type: "insufficient_quota" }, "no credits", new Headers()),
+    );
+
+    expect(await explainCode(ITEM_ID)).toEqual({ success: false, data: null, error: AI_UNAVAILABLE });
+  });
+
+  it("answers its own failure message for other errors", async () => {
+    vi.spyOn(console, "error").mockImplementation(() => {});
+    create.mockRejectedValue(new InternalServerError(500, undefined, "boom", new Headers()));
+
+    expect(await explainCode(ITEM_ID)).toEqual({ success: false, data: null, error: AI_EXPLAIN_FAILED });
   });
 });

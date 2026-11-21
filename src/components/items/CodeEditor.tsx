@@ -29,6 +29,12 @@ interface CodeEditorProps {
   /** The editor's accessible name, e.g. its field label. */
   ariaLabel: string;
   invalid?: boolean;
+  /** Shown after the traffic lights, e.g. view tabs. */
+  headerStart?: React.ReactNode;
+  /** Shown before the copy button, e.g. an action. */
+  headerEnd?: React.ReactNode;
+  /** Wraps the editor, e.g. to put it in a tab panel beside other views. */
+  renderBody?: (editor: React.ReactNode) => React.ReactNode;
 }
 
 /**
@@ -43,7 +49,23 @@ export function CodeEditor({
   onChange,
   ariaLabel,
   invalid = false,
+  headerStart,
+  headerEnd,
+  renderBody = (editor) => editor,
 }: CodeEditorProps) {
+  const editor = (
+    <div className={cn(!readOnly && "min-h-40")}>
+      <MonacoEditor
+        value={value}
+        language={language}
+        readOnly={readOnly}
+        onChange={onChange}
+        ariaLabel={ariaLabel}
+        minHeight={readOnly ? 0 : EDIT_MIN_HEIGHT}
+      />
+    </div>
+  );
+
   return (
     <div
       className={cn(
@@ -57,22 +79,20 @@ export function CodeEditor({
         invalid && "border-destructive ring-3 ring-destructive/20 dark:border-destructive/50 dark:ring-destructive/40",
       )}
     >
-      <CodeEditorHeader value={value} language={language} />
-      <div className={cn(!readOnly && "min-h-40")}>
-        <MonacoEditor
-          value={value}
-          language={language}
-          readOnly={readOnly}
-          onChange={onChange}
-          ariaLabel={ariaLabel}
-          minHeight={readOnly ? 0 : EDIT_MIN_HEIGHT}
-        />
-      </div>
+      <CodeEditorHeader value={value} language={language} start={headerStart} end={headerEnd} />
+      {renderBody(editor)}
     </div>
   );
 }
 
-function CodeEditorHeader({ value, language }: Readonly<{ value: string; language?: string | null }>) {
+interface CodeEditorHeaderProps {
+  value: string;
+  language?: string | null;
+  start?: React.ReactNode;
+  end?: React.ReactNode;
+}
+
+function CodeEditorHeader({ value, language, start, end }: Readonly<CodeEditorHeaderProps>) {
   return (
     <div className="flex items-center gap-3 border-b border-border py-1.5 pr-1.5 pl-3">
       <div aria-hidden className="flex shrink-0 gap-1.5">
@@ -81,20 +101,31 @@ function CodeEditorHeader({ value, language }: Readonly<{ value: string; languag
         <span className="size-3 rounded-full bg-green-500" />
       </div>
 
-      <span className="ml-auto truncate font-mono text-xs text-muted-foreground">
+      {start}
+
+      <span
+        className={cn(
+          "ml-auto truncate font-mono text-xs text-muted-foreground",
+          // Beside tabs a phone has no room for it; the drawer's header shows the language too.
+          start && "max-sm:hidden",
+        )}
+      >
         {getLanguageLabel(language)}
       </span>
 
-      <Button
-        type="button"
-        variant="ghost"
-        size="icon-xs"
-        aria-label="Copy code"
-        disabled={!value}
-        onClick={() => void copyToClipboard(value)}
-      >
-        <Copy aria-hidden />
-      </Button>
+      <div className={cn("flex items-center gap-1", start && "max-sm:ml-auto")}>
+        {end}
+        <Button
+          type="button"
+          variant="ghost"
+          size="icon-xs"
+          aria-label="Copy code"
+          disabled={!value}
+          onClick={() => void copyToClipboard(value)}
+        >
+          <Copy aria-hidden />
+        </Button>
+      </div>
     </div>
   );
 }
